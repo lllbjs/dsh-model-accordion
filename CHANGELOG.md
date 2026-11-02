@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.1
+
+- Favorite keys are now built from the visible provider label and model name in
+  both surfaces. Only the composer menu tags rows with
+  `data-provider-id`/`data-model-id`, so the previous key made the same model
+  look favorited in one surface and unfavorited in the `/model` popup.
+- Favorites saved by 0.4.0 with the old id-based keys are migrated on first
+  decoration, so nothing has to be starred again.
+
 ## 0.4.0
 
 - Every model row now carries a small star button on its right edge. Clicking it

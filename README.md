@@ -137,7 +137,7 @@ All state lives in `localStorage` on the GUI origin:
 | --- | --- |
 | `dsh-model-accordion:open` | JSON array of open provider labels |
 | `dsh-model-accordion:all-collapsed` | `true` when you deliberately closed everything |
-| `dsh-model-accordion:favorites` | JSON array of `provider/model` keys |
+| `dsh-model-accordion:favorites` | JSON array of `provider label/model name` keys (the visible text, so the composer menu and the `/model` popup agree) |
 | `dsh-model-accordion:sort` | `default` \| `name` \| `size` |
 | `dsh-model-accordion:stable-height` | set to `false` to let the menu size to content |
 | `dsh-model-accordion:last-open` | legacy key, still written for older builds |
@@ -149,7 +149,7 @@ All state lives in `localStorage` on the GUI origin:
 While mounted, `window.__dshModelAccordion` is available in the page console:
 
 ```js
-__dshModelAccordion.version      // "0.4.0"
+__dshModelAccordion.version      // "0.4.1"
 __dshModelAccordion.rescan()     // re-run the DOM sweep
 __dshModelAccordion.state()      // [{ open: [...], groups: [{ label, models, collapsed }] }]
 __dshModelAccordion.favorites()  // ["qoder/qmodel_latest", ...]

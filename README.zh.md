@@ -129,7 +129,7 @@ rm ~/.dsh/profiles/desktop/node_modules/dsh-model-accordion
 | --- | --- |
 | `dsh-model-accordion:open` | 已展开供应商标题的 JSON 数组 |
 | `dsh-model-accordion:all-collapsed` | 主动全部收起时为 `true` |
-| `dsh-model-accordion:favorites` | `provider/model` 键的 JSON 数组 |
+| `dsh-model-accordion:favorites` | `供应商标题/模型名` 键的 JSON 数组（用的是界面可见文字，因此主菜单与 `/model` 弹窗互通） |
 | `dsh-model-accordion:sort` | `default` \| `name` \| `size` |
 | `dsh-model-accordion:stable-height` | 设为 `false` 可让菜单按内容自适应高度 |
 | `dsh-model-accordion:last-open` | 旧版键，仍会写入以兼容 |
@@ -141,7 +141,7 @@ rm ~/.dsh/profiles/desktop/node_modules/dsh-model-accordion
 插件挂载后，页面控制台可以访问 `window.__dshModelAccordion`：
 
 ```js
-__dshModelAccordion.version      // "0.4.0"
+__dshModelAccordion.version      // "0.4.1"
 __dshModelAccordion.rescan()     // 重新扫描 DOM
 __dshModelAccordion.state()      // [{ open: [...], groups: [{ label, models, collapsed }] }]
 __dshModelAccordion.favorites()  // ["qoder/qmodel_latest", ...]
