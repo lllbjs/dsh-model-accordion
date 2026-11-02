@@ -32,6 +32,16 @@
 
 收藏的模型固定在供应商之上，常用的两三个模型永远一步可达。
 
+<p align="center">
+  <img src="./docs/images/stars.png" alt="每行右侧的收藏星标" width="380">
+</p>
+
+每个模型行右侧都有一颗星标：点一下即可收藏，不会顺带切换模型，所以一次打开菜单就能把几个常用模型都挑出来。`/model` 弹窗里行更宽，星标同样贴在右侧：
+
+<p align="center">
+  <img src="./docs/images/stars-popup.png" alt="/model 弹窗中的收藏星标" width="620">
+</p>
+
 ---
 
 ## 功能
@@ -43,7 +53,8 @@
 | **多开** | `Ctrl`/`Cmd` + 点击标题，切换该供应商而不关闭其他。 |
 | **全部展开 / 收起** | 搜索行右侧的工具栏按钮。 |
 | **记忆状态** | 展开的供应商在关闭菜单、刷新页面后仍然保留。 |
-| **收藏** | `Shift`+点击或右键点击模型行，把它固定到顶部 `★` 分组；点击收藏行即可选中。 |
+| **星标按钮** | 每行右侧都有星标，点击即收藏，不会切换当前模型。 |
+| **收藏** | `Shift`+点击、右键点击或点星标，把模型固定到顶部 `★` 分组；点击收藏行即可选中。 |
 | **供应商排序** | 工具栏 `↺` 循环切换：默认顺序 → 名称 A→Z → 模型数量 ↓N。 |
 | **标题显示当前模型** | 当前模型所在的供应商显示 `● <模型> · <数量>`。 |
 | **固定高度** | 菜单高度保持稳定，不再在 260 px 和 368 px 之间跳动。 |
@@ -104,7 +115,7 @@ rm ~/.dsh/profiles/desktop/node_modules/dsh-model-accordion
 | 收起已展开的供应商 | 再点一次标题 |
 | 同时展开第二个 | `Ctrl`/`Cmd` + 点击 |
 | 全部收起 | 工具栏按钮，或点掉唯一展开的那个 |
-| 收藏模型 | `Shift`+点击或右键点击该行 |
+| 收藏模型 | 点击该行右侧星标，或 `Shift`+点击 / 右键点击该行 |
 | 选择模型 | 直接点击（收藏行同样有效） |
 | 切换排序 | 工具栏 `↺` |
 
@@ -130,7 +141,7 @@ rm ~/.dsh/profiles/desktop/node_modules/dsh-model-accordion
 插件挂载后，页面控制台可以访问 `window.__dshModelAccordion`：
 
 ```js
-__dshModelAccordion.version      // "0.3.0"
+__dshModelAccordion.version      // "0.4.0"
 __dshModelAccordion.rescan()     // 重新扫描 DOM
 __dshModelAccordion.state()      // [{ open: [...], groups: [{ label, models, collapsed }] }]
 __dshModelAccordion.favorites()  // ["qoder/qmodel_latest", ...]

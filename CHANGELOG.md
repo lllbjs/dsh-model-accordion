@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.0
+
+- Every model row now carries a small star button on its right edge. Clicking it
+  toggles the favorite without selecting the model, so you can bookmark several
+  models in one visit to the menu.
+- The star is right-aligned in both surfaces, including the wide `/model` popup
+  rows, where it sits in the same column on every row.
+- Stars are re-synced from the favorite store on every decoration pass, so the
+  pinned "收藏" section and the provider rows always agree.
+
 ## 0.3.0
 
 - The `/model` slash-command popup gets the same provider accordion as the

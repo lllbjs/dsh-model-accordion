@@ -34,6 +34,18 @@ Works in **both** places the model list appears:
 Favorites are pinned above the providers, so the two or three models you actually
 use are always one click away.
 
+<p align="center">
+  <img src="./docs/images/stars.png" alt="Star button on every model row" width="380">
+</p>
+
+Every row carries a star on its right edge: click it to bookmark the model without
+selecting it, so you can pick out several models in a single visit to the menu. The
+same star appears in the `/model` popup, where the rows are wider:
+
+<p align="center">
+  <img src="./docs/images/stars-popup.png" alt="Star buttons in the /model popup" width="620">
+</p>
+
 ---
 
 ## Features
@@ -45,7 +57,8 @@ use are always one click away.
 | **Multi-open** | `Ctrl`/`Cmd` + click a label to toggle it without closing the others. |
 | **Expand / collapse all** | Toolbar button at the right end of the search row. |
 | **Remembered state** | Open providers survive closing the menu and reloading the page. |
-| **Favorites** | `Shift`+click or right-click a model row to pin it to the `★` section; click a pinned row to select it. |
+| **Star button** | Every row has a star on its right edge; click it to favorite the model without selecting it. |
+| **Favorites** | `Shift`+click, right-click or the star pins a model to the `★` section; click a pinned row to select it. |
 | **Provider sorting** | Toolbar `↺` cycles default order → name (A→Z) → model count (↓N). |
 | **Current model on the label** | The provider holding the active model shows `● <model> · <count>`. |
 | **Stable height** | The menu keeps a constant height instead of jumping between 260 px and 368 px. |
@@ -110,7 +123,7 @@ rm ~/.dsh/profiles/desktop/node_modules/dsh-model-accordion
 | Close the open provider | Click the label again |
 | Open a second provider | `Ctrl`/`Cmd` + click |
 | Collapse all | Toolbar button, or click the only open provider |
-| Favorite a model | `Shift`+click or right-click the row |
+| Favorite a model | Click the star on the row, or `Shift`+click / right-click the row |
 | Select a model | Click it (favorites included) |
 | Change sort order | Toolbar `↺` |
 
@@ -136,7 +149,7 @@ All state lives in `localStorage` on the GUI origin:
 While mounted, `window.__dshModelAccordion` is available in the page console:
 
 ```js
-__dshModelAccordion.version      // "0.3.0"
+__dshModelAccordion.version      // "0.4.0"
 __dshModelAccordion.rescan()     // re-run the DOM sweep
 __dshModelAccordion.state()      // [{ open: [...], groups: [{ label, models, collapsed }] }]
 __dshModelAccordion.favorites()  // ["qoder/qmodel_latest", ...]
