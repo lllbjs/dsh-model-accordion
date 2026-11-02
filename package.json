@@ -1,0 +1,47 @@
+{
+  "name": "dsh-model-accordion",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "description": "Collapse the model list by provider in the DSH web GUI: one clickable label per provider (composer menu and /model popup), with favorites, sorting, search passthrough and a stable menu height.",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "install.sh",
+    "README.md",
+    "README.zh.md",
+    "CHANGELOG.md",
+    "docs"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lllbjs/dsh-model-accordion.git"
+  },
+  "homepage": "https://github.com/lllbjs/dsh-model-accordion#readme",
+  "bugs": {
+    "url": "https://github.com/lllbjs/dsh-model-accordion/issues"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "model-picker",
+    "accordion",
+    "collapsible",
+    "provider"
+  ],
+  "dsh": {
+    "client": {
+      "platform": "web",
+      "inject": []
+    }
+  },
+  "scripts": {
+    "check": "node --check lib/client.js && node --check lib/index.js"
+  },
+  "license": "MIT"
+}
