@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.5.0
+
+- Favorites are mirrored into the composer menu's first-level pane: the short
+  pane that opens with `模型` / `推理等级` now lists every favorited model above
+  those two cells, so a favorite is one click away instead of two. The injected
+  cells are ordinary `button[role="menuitem"]` nodes, so `↑`/`↓`/`Enter` work on
+  them; they copy the built-in cell's classes at runtime, so a shell rebuild that
+  changes the hashed class names does not break their layout.
+- Clicking a mirrored favorite drills into the provider list and selects the live
+  row, i.e. it takes the same path as a manual two-step selection.
+- `dsh-model-accordion:known-models` remembers which favorite keys resolved to a
+  real model the last time a provider list was rendered, so the pane never offers
+  a favorite whose provider is currently unavailable. A favorite that fails to
+  appear is kept rather than deleted — a slow provider may still be loading.
+- The injected cells are removed as soon as the pane switches to the provider
+  list, so the accordion never sees phantom rows.
+
 ## 0.4.1
 
 - Favorite keys are now built from the visible provider label and model name in

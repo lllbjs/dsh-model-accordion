@@ -59,6 +59,7 @@ same star appears in the `/model` popup, where the rows are wider:
 | **Remembered state** | Open providers survive closing the menu and reloading the page. |
 | **Star button** | Every row has a star on its right edge; click it to favorite the model without selecting it. |
 | **Favorites** | `Shift`+click, right-click or the star pins a model to the `★` section; click a pinned row to select it. |
+| **Favorites in the first-level menu** | The short pane the composer menu opens on (`模型` / `推理等级`) lists your favorites above those two cells, so a favorite is one click away instead of two. |
 | **Provider sorting** | Toolbar `↺` cycles default order → name (A→Z) → model count (↓N). |
 | **Current model on the label** | The provider holding the active model shows `● <model> · <count>`. |
 | **Stable height** | The menu keeps a constant height instead of jumping between 260 px and 368 px. |
@@ -124,6 +125,7 @@ rm ~/.dsh/profiles/desktop/node_modules/dsh-model-accordion
 | Open a second provider | `Ctrl`/`Cmd` + click |
 | Collapse all | Toolbar button, or click the only open provider |
 | Favorite a model | Click the star on the row, or `Shift`+click / right-click the row |
+| Pick a favorite from the menu's first pane | Click it: the menu drills into the provider list and selects it |
 | Select a model | Click it (favorites included) |
 | Change sort order | Toolbar `↺` |
 
@@ -139,6 +141,7 @@ All state lives in `localStorage` on the GUI origin:
 | `dsh-model-accordion:all-collapsed` | `true` when you deliberately closed everything |
 | `dsh-model-accordion:favorites` | JSON array of `provider label/model name` keys (the visible text, so the composer menu and the `/model` popup agree) |
 | `dsh-model-accordion:sort` | `default` \| `name` \| `size` |
+| `dsh-model-accordion:known-models` | JSON array of favorite keys that resolved to a real model the last time a list was rendered; keeps stale favorites out of the first-level pane |
 | `dsh-model-accordion:stable-height` | set to `false` to let the menu size to content |
 | `dsh-model-accordion:last-open` | legacy key, still written for older builds |
 
@@ -149,7 +152,7 @@ All state lives in `localStorage` on the GUI origin:
 While mounted, `window.__dshModelAccordion` is available in the page console:
 
 ```js
-__dshModelAccordion.version      // "0.4.1"
+__dshModelAccordion.version      // "0.5.0"
 __dshModelAccordion.rescan()     // re-run the DOM sweep
 __dshModelAccordion.state()      // [{ open: [...], groups: [{ label, models, collapsed }] }]
 __dshModelAccordion.favorites()  // ["qoder/qmodel_latest", ...]
@@ -177,6 +180,10 @@ lib/index.js    host half — registers nothing, logs nothing, does nothing
 
 1. A `MutationObserver` on `document.body` (`childList`, `subtree`) sweeps for model
    lists: any element with `id$="-models"` that has `[data-menu-group]` children.
+   The same sweep mirrors the favorites into the menu's first-level pane, injecting
+   ordinary `button[role="menuitem"]` cells in front of the `模型` cell and copying
+   its classes so they look native; they are removed as soon as the pane switches
+   to the provider list.
 2. Each provider section gets `data-dsh-acc-collapsed`, and the rows of a collapsed
    section are hidden with CSS — no React re-render, no virtual-DOM patching.
 3. Click, keydown and input handlers are attached per container (idempotent), and
