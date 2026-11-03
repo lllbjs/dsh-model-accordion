@@ -60,6 +60,8 @@ same star appears in the `/model` popup, where the rows are wider:
 | **Star button** | Every row has a star on its right edge; click it to favorite the model without selecting it. |
 | **Favorites** | `Shift`+click, right-click or the star pins a model to the `★` section; click a pinned row to select it. |
 | **Favorites in the first-level menu** | The short pane the composer menu opens on (`模型` / `推理等级`) lists your favorites above those two cells, so a favorite is one click away instead of two. |
+| **Stable favorite keys** | A connector's rate chip (` · x0.00`) is stripped before it becomes part of a favorite key, so a promotion starting or ending no longer makes a favorite vanish until you switch accounts. |
+| **Duplicate names stay distinct** | When one provider ships two models under the same name (a paid and a free `Deepseek-V4.1-Flash`, say), a favorite remembers the exact model that was starred, so clicking it never selects the twin. |
 | **Provider sorting** | Toolbar `↺` cycles default order → name (A→Z) → model count (↓N). |
 | **Current model on the label** | The provider holding the active model shows `● <model> · <count>`. |
 | **Stable height** | The menu keeps a constant height instead of jumping between 260 px and 368 px. |
@@ -141,7 +143,8 @@ All state lives in `localStorage` on the GUI origin:
 | `dsh-model-accordion:all-collapsed` | `true` when you deliberately closed everything |
 | `dsh-model-accordion:favorites` | JSON array of `provider label/model name` keys (the visible text, so the composer menu and the `/model` popup agree) |
 | `dsh-model-accordion:sort` | `default` \| `name` \| `size` |
-| `dsh-model-accordion:known-models` | JSON array of favorite keys that resolved to a real model the last time a list was rendered; keeps stale favorites out of the first-level pane |
+| `dsh-model-accordion:missing-models` | JSON array of favorite keys a complete, unfiltered render proved gone; only these are held back from the first-level pane |
+| `dsh-model-accordion:favorite-ids` | JSON object mapping a favorite key to the `data-model-id` that was starred, used to tell apart two models a provider ships under one name |
 | `dsh-model-accordion:stable-height` | set to `false` to let the menu size to content |
 | `dsh-model-accordion:last-open` | legacy key, still written for older builds |
 
@@ -152,7 +155,7 @@ All state lives in `localStorage` on the GUI origin:
 While mounted, `window.__dshModelAccordion` is available in the page console:
 
 ```js
-__dshModelAccordion.version      // "0.5.0"
+__dshModelAccordion.version      // "0.5.2"
 __dshModelAccordion.rescan()     // re-run the DOM sweep
 __dshModelAccordion.state()      // [{ open: [...], groups: [{ label, models, collapsed }] }]
 __dshModelAccordion.favorites()  // ["qoder/qmodel_latest", ...]

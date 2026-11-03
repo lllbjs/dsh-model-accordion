@@ -1,5 +1,50 @@
 # Changelog
 
+## 0.5.2
+
+- A favorite now points at the exact model the star was clicked on, even when a
+  provider ships two models under one visible name. WorkBuddy Global lists both
+  `deepseek-v4.1-flash-sg` (×0.11) and the free `deepseek-v4.1-flash` (×0.00) as
+  `Deepseek-V4.1-Flash`, so a name-only key merged them and the pinned favorite
+  could select the paid twin of the free model.
+  - `toggleFavorite()` records the starred row's `data-model-id` in
+    `dsh-model-accordion:favorite-ids`; the key itself stays name-based and
+    free of the volatile rate chip.
+  - `rowByKey()` prefers the row carrying that id, falls back to the row the
+    session already uses, and returns nothing when the name is genuinely
+    ambiguous — never an arbitrary twin.
+  - The star reflects the id too, so only the model that was starred shows as
+    favorited.
+  - Clicking the empty star of the other twin re-points the favorite instead of
+    removing it.
+- The `/model` popup does not tag its rows with ids, so there the id hint is
+  simply absent and the key still matches by name as before.
+
+## 0.5.1
+
+- A favorite no longer disappears from the menu when its connector's rate chip
+  changes. Connector plugins (WorkBuddy, Trae, Qoder) render the model label as
+  `<name><rate chip>`, and re-render that chip whenever a promotion starts or
+  ends or the usage snapshot refreshes — so the same row's text is
+  `DeepSeek-V4.1-Flash` at one moment and `DeepSeek-V4.1-Flash · x0.00` at the
+  next. The chip was part of the favorite key, so the stored key stopped
+  matching the live row and the favorite vanished until an account switch forced
+  a full catalog refetch that reproduced the original text.
+  - `keyOf()` now reads the FIRST non-decoration span inside the model-label
+    slot (the name) instead of the deepest one (which could be the rate chip or
+    the `新` mark), and strips a trailing ` · x<number>` as a second line of
+    defence.
+  - Stored favorites and remembered keys are normalised on read, so keys saved
+    by 0.5.0 and earlier (`… · x0.00`) are migrated once instead of being
+    silently unmatched.
+- The first-level pane is now filtered by a NEGATIVE cache,
+  `dsh-model-accordion:missing-models`: only a favorite that a complete,
+  unfiltered render proved gone is held back. The previous positive cache
+  (`known-models`) drew the pane from the keys that happened to resolve in one
+  pass, so any pass that saw a partial catalog — a provider still loading, a
+  search filter, a collapsed section — could drop a live favorite from the pane
+  until something rewrote the cache again.
+
 ## 0.5.0
 
 - Favorites are mirrored into the composer menu's first-level pane: the short

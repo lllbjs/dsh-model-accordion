@@ -56,6 +56,8 @@
 | **星标按钮** | 每行右侧都有星标，点击即收藏，不会切换当前模型。 |
 | **收藏** | `Shift`+点击、右键点击或点星标，把模型固定到顶部 `★` 分组；点击收藏行即可选中。 |
 | **一级菜单里的收藏** | 输入框菜单打开时的短面板（`模型` / `推理等级`）会把收藏排在两个单元格之上，常用模型从两步变一步。 |
+| **收藏键稳定** | 收藏键在生成前会剥掉连接器插件追加的倍率后缀（` · x0.00`），所以促销开始或结束不会再让收藏「消失」，也不必切账号才回来。 |
+| **重名模型不混淆** | 同一供应商下两个模型同名时（比如付费与免费的 `Deepseek-V4.1-Flash`），收藏会记住被收藏的具体模型，点收藏不会选到另一个。 |
 | **供应商排序** | 工具栏 `↺` 循环切换：默认顺序 → 名称 A→Z → 模型数量 ↓N。 |
 | **标题显示当前模型** | 当前模型所在的供应商显示 `● <模型> · <数量>`。 |
 | **固定高度** | 菜单高度保持稳定，不再在 260 px 和 368 px 之间跳动。 |
@@ -133,7 +135,8 @@ rm ~/.dsh/profiles/desktop/node_modules/dsh-model-accordion
 | `dsh-model-accordion:all-collapsed` | 主动全部收起时为 `true` |
 | `dsh-model-accordion:favorites` | `供应商标题/模型名` 键的 JSON 数组（用的是界面可见文字，因此主菜单与 `/model` 弹窗互通） |
 | `dsh-model-accordion:sort` | `default` \| `name` \| `size` |
-| `dsh-model-accordion:known-models` | 上次渲染列表时确实匹配到模型的收藏键 JSON 数组，用来挡住失效收藏进入一级菜单 |
+| `dsh-model-accordion:missing-models` | 完整、无筛选的一次渲染里确认已不存在的收藏键 JSON 数组；只有它们会被挡在一级菜单外 |
+| `dsh-model-accordion:favorite-ids` | 收藏键 → 被收藏那行的 `data-model-id` 的 JSON 对象，用于区分同一供应商下重名的两个模型 |
 | `dsh-model-accordion:stable-height` | 设为 `false` 可让菜单按内容自适应高度 |
 | `dsh-model-accordion:last-open` | 旧版键，仍会写入以兼容 |
 
@@ -144,7 +147,7 @@ rm ~/.dsh/profiles/desktop/node_modules/dsh-model-accordion
 插件挂载后，页面控制台可以访问 `window.__dshModelAccordion`：
 
 ```js
-__dshModelAccordion.version      // "0.5.0"
+__dshModelAccordion.version      // "0.5.2"
 __dshModelAccordion.rescan()     // 重新扫描 DOM
 __dshModelAccordion.state()      // [{ open: [...], groups: [{ label, models, collapsed }] }]
 __dshModelAccordion.favorites()  // ["qoder/qmodel_latest", ...]
