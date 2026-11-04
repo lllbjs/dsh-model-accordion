@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.6.0
+
+- **One-click model refresh.** A third toolbar button (`↻`) re-pulls the model
+  lists of every installed connector plugin in parallel and forces the composer's
+  model catalog to re-read, so a connector that just discovered new models shows
+  them without reopening the app.
+  - Built-in targets: WorkBuddy (`cn`, `global`), Trae (`cn`, `ai`) and
+    `@dmh2002/dsh-connect-qoder`. Each is a same-origin `POST` to its
+    `/plugins/<id>/models/refresh` route. A connector that is not installed
+    answers `404`/`405` and is reported as *skipped*, not as a failure.
+  - After the fan-out the button calls `ctx.get("modelDirectories").catalog.refresh()`
+    — the browser-side path that invalidates the cached catalog (plainly closing
+    and reopening the menu does **not** re-fetch, because `load()` short-circuits
+    while `status === "ready"`). The service name is internal, so every access is
+    guarded and a host upgrade that removes it degrades to a no-op.
+  - Feedback is shared across toolbar redraws: a spinner while busy, `✓`/`!`
+    afterwards, and a tooltip like `4/4 · 95 models · catalog`. State resets
+    after 3.5 s.
+  - Two `CustomEvent`s on `document` let other plugins react:
+    `dsh-model-accordion:refresh-start` (detail: `{ targets }`) and
+    `dsh-model-accordion:refresh-done` (detail: the summary).
+  - Any connector can add its own target without importing this bundle: dispatch
+    `dsh-model-accordion:refresh-register` with the target in `detail`, or call
+    `window.__dshModelAccordion.registerRefreshTarget(target)`. A target may be a
+    URL string, a `{ path, regions?, method?, headers?, label?, regionParam? }`
+    object, or an async function; registration returns a disposer.
+  - **Honest limitation:** a connector's `/models/refresh` route only *returns*
+    the live roster into its settings draft; it does not write `lastCatalog` or
+    emit `llm/adapters-updated`. Trae's route additionally updates its runtime
+    `latestDiscovery` pool, so its new models appear immediately. WorkBuddy's
+    host-side catalog only changes after that connector commits a settings save —
+    a browser plugin cannot force that republish. The button does the
+    browser-reachable maximum: warm every connector's upstream data and force the
+    composer to re-read its catalog.
+
 ## 0.5.2
 
 - A favorite now points at the exact model the star was clicked on, even when a

@@ -63,6 +63,7 @@ same star appears in the `/model` popup, where the rows are wider:
 | **Stable favorite keys** | A connector's rate chip (` · x0.00`) is stripped before it becomes part of a favorite key, so a promotion starting or ending no longer makes a favorite vanish until you switch accounts. |
 | **Duplicate names stay distinct** | When one provider ships two models under the same name (a paid and a free `Deepseek-V4.1-Flash`, say), a favorite remembers the exact model that was starred, so clicking it never selects the twin. |
 | **Provider sorting** | Toolbar `↺` cycles default order → name (A→Z) → model count (↓N). |
+| **One-click model refresh** | Toolbar `↻` re-pulls every connector's model list in parallel and forces the composer catalog to re-read. |
 | **Current model on the label** | The provider holding the active model shows `● <model> · <count>`. |
 | **Stable height** | The menu keeps a constant height instead of jumping between 260 px and 368 px. |
 | **Search passthrough** | Typing in the search box expands every provider, so a match can never hide inside a collapsed group. |
@@ -130,6 +131,7 @@ rm ~/.dsh/profiles/desktop/node_modules/dsh-model-accordion
 | Pick a favorite from the menu's first pane | Click it: the menu drills into the provider list and selects it |
 | Select a model | Click it (favorites included) |
 | Change sort order | Toolbar `↺` |
+| Refresh every connector's models | Toolbar `↻` (spinner → `✓` / `!`) |
 
 ---
 
@@ -155,11 +157,15 @@ All state lives in `localStorage` on the GUI origin:
 While mounted, `window.__dshModelAccordion` is available in the page console:
 
 ```js
-__dshModelAccordion.version      // "0.5.2"
+__dshModelAccordion.version      // "0.6.0"
 __dshModelAccordion.rescan()     // re-run the DOM sweep
 __dshModelAccordion.state()      // [{ open: [...], groups: [{ label, models, collapsed }] }]
 __dshModelAccordion.favorites()  // ["qoder/qmodel_latest", ...]
 __dshModelAccordion.sort()       // "default"
+__dshModelAccordion.refresh()    // run the one-click refresh, returns a promise of the summary
+__dshModelAccordion.refreshState()          // { status: "idle"|"busy"|"done"|"failed", at, detail }
+__dshModelAccordion.refreshTargets()        // ["workbuddy/cn", "workbuddy/global", "trae/cn", "trae/ai", "qoder"]
+__dshModelAccordion.registerRefreshTarget(t) // add a connector target; returns a disposer
 ```
 
 If a model list is on screen but no provider sections are recognised, the console
@@ -171,6 +177,66 @@ logs:
 
 That means the host's menu markup changed — update `ROW_SELECTOR` and the
 `[data-menu-group]` assumptions in [`lib/client.js`](./lib/client.js).
+
+---
+
+## One-click model refresh
+
+The `↻` toolbar button re-pulls the model lists of the installed connector
+plugins in parallel, then forces the composer's cached model catalog to re-read.
+Reopening the menu alone does **not** re-fetch: `ModelCatalogDirectory.load()`
+short-circuits while its status is `ready`, so the button calls
+`ctx.get("modelDirectories").catalog.refresh()` (invalidate + load) — the one
+browser-side path that actually reissues `session/modelCatalog()`.
+
+Built-in targets:
+
+| Connector | Route | Regions |
+| --- | --- | --- |
+| WorkBuddy | `/plugins/dsh-connect-workbuddy/models/refresh` | `cn`, `global` |
+| Trae | `/plugins/dsh-connect-trae/models/refresh` | `cn`, `ai` |
+| Qoder | `/plugins/@dmh2002/dsh-connect-qoder/models/refresh` | — |
+
+Each is a same-origin `POST`. A connector that is not installed answers `404` or
+`405` (empty body) and is reported as *skipped*, not as a failure. Feedback is a
+spinner while busy, `✓` / `!` afterwards, and a tooltip like
+`4/4 · 95 models · catalog`; the state resets after 3.5 s.
+
+### Adding your own connector
+
+Another plugin can register a target without importing this bundle — through a
+`CustomEvent` on `document`, or directly:
+
+```js
+// event form
+document.dispatchEvent(new CustomEvent("dsh-model-accordion:refresh-register", {
+  detail: { path: "/plugins/my-connector/models/refresh", label: "mine" }
+}));
+
+// direct form (returns a disposer)
+const off = window.__dshModelAccordion.registerRefreshTarget(
+  "/plugins/my-connector/models/refresh"
+);
+```
+
+A target may be a URL string, an object
+(`{ path, regions?, method?, headers?, label?, regionParam? }`), or an async
+function. Two events are broadcast around every run:
+
+- `dsh-model-accordion:refresh-start` — detail `{ targets: string[] }`;
+- `dsh-model-accordion:refresh-done` — detail is the summary
+  (`{ started, ok, partial, succeeded, skipped, failed, total, models,
+  catalogRefresh, results }`).
+
+### Limitation
+
+A connector's `/models/refresh` route only **returns** the live roster into its
+settings draft; it does not write `lastCatalog` or emit `llm/adapters-updated`.
+Trae's route additionally updates its runtime `latestDiscovery` pool, so its new
+models show up immediately. WorkBuddy's host-side catalog changes only after
+that connector commits a settings save — a browser plugin cannot force that
+republish. The button therefore does the browser-reachable maximum: warm every
+connector's upstream data and force the composer to re-read its catalog.
 
 ---
 

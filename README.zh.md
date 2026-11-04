@@ -59,6 +59,7 @@
 | **收藏键稳定** | 收藏键在生成前会剥掉连接器插件追加的倍率后缀（` · x0.00`），所以促销开始或结束不会再让收藏「消失」，也不必切账号才回来。 |
 | **重名模型不混淆** | 同一供应商下两个模型同名时（比如付费与免费的 `Deepseek-V4.1-Flash`），收藏会记住被收藏的具体模型，点收藏不会选到另一个。 |
 | **供应商排序** | 工具栏 `↺` 循环切换：默认顺序 → 名称 A→Z → 模型数量 ↓N。 |
+| **一键刷新模型** | 工具栏 `↻` 并行重新拉取各连接器的模型列表，并强制 composer 重读模型目录。 |
 | **标题显示当前模型** | 当前模型所在的供应商显示 `● <模型> · <数量>`。 |
 | **固定高度** | 菜单高度保持稳定，不再在 260 px 和 368 px 之间跳动。 |
 | **搜索穿透** | 在搜索框输入时所有供应商自动展开，匹配项不会被折叠藏住。 |
@@ -122,6 +123,7 @@ rm ~/.dsh/profiles/desktop/node_modules/dsh-model-accordion
 | 从一级菜单直接选收藏 | 点击即可：菜单先进入供应商列表，再选中该模型 |
 | 选择模型 | 直接点击（收藏行同样有效） |
 | 切换排序 | 工具栏 `↺` |
+| 一键刷新各连接器模型 | 工具栏 `↻`（转圈 → `✓` / `!`） |
 
 ---
 
@@ -147,11 +149,15 @@ rm ~/.dsh/profiles/desktop/node_modules/dsh-model-accordion
 插件挂载后，页面控制台可以访问 `window.__dshModelAccordion`：
 
 ```js
-__dshModelAccordion.version      // "0.5.2"
+__dshModelAccordion.version      // "0.6.0"
 __dshModelAccordion.rescan()     // 重新扫描 DOM
 __dshModelAccordion.state()      // [{ open: [...], groups: [{ label, models, collapsed }] }]
 __dshModelAccordion.favorites()  // ["qoder/qmodel_latest", ...]
 __dshModelAccordion.sort()       // "default"
+__dshModelAccordion.refresh()    // 执行一键刷新，返回 summary 的 Promise
+__dshModelAccordion.refreshState()          // { status: "idle"|"busy"|"done"|"failed", at, detail }
+__dshModelAccordion.refreshTargets()        // ["workbuddy/cn", "workbuddy/global", "trae/cn", "trae/ai", "qoder"]
+__dshModelAccordion.registerRefreshTarget(t) // 注册连接器目标，返回注销函数
 ```
 
 如果页面上出现了模型列表但没有识别出任何供应商分组，控制台会打印：
@@ -162,6 +168,61 @@ __dshModelAccordion.sort()       // "default"
 
 说明宿主的菜单结构变了 —— 需要更新 [`lib/client.js`](./lib/client.js) 里的
 `ROW_SELECTOR` 和 `[data-menu-group]` 相关假设。
+
+---
+
+## 一键刷新模型
+
+工具栏 `↻` 按钮会并行重新拉取已安装连接器插件的模型列表，并强制 composer
+重新读取缓存的模型目录。单纯关开菜单**不会**重新拉取：
+`ModelCatalogDirectory.load()` 在 `status === "ready"` 时直接返回，所以按钮调用
+`ctx.get("modelDirectories").catalog.refresh()`（invalidate + load）—— 这是浏览器侧
+唯一能真正重新发起 `session/modelCatalog()` 的路径。
+
+内置目标：
+
+| 连接器 | 路由 | region |
+| --- | --- | --- |
+| WorkBuddy | `/plugins/dsh-connect-workbuddy/models/refresh` | `cn`、`global` |
+| Trae | `/plugins/dsh-connect-trae/models/refresh` | `cn`、`ai` |
+| Qoder | `/plugins/@dmh2002/dsh-connect-qoder/models/refresh` | — |
+
+均为同源 `POST`。未安装的连接器会返回 `404`/`405`（空响应体），计为*跳过*而非失败。
+反馈为执行中转圈、结束后 `✓` / `!`，以及类似 `4/4 · 95 models · catalog` 的提示，
+3.5 秒后复位。
+
+### 注册自己的连接器
+
+其他插件无需 import 本 bundle，用 `document` 上的 `CustomEvent` 或直接调用即可：
+
+```js
+// 事件形式
+document.dispatchEvent(new CustomEvent("dsh-model-accordion:refresh-register", {
+  detail: { path: "/plugins/my-connector/models/refresh", label: "mine" }
+}));
+
+// 直接形式（返回注销函数）
+const off = window.__dshModelAccordion.registerRefreshTarget(
+  "/plugins/my-connector/models/refresh"
+);
+```
+
+目标可以是 URL 字符串、对象
+（`{ path, regions?, method?, headers?, label?, regionParam? }`）或异步函数。
+每次刷新会广播两个事件：
+
+- `dsh-model-accordion:refresh-start` —— detail 为 `{ targets: string[] }`；
+- `dsh-model-accordion:refresh-done` —— detail 为刷新 summary
+  （`{ started, ok, partial, succeeded, skipped, failed, total, models,
+  catalogRefresh, results }`）。
+
+### 限制
+
+连接器的 `/models/refresh` 路由只把实时列表**返回**给设置草稿，不会写
+`lastCatalog`，也不会发 `llm/adapters-updated`。Trae 的路由还会更新运行时的
+`latestDiscovery` 池，因此它的新模型能立刻出现；WorkBuddy 的宿主侧目录只有在
+该连接器提交设置保存后才会变化 —— 浏览器插件无法强制这次重新发布。因此按钮做的是
+浏览器侧能做到的上限：预热各连接器的上游数据，并强制 composer 重读目录。
 
 ---
 
