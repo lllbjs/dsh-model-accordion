@@ -1,9 +1,9 @@
 {
   "name": "dsh-model-accordion",
-  "version": "0.6.0",
+  "version": "0.8.0",
   "private": true,
   "type": "module",
-  "description": "Collapse the model list by provider in the DSH web GUI: one clickable label per provider (composer menu and /model popup), with a per-row favorite star, favorites pinning, sorting, search passthrough and a stable menu height.",
+  "description": "Self-contained DSH plugin: collapses the model list by provider in the web GUI and bundles the WorkBuddy / Trae / Qoder / OpenCode connector host adapters (vendored) plus a unified connector settings hub, so models, login state and settings keep working even after the four original connector plugins are uninstalled.",
   "main": "lib/index.js",
   "exports": {
     ".": "./lib/index.js",
@@ -12,8 +12,10 @@
   },
   "files": [
     "lib",
+    "vendored",
     "install.sh",
     "README.md",
+    "README.zh.md",
     "CHANGELOG.md"
   ],
   "keywords": [
@@ -22,12 +24,19 @@
     "model-picker",
     "accordion",
     "collapsible",
-    "provider"
+    "provider",
+    "connector"
   ],
   "dsh": {
     "client": {
       "platform": "web",
-      "inject": []
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-client-ui-settings-plugins",
+        "@deepseek-ai/dsh-client-ui-plugin-manager"
+      ]
     }
   },
   "scripts": {

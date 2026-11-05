@@ -1,5 +1,102 @@
 # Changelog
 
+## 0.8.0
+
+- **Self-contained connectors (物理合并).** The four connector host adapters —
+  WorkBuddy (5.17.0), Trae (4.6.12), Qoder (`@dmh2002/dsh-connect-qoder`
+  1.16.4) and OpenCode (`@opencode2dsh/dsh-plugin` 0.3.14) — are now vendored
+  inside this package (`vendored/<name>/`, full copies of the installed plugins).
+  After stopping the four standalone bundles, `dsh-model-accordion` itself
+  provides the models, login state, saved config and settings pages. **Uninstalling
+  the original connector npm packages in the GUI no longer breaks anything.**
+  - Architecture: the profile `cordis.patch.yml` gains four `- insert:` loader
+    rows whose `name` is a `file:` URL pointing at each vendored
+    `vendored/<name>/lib/index.js`. The four `entry.id`s stay unchanged
+    (`dsh-connect-workbuddy`, `dsh-connect-trae`, `dsh-connect-qoder`,
+    `opencode2dsh`) because they are the settings namespace, the
+    `/plugins/<id>/...` route prefix and the key for saved config — so the
+    hardcoded routes, client fetches, `REFRESH_TARGETS`, vault/auth filenames
+    and version constants need **zero** string changes. The four host
+    `lib/index.js` files stay separate module URLs (their top-level `Config`
+    schemas and module-level `Map`/`let` singletons would otherwise collide).
+  - Each vendored subpackage keeps its own `dsh.client` + `exports["./client"]`,
+    and `nearestPackage` resolves each `file:` URL to that subpackage's
+    `package.json` name — which equals its `lib/client.js`
+    `window.__ModuleLoader__.load({id})` id. So the four native settings/login
+    UIs keep working with no client concatenation and no slot-key rewrites. The
+    two standalone bundles (`dsh-connect-workbuddy`, `@opencode2dsh/dsh-plugin`)
+    are removed from `dsh.profile.bundles` so the client graph does not see the
+    same package name from two sources; their `dependencies` stay so the GUI
+    still lists them as uninstallable.
+  - Saved config (accounts / regions / lastCatalog / enabledModelIds) keeps
+    applying: the `name:` lines on the workbuddy/trae config-override rows and
+    the trailing `disabled: true` rows are removed by `install.sh`, so those
+    overrides land on the vendored entries by id.
+  - Bare imports of the vendored hosts resolve from the workspace realpath via
+    a small `node_modules/` shim that `install.sh` builds: schemastery 3.18.4 +
+    cosmokit come from the copy vendored with workbuddy (opencode's `Config`
+    needs `.volatile()`; the global tree only has 3.18.2 without it), and
+    `dsh-llm`, `dsh-llm-pi-ai`, `dsh-atomic-write`, `dsh-home-paths`,
+    `@earendil-works/pi-ai`, `undici`, `yaml` come from DSH's own
+    `~/.dsh/profiles/node_modules` (global-backed, survives `pnpm remove`).
+    Verified: DSH's `ResolutionRouter` routes these `file:` URLs to native ESM,
+    so the shim is what resolves their bare imports.
+  - `install.sh` rewritten to do all of the above, idempotently: link the
+    package, build the shim, wire the four rows + the accordion row (only if
+    absent), drop the two standalone bundles, back up both files, and clean up
+    0.7.0 leftovers. A **full app quit/reopen is required** afterwards (the
+    profile's `package.json`/linked roots change at startup — a GUI reload is
+    not enough, `ResolutionRouter.replace` rejects live replacement).
+  - Unified hub (0.7.0) copy updated to the self-contained wording; the
+    "打开连接器设置" button now shows a clear message if its deep link target is
+    gone (the `openNativeFail` string is no longer dead code).
+  - `package.json` version 0.8.0, `files` now includes `vendored` and
+    `README.zh.md`; `window.__dshModelAccordion.version` is `"0.8.0"`.
+
+## 0.7.0
+
+- **Unified connector settings hub (统一设置界面).** The plugin now registers a
+  single settings card in the Plugins page ("内置插件配置") that puts all four
+  connector plugins — WorkBuddy, Trae, Qoder (`@dmh2002/dsh-connect-qoder`) and
+  OpenCode (`@opencode2dsh/dsh-plugin`) — behind one set of tabs.
+  - The connectors stay installed **independently**: this does not merge their
+    host adapters, login state, saved config or `cordis.patch.yml` rows. The hub
+    is a central *control panel* that surfaces their status, model refresh and a
+    deep link to each connector's own native settings page — it deliberately does
+    not duplicate their account/credits/SDK settings forms.
+  - Tabs: 总览 / WorkBuddy / Trae / Qoder / OpenCode / 手风琴选项. The overview
+    probes every connector and shows a status grid; per-connector tabs add
+    "重新探测", "刷新模型" and "打开原生设置" actions. The 手风琴选项 tab exposes the
+    accordion's own sort / stable-height / favorites / auto-probe options plus a
+    refresh-all button.
+  - Status probes are read-only: `GET <prefix>/usage?region=<first>&detail=fast`
+    for the three `/plugins/` connectors (loopback-guarded, 8 s timeout), and
+    `POST /api/opencode2dsh/ip-pool/status` for OpenCode. A `400`/`404`/`405`
+    or timeout shows "未知" instead of an error, so a missing connector never
+    breaks the card.
+  - `apply(ctx)` now mounts the card via `ctx.locale.register(...)` plus three
+    `ctx.slots.inject(...)` registrations (`plugins.item`, `plugins.row.config`,
+    `plugins.bundle.config`). Every step is `try`/`catch` guarded, so a host
+    without those services simply keeps working as a plain accordion. The card
+    is built with `React.createElement` (React is a platform seed), no JSX and no
+    build step.
+  - The `plugins.item` slot registration is what makes the card appear under
+    "内置插件配置" — the plugin manager builds that list purely from slot
+    entries, with no settings-namespace filter. The host half (`lib/index.js`)
+    therefore stays a dependency-free no-op (no bare npm imports, no `Config`);
+    the hub's own UI prefs live in `localStorage`. Keeping the host free of bare
+    imports avoids ESM realpath resolution failures when the package is linked
+    into a profile from outside its node_modules tree.
+  - `dsh.client.inject` widened to the connector superset (locale, ui-settings,
+    ui-slots, ui-settings-plugins, ui-plugin-manager).
+  - **Fix:** the Qoder refresh target used the scoped package name
+    (`/plugins/@dmh2002/dsh-connect-qoder/models/refresh`), which always 404'd.
+    Qoder deliberately uses the unscoped row id `dsh-connect-qoder` and requires
+    `?region=`, so the built-in target is now
+    `/plugins/dsh-connect-qoder/models/refresh` with regions `cn`, `global`.
+  - Diagnostics: `window.__dshModelAccordion.hub` exposes
+    `{ connectors(), probe(conn), openNative(pkg), state() }`.
+
 ## 0.6.0
 
 - **One-click model refresh.** A third toolbar button (`↻`) re-pulls the model

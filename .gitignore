@@ -1,3 +1,7 @@
-node_modules/
+# Only the workspace shim built by install.sh is ignored. The node_modules trees
+# copied into vendored/<name>/ are part of the self-contained plugin payload
+# (install.sh links schemastery 3.18.4 + cosmokit from vendored/workbuddy), so
+# they MUST be tracked.
+/node_modules/
 *.tgz
 .DS_Store

@@ -72,6 +72,61 @@
 
 ---
 
+## 自包含连接器 + 统一设置界面（连接器中心）
+
+**从 0.8.0 起，本插件是一次真正的物理合并。** WorkBuddy（5.17.0）、Trae（4.6.12）、
+Qoder（`@dmh2002/dsh-connect-qoder` 1.16.4）、OpenCode（`@opencode2dsh/dsh-plugin`
+0.3.14）四个连接器的**完整代码已复制进本包的 `vendored/` 目录**。停用原独立 bundle、改由本插件
+提供这四个宿主入口后，**即使在 GUI 里把原来那四个连接器插件全部卸载，模型、登录态、已保存配置
+和设置页都照常可用** —— 这正是「代码直接复制到当前插件，在卸载其他插件的情况下可以正常使用」。
+
+实现要点：
+
+- profile `cordis.patch.yml` 里新增四行 `- insert:`，`name` 用 `file:` URL 指向各自
+  `vendored/<name>/lib/index.js`。四个 `entry.id` 沿用旧值（`dsh-connect-workbuddy`、
+  `dsh-connect-trae`、`dsh-connect-qoder`、`opencode2dsh`），因为它们同时是 settings 命名空间、
+  `/plugins/<id>/...` 路由前缀和已保存配置的键 —— 所以硬编码的路由、客户端 fetch、刷新目标、
+  vault/auth 文件名、版本常量一个都不用改。四个宿主 `lib/index.js` 保持**互相独立的模块 URL**
+  （它们顶层的 `Config` schema 和模块级 `Map`/`let` 单例不能合并，否则会串数据）。
+- 每个 vendored 子包保留自己的 `dsh.client` + `exports["./client"]`；`nearestPackage` 把
+  `file:` URL 解析到该子包 `package.json` 的 name，恰好等于其 `lib/client.js` 里
+  `window.__ModuleLoader__.load({id})` 的 id —— 于是四份原生设置/登录 UI 继续生效，无需拼接客户端、
+  无需改 slot key。两个独立 bundle（`dsh-connect-workbuddy`、`@opencode2dsh/dsh-plugin`）
+  从 `dsh.profile.bundles` 移除，避免同一个包名在客户端 graph 里出现两个 source；它们的
+  `dependencies` 仍在，所以 GUI 依旧把它们列为「已安装」并可卸载。
+- workbuddy / trae 的 `config:` override 行去掉了 `name:`，尾部两条 `disabled: true` 也删了，
+  这样账号 / 地区 / lastCatalog / enabledModelIds 等已保存配置按 id 落在新的 vendored 入口上。
+- 四个宿主的裸 import（schemastery、pi-ai、dsh-llm、undici…）通过 `install.sh` 建的
+  `node_modules/` shim 从 workspace 真实路径解析：schemastery 3.18.4 + cosmokit 来自 workbuddy
+  自带的副本（opencode 的 `Config` 需要 `.volatile()`，全局树只有 3.18.2 没有它），其余依赖指向
+  DSH 自带的 `~/.dsh/profiles/node_modules`（全局-backed，`pnpm remove` 不会删）。已验证：DSH 的
+  `ResolutionRouter` 把这些 `file:` URL 交给原生 ESM，shim 正是解析裸 import 的地方。
+
+统一设置界面（0.7.0 引入）继续作为集中控制面板，在「设置 → 插件」页的**内置插件配置**里注册一张设置卡，
+把四个连接器集中到一组标签页里：
+
+| 标签页 | 内容 |
+| --- | --- |
+| **总览** | 一次性探测全部连接器，用状态网格显示每个连接器的可达性、登录状态与模型数。 |
+| **WorkBuddy / Trae / Qoder / OpenCode** | 单个连接器的状态卡，提供「重新探测」「刷新模型」「打开连接器设置」三个操作。 |
+| **手风琴选项** | 排序方式、固定高度、收藏（清空）、自动探测开关，以及「刷新全部模型」。 |
+
+这个中心是统一控制面板——集中查看状态、触发模型刷新，并跳转到每个连接器自带的完整设置页
+（账号 / 积分 / SDK 表单由 vendored 的客户端提供，不在中心里重复）。「打开连接器设置」会尝试跳到「已安装插件」里
+对应包的详情页；**卸载原独立插件后该列表行会消失**，此时按钮会给出明确提示，而不会影响模型与登录态 —— 中心本身
+始终可用。四个宿主与中心都由本包提供，所以「插件」页里是否还列着原来的四个 npm 包已经无关紧要。
+
+状态探测是只读的：三个 `/plugins/` 连接器用 `GET <prefix>/usage?region=<first>&detail=fast`（同源 loopback 守卫、
+8 秒超时），OpenCode 用 `POST /api/opencode2dsh/ip-pool/status`。`400`/`404`/`405` 或超时一律显示「未知」而不是报错，
+所以某个端点暂时不可达也不会让整张卡失效。
+
+设置卡之所以出现在「内置插件配置」，是因为中心客户端注册了 `plugins.item` slot —— 插件管理器只根据 slot 条目构建该列表，
+不依赖任何 settings 命名空间，因此它与「已安装插件」列表是否包含某个包无关。主插件自己的宿主半部 `lib/index.js`
+仍是无依赖的 no-op（不导出 `Config`）；真正的模型 / 登录 / 配置能力来自 `vendored/<name>/lib/index.js` 这四个独立入口。
+中心的偏好存在 `localStorage`，不写连接器的配置。
+
+---
+
 ## 安装
 
 桌面版 profile 由 Electron 应用独占，`dsh plugin add` 会拒绝写入。用脚本安装：
@@ -82,32 +137,32 @@ cd dsh-model-accordion
 ./install.sh desktop        # 或：./install.sh "$DSH_PROFILE"
 ```
 
-脚本会：
+脚本会（幂等，可重复运行）：
 
 1. 把本包软链到 `$DSH_HOME/profiles/<profile>/node_modules/dsh-model-accordion`；
-2. 把 `- insert:` 条目追加到 `$DSH_HOME/profiles/<profile>/cordis.patch.yml`
-   （先备份，已存在则跳过）。
+2. 在包内建 `node_modules/` shim，让 vendored 宿主的裸 import 从 workspace 真实路径解析；
+3. 在 `cordis.patch.yml` 头部写入 5 行 `- insert:`（本插件 + 4 个 `file:` 连接器入口），
+   备份原文件，并清掉 0.7.0 遗留的 `name:` override 与 `disabled: true` 行；
+4. 从 `package.json` 的 `dsh.profile.bundles` 移除两个独立 connector bundle（dependencies 保留，
+   以便之后在 GUI 里卸载验证），备份原文件。
 
-### 手动安装
+**装完必须完全退出并重新打开 DeepSeek Harness** —— profile 的 `package.json` / linked roots 在启动时
+读取，仅刷新网页不够（`ResolutionRouter.replace` 会拒绝运行中替换）。重启后即可在 GUI 的「插件」页
+把原来那四个连接器插件逐个卸载，模型、登录态与「模型连接器中心」都应照常可用。
 
-```sh
-ln -s /path/to/dsh-model-accordion ~/.dsh/profiles/desktop/node_modules/dsh-model-accordion
-
-cat >> ~/.dsh/profiles/desktop/cordis.patch.yml <<'YAML'
-- insert:
-    - id: dsh-model-accordion
-      name: dsh-model-accordion
-YAML
-```
-
-然后刷新界面。桌面版 profile 会热应用补丁改动，通常无需重启；若菜单没变化，退出并重开应用。
+手动安装等价于执行脚本，细节见 [`install.sh`](./install.sh)；不建议手写 `cordis.patch.yml`，因为 0.8.0
+需要 4 行 `file:` URL 入口、shim、以及 bundles/config/disabled 的配套改动。
 
 ### 卸载
 
 ```sh
+# 1. 从 cordis.patch.yml 删掉带 `# >>> dsh-model-accordion self-contained connectors` 注释的
+#    - insert: 块（以及原来的 `- id: dsh-model-accordion` insert 行）
 rm ~/.dsh/profiles/desktop/node_modules/dsh-model-accordion
-# 再从 cordis.patch.yml 里删掉那个 `- insert:` 条目
+# 2. 如需恢复独立插件：把两个 bundle 名字加回 dsh.profile.bundles，并从备份恢复 config override 行
 ```
+
+卸载本插件后，四个连接器的宿主也随 `vendored/` 一起消失；若还想用原独立插件，先按上面的备份恢复。
 
 ---
 
@@ -140,6 +195,7 @@ rm ~/.dsh/profiles/desktop/node_modules/dsh-model-accordion
 | `dsh-model-accordion:missing-models` | 完整、无筛选的一次渲染里确认已不存在的收藏键 JSON 数组；只有它们会被挡在一级菜单外 |
 | `dsh-model-accordion:favorite-ids` | 收藏键 → 被收藏那行的 `data-model-id` 的 JSON 对象，用于区分同一供应商下重名的两个模型 |
 | `dsh-model-accordion:stable-height` | 设为 `false` 可让菜单按内容自适应高度 |
+| `dsh-model-accordion:hub` | 统一设置界面偏好：`{ tab, autoProbe }`（当前标签页、是否自动探测） |
 | `dsh-model-accordion:last-open` | 旧版键，仍会写入以兼容 |
 
 ---
@@ -149,15 +205,19 @@ rm ~/.dsh/profiles/desktop/node_modules/dsh-model-accordion
 插件挂载后，页面控制台可以访问 `window.__dshModelAccordion`：
 
 ```js
-__dshModelAccordion.version      // "0.6.0"
+__dshModelAccordion.version      // "0.8.0"
 __dshModelAccordion.rescan()     // 重新扫描 DOM
 __dshModelAccordion.state()      // [{ open: [...], groups: [{ label, models, collapsed }] }]
 __dshModelAccordion.favorites()  // ["qoder/qmodel_latest", ...]
 __dshModelAccordion.sort()       // "default"
 __dshModelAccordion.refresh()    // 执行一键刷新，返回 summary 的 Promise
 __dshModelAccordion.refreshState()          // { status: "idle"|"busy"|"done"|"failed", at, detail }
-__dshModelAccordion.refreshTargets()        // ["workbuddy/cn", "workbuddy/global", "trae/cn", "trae/ai", "qoder"]
+__dshModelAccordion.refreshTargets()        // ["workbuddy/cn", "workbuddy/global", "trae/cn", "trae/ai", "qoder/cn", "qoder/global"]
 __dshModelAccordion.registerRefreshTarget(t) // 注册连接器目标，返回注销函数
+__dshModelAccordion.hub.connectors()        // 四个连接器的 id/pkg/version/providers/regions
+__dshModelAccordion.hub.probe(conn)         // 探测单个连接器，返回状态对象
+__dshModelAccordion.hub.openNative(pkg)     // 跳到该连接器的原生设置详情页
+__dshModelAccordion.hub.state()             // 当前 hub 偏好（tab / autoProbe）
 ```
 
 如果页面上出现了模型列表但没有识别出任何供应商分组，控制台会打印：
@@ -173,7 +233,7 @@ __dshModelAccordion.registerRefreshTarget(t) // 注册连接器目标，返回�
 
 ## 一键刷新模型
 
-工具栏 `↻` 按钮会并行重新拉取已安装连接器插件的模型列表，并强制 composer
+工具栏 `↻` 按钮会并行重新拉取四个内置连接器（vendored 宿主）的模型列表，并强制 composer
 重新读取缓存的模型目录。单纯关开菜单**不会**重新拉取：
 `ModelCatalogDirectory.load()` 在 `status === "ready"` 时直接返回，所以按钮调用
 `ctx.get("modelDirectories").catalog.refresh()`（invalidate + load）—— 这是浏览器侧
@@ -185,9 +245,12 @@ __dshModelAccordion.registerRefreshTarget(t) // 注册连接器目标，返回�
 | --- | --- | --- |
 | WorkBuddy | `/plugins/dsh-connect-workbuddy/models/refresh` | `cn`、`global` |
 | Trae | `/plugins/dsh-connect-trae/models/refresh` | `cn`、`ai` |
-| Qoder | `/plugins/@dmh2002/dsh-connect-qoder/models/refresh` | — |
+| Qoder | `/plugins/dsh-connect-qoder/models/refresh` | `cn`、`global` |
 
-均为同源 `POST`。未安装的连接器会返回 `404`/`405`（空响应体），计为*跳过*而非失败。
+> Qoder（`@dmh2002/dsh-connect-qoder`）刻意使用**无 scope** 的 row id `dsh-connect-qoder`，
+> 且刷新路由必须带 `?region=`，所以不能用带 `@dmh2002/` 前缀的路径。
+
+均为同源 `POST`。端点暂时不可达时返回 `404`/`405`（空响应体），计为*跳过*而非失败。
 反馈为执行中转圈、结束后 `✓` / `!`，以及类似 `4/4 · 95 models · catalog` 的提示，
 3.5 秒后复位。
 
@@ -229,8 +292,11 @@ const off = window.__dshModelAccordion.registerRefreshTarget(
 ## 实现原理
 
 ```
-lib/client.js   全部功能 —— 浏览器 bundle，包在 window.__ModuleLoader__ 里
-lib/index.js    宿主侧 —— 不注册服务，不做任何事
+lib/client.js                       浏览器 bundle —— 手风琴 + 统一设置界面，包在 window.__ModuleLoader__ 里
+lib/index.js                        主插件宿主侧 —— 无依赖 no-op（name/inject/apply）；中心卡片来自 plugins.item slot
+vendored/{workbuddy,trae,qoder,opencode}/lib/index.js   四个连接器宿主（独立模块 URL，保留原 entry id）
+vendored/<name>/lib/client.js       四份原生设置/登录客户端（各自的 __ModuleLoader__.load id 与子包 name 一致）
+install.sh                          链接本包 + 建 node_modules shim + 写 5 行 insert + 调整 bundles/config
 ```
 
 1. 在 `document.body` 上挂 `MutationObserver`（`childList`、`subtree`），扫描模型列表：
@@ -246,8 +312,9 @@ lib/index.js    宿主侧 —— 不注册服务，不做任何事
 ## 兼容性
 
 - DeepSeek Harness `0.2.1-rc.5` 及以上（在桌面版 bundle 上验证）。
-- 无需构建：仓库里的 `lib/client.js` 就是浏览器 bundle。
-- 无依赖。
+- 无需构建：仓库里的 `lib/client.js` 就是浏览器 bundle；vendored 四包为已发布产物的原样复制。
+- 运行时依赖由 `install.sh` 建的 shim 指向 DSH 自带的 `~/.dsh/profiles/node_modules` 与 workbuddy
+  自带的 schemastery 3.18.4，不需要 `pnpm install` 本仓库。
 
 ---
 
