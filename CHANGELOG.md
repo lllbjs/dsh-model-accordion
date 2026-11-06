@@ -2,6 +2,24 @@
 
 ## 0.9.1 (unreleased)
 
+- **Fixed Trae model-list refresh showing the wrong roster.** The live roster
+  cached by a successful `POST /models/refresh` was a permanent override with
+  no account binding, so after switching Trae accounts (or regions) the hub
+  kept showing the **previous account's** models, and a failed refresh left the
+  old roster in place looking like a success. Concretely: with account 18号 the
+  CN refresh returns `HTTP 401 SOLO remote models returned HTTP 401`, while
+  16号 returns the full roster — the hub had no way to tell these apart.
+  - The cache now stores `{ accountId, models }` and `connectorPanel` applies
+    it only when `st.body.accountId` matches, so a switch or region change
+    falls back to the authoritative `/usage` list instead of a stale one.
+    Bare-array caches from older builds are ignored.
+  - A failed region now **deletes** its cache entry (never shows a stale
+    roster) and the refresh note reports the reason, e.g.
+    `部分区域刷新失败: cn: SOLO remote models returned HTTP 401`. Both the
+    per-tab 「刷新模型」 and 「刷新全部模型」 paths do this.
+  - Switching a Trae local account, switching a Qoder/WorkBuddy account, and
+    changing region all clear the connector's roster cache and re-probe +
+    re-refresh for the newly selected account.
 - **Trae multi-account switching from the local login library.** Trae's hub tab
   previously showed only the one account mirrored from the desktop client's
   current sign-in, with no way to switch. The machine already stores full login
