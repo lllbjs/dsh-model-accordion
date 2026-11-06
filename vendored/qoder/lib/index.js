@@ -1,4 +1,5 @@
 import { A as QODER_POOL_PATH, B as poolAccountIdOf, C as isRouterModelId, D as QODER_CAMPAIGNS_PATH, E as QODER_ACCOUNT_CREDITS_PATH, F as QODER_SETTINGS_NS, H as regionOfStatusUrl, I as QODER_TRANSFER_PATH, L as QODER_USAGE_PATH, M as QODER_REGIONS, O as QODER_GITHUB_URL, P as QODER_SAVE_PATH, R as accountActionOf, S as imageDefaultFor, T as QODER_ACCOUNTS_REFRESH_PATH, U as transferActionOf, V as poolActionOf, W as unwrapVolatileDeep, _ as piAiRuntimeInfo, a as writeHostHeartbeat, b as QoderUpstreamError, c as writePoolProbes, g as qoderAccountId, h as patFromEnv, j as QODER_PROBE_PATH, k as QODER_MODELS_REFRESH_PATH, l as QODER_CONNECT_VERSION, m as maskPat, p as isQoderAccountId, s as readPoolProbes, t as clearHostHeartbeat, u as QoderAccountStore, w as QODER_ACCOUNTS_PATH, x as isQoderUpstreamError, y as QoderUpstreamClient, z as fastDetailOf } from "./host-heartbeat-CNzgGURF.js";
+import { readLocalLogin, listLocalLogins, resolveLocalLogin, LocalLoginLedger, LOCAL_LOGIN_SOURCE, LOCAL_LOGIN_KIND, isLocalLoginAccountId, readAppStatus } from "./local-login.js";
 import z from "@deepseek-ai/schemastery";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { createServer } from "node:http";
@@ -2053,6 +2054,8 @@ function workingModelIdsOf(probes) {
 }
 //#endregion
 //#region src/web-status.ts
+/** 本机 Qoder 桌面客户端登录态：拉取 / 记录 / 列表 / 删除。 */
+const QODER_LOCAL_LOGIN_PATH = "/plugins/dsh-connect-qoder/local-login";
 function json(res, status, body) {
 	if (res.writableEnded || res.destroyed) return;
 	const text = JSON.stringify(body);
@@ -2377,6 +2380,73 @@ function registerQoderWebRoutes(ctx, deps) {
 			return json(res, 500, { error: safeMessage(error) });
 		}
 	});
+	/**
+	* 本机桌面客户端登录态。
+	*
+	* GET  → 列表（当前登录 + 记录簿历史）+ 客户端状态快照，绝不下发令牌。
+	* POST → `{ action: "pull" | "remove" | "select", accountId? }`
+	*   - `pull`   读当前登录态并记一条（供账号切换用）
+	*   - `select` 把 `regions.<region>.accountId` 设为该本地账号 id
+	*   - `remove` 从记录簿删一条（不影响当前客户端登录）
+	*
+	* 全部 POST 都限 loopback；`dt-`/`drt-` 令牌只在宿主进程内流转，
+	* 响应里只有 uid / 昵称 / 时间等身份摘要。
+	*/
+	mount(QODER_LOCAL_LOGIN_PATH, async (req, res) => {
+		if (!loopbackOrigin(req)) return json(res, 403, { error: "forbidden" });
+		const region = regionOf(res, req.url ?? "");
+		if (region === void 0) return;
+		const local = deps.localLogin?.(region);
+		if (local === void 0) return json(res, 503, {
+			reason: "local-login-unavailable",
+			error: "local desktop login source unavailable"
+		});
+		if (req.method === "GET") {
+			try {
+				return json(res, 200, {
+					region,
+					accounts: await local.list(),
+					status: await local.status(),
+					selectedAccountId: deps.selectedAccountId(region)
+				});
+			} catch (error) {
+				return json(res, 502, { error: safeMessage(error) });
+			}
+		}
+		if (req.method !== "POST") return json(res, 405, { error: "method not allowed" });
+		const bodyText = await readBody(req);
+		let body;
+		try {
+			body = JSON.parse(bodyText || "{}");
+		} catch {
+			return json(res, 400, { error: "invalid JSON body" });
+		}
+		const action = typeof body.action === "string" ? body.action : "";
+		try {
+			if (action === "pull") {
+				const entry = await local.pull();
+				return json(res, 200, { action, account: entry });
+			}
+			if (action === "remove") {
+				const accountId = typeof body.accountId === "string" ? body.accountId : "";
+				if (accountId === "") return json(res, 400, { error: "accountId is required" });
+				return json(res, 200, { action, removed: await local.remove(accountId) });
+			}
+			if (action === "select") {
+				const accountId = typeof body.accountId === "string" ? body.accountId : "";
+				if (accountId === "") return json(res, 400, { error: "accountId is required" });
+				/** 先确认这条记录真的能解析出凭据（历史条目不是当前登录会抛）。 */
+				await local.credentialStrict(accountId);
+				await deps.settings.set("regions", mergeSlotWise("regions", deps.settings.describe(), {
+					[region]: { accountId }
+				}));
+				return json(res, 200, { action, accountId });
+			}
+			return json(res, 400, { error: "action is required (pull|remove|select)" });
+		} catch (error) {
+			return json(res, 409, { error: safeMessage(error) });
+		}
+	});
 	const mounted = { status: (region) => buildWebUsage(deps, region) };
 	ctx.effect(() => () => {
 		for (const dispose of disposers) try {
@@ -2386,12 +2456,14 @@ function registerQoderWebRoutes(ctx, deps) {
 	return mounted;
 }
 /** Project one account entry to its web shape with the selection flag. */
-function webAccountOf(deps, region) {
+function webAccountOf(deps, region, servingId) {
 	return (account) => ({
 		id: account.id,
 		accountName: account.accountName,
 		source: account.source,
-		selected: account.id === deps.selectedAccountId(region) || account.source !== "vault" && deps.selectedAccountId(region) === void 0
+		selected: account.id === (servingId ?? deps.selectedAccountId(region)) || account.source !== "vault" && account.source !== "local-login" && deps.selectedAccountId(region) === void 0,
+		...account.tokenExpiresAtMs === void 0 ? {} : { tokenExpiresAtMs: account.tokenExpiresAtMs },
+		...account.refreshExpiresAtMs === void 0 ? {} : { refreshExpiresAtMs: account.refreshExpiresAtMs }
 	});
 }
 /**
@@ -2513,8 +2585,10 @@ async function buildWebUsage(deps, region, options = {}) {
 		creditPosition: deps.creditPosition?.(region) ?? "composer",
 		...lastQuotaExhaustion === void 0 ? {} : { lastQuotaExhaustion },
 		source: serving.source,
+		...serving.tokenExpiresAtMs === void 0 ? {} : { tokenExpiresAtMs: serving.tokenExpiresAtMs },
+		...serving.refreshExpiresAtMs === void 0 ? {} : { refreshExpiresAtMs: serving.refreshExpiresAtMs },
 		selectionExplicit: selectedId !== void 0 && selectedId !== "",
-		accounts: accounts.map(webAccountOf(deps, region)),
+		accounts: accounts.map(webAccountOf(deps, region, serving.id)),
 		models,
 		enabledModelKeys: models.filter((m) => enabledKeys.has(m.key)).map((m) => m.key),
 		offModelKeys,
@@ -3453,10 +3527,95 @@ function apply(ctx, config) {
 		});
 	};
 	let invalidateCatalog = () => {};
+	/**
+	* 桌面客户端本地登录态的宿主侧适配器。
+	*
+	* 三个职责：
+	*  1. `upstream.resolveDeviceLogin` —— `dt-` 凭据要开 COSY 会话，必须拿到
+	*     **真实 uid**；这里回读当前客户端登录态并按令牌匹配。
+	*  2. `store.localLogin` —— 把「当前登录 + 记录簿历史」并进账号列表，
+	*     并让按 id 解析 / 自动解析能拿到 `dt-` 凭据。
+	*  3. Web 路由用的 `pull` / `record` / `list` / `remove` / `status`。
+	*
+	* 凭据形状统一成 store 期待的 `{ id, accountName, source, pat, … }`：
+	* `pat` 字段放 `dt-` 令牌（upstream 按前缀判别走设备会话分支），
+	* 额外的 `kind` / `uid` / `refreshToken` 供设备会话与展示用。
+	*/
+	const localLoginOf = (region) => {
+		const ledger = new LocalLoginLedger(region);
+		const asCredential = (login) => login === void 0 ? void 0 : {
+			id: login.id,
+			accountName: login.accountName,
+			source: LOCAL_LOGIN_SOURCE,
+			kind: LOCAL_LOGIN_KIND,
+			pat: login.token,
+			uid: login.uid,
+			refreshToken: login.refreshToken,
+			...login.email === undefined ? {} : { email: login.email },
+			...login.phone === undefined ? {} : { phone: login.phone },
+			...login.tokenExpiresAtMs === undefined ? {} : { tokenExpiresAtMs: login.tokenExpiresAtMs },
+			...login.refreshExpiresAtMs === undefined ? {} : { refreshExpiresAtMs: login.refreshExpiresAtMs }
+		};
+		return {
+			ledger,
+			list: () => listLocalLogins(region),
+			current: () => readLocalLogin(region),
+			status: () => readAppStatus(region),
+			/**
+			* 按 id 解析凭据。**永不抛**：历史条目不是客户端当前登录时返回
+			* undefined，让 `/usage` 走「所选账号已不存在」而不是整个状态页 500。
+			* 路由里需要可读错误时走 `credentialStrict`。
+			*/
+			credential: async (accountId) => {
+				try {
+					if (accountId === undefined) return asCredential(await readLocalLogin(region));
+					return asCredential(await resolveLocalLogin(region, accountId));
+				} catch {
+					return void 0;
+				}
+			},
+			/** 切换时的严格校验：失败抛出带操作指引的中文错误。 */
+			credentialStrict: async (accountId) => asCredential(await resolveLocalLogin(region, accountId)),
+			/** upstream 回调：按 `dt-` 令牌反查身份（必须是当前登录）。 */
+			identity: async (credential) => {
+				const login = await readLocalLogin(region);
+				if (login === void 0 || login.token !== credential) return void 0;
+				return {
+					uid: login.uid,
+					accountName: login.accountName,
+					refreshToken: login.refreshToken,
+					userType: "personal_standard",
+					expiresAtMs: login.tokenExpiresAtMs
+				};
+			},
+			/** 拉取当前登录并记一条；返回给 UI 的安全摘要（不含令牌）。 */
+			pull: async () => {
+				const login = await readLocalLogin(region);
+				if (login === void 0) throw new Error("没有读到 Qoder 桌面客户端的登录态（未安装 / 未登录 / 钥匙串未授权）");
+				const entry = await ledger.record(login);
+				return {
+					accountId: entry.id,
+					accountName: entry.accountName,
+					uid: entry.uid,
+					active: true,
+					...entry.email === undefined ? {} : { email: entry.email },
+					...entry.phone === undefined ? {} : { phone: entry.phone },
+					...entry.tokenExpiresAtMs === undefined ? {} : { tokenExpiresAtMs: entry.tokenExpiresAtMs },
+					...entry.refreshExpiresAtMs === undefined ? {} : { refreshExpiresAtMs: entry.refreshExpiresAtMs }
+				};
+			},
+			remove: (accountId) => ledger.remove(accountId)
+		};
+	};
+	const localLogins = Object.fromEntries(QODER_REGIONS.map((region) => [region, localLoginOf(region)]));
 	for (const region of QODER_REGIONS) {
-		const upstream = new QoderUpstreamClient(region, { logger: log });
+		const local = localLogins[region];
+		const upstream = new QoderUpstreamClient(region, {
+			logger: log,
+			resolveDeviceLogin: (credential) => local.identity(credential)
+		});
 		const catalog = new QoderCatalog(QODER_FALLBACK_MODELS.map(fallbackModelInfo));
-		const store = new QoderAccountStore(region);
+		const store = new QoderAccountStore(region, { localLogin: local });
 		let poolRuntime = {};
 		readPoolProbes(region).then((probes) => {
 			poolRuntime = {
@@ -4263,6 +4422,7 @@ function apply(ctx, config) {
 			},
 			store: accountDeps,
 			credentialSources: sourcesOf,
+			localLogin: (region) => localLogins[region],
 			selectedAccountId: (region) => selectedAccountId(config, region),
 			clearSelection: (region) => {
 				submitRegionSettings(region, { accountId: "" });

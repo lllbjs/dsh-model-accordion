@@ -63,6 +63,7 @@
 | **账号信息**（0.9.0） | 「模型连接器中心」显示当前账号名 / id / 域名 / 区域 / 凭据到期、完整账号列表（含各账号积分）、积分总额 / 套餐包、签到、OpenCode IP 池状态。 |
 | **模型列表**（0.9.0） | 中心列出每个模型的上下文长度、积分倍率、推理 / 图像 / 新 / 下线标签，带区域切换、搜索框和刷新按钮。 |
 | **账号配置**（0.9.0） | 直接在中心增删 Qoder PAT、切换 WorkBuddy 账号、OAuth 登录、刷新 Trae 账号、探测 OpenCode IP 池。 |
+| **Qoder 本地登录**（0.9.1） | 一键拉取 Qoder 桌面客户端**当前**登录态（无需 PAT），记入账号池后即可在下拉里与 PAT 账号一起切换。详见 [Qoder 本地登录](#qoder-本地登录)。 |
 | **测试模型**（0.9.0） | 每个模型行有「测试」按钮，发起一次真实上游调用并就地显示结果 / 耗时。 |
 | **标题显示当前模型** | 当前模型所在的供应商显示 `● <模型> · <数量>`。 |
 | **固定高度** | 菜单高度保持稳定，不再在 260 px 和 368 px 之间跳动。 |
@@ -112,7 +113,7 @@ Qoder（`@dmh2002/dsh-connect-qoder` 1.16.4）、OpenCode（`@opencode2dsh/dsh-p
 | 标签页 | 内容 |
 | --- | --- |
 | **总览** | 一次性探测全部连接器，用状态网格显示每个连接器的可达性、登录状态与模型数。 |
-| **WorkBuddy / Trae / Qoder / OpenCode** | 状态卡 + **账号信息**（当前账号、账号列表含积分、积分总额 / 套餐包、签到、凭据到期）+ **模型列表**（每个模型的上下文 / 倍率 / 标签，区域切换、搜索、刷新）+ **账号配置**（Qoder PAT 增删、WorkBuddy 账号切换与 OAuth 登录、Trae 账号刷新、OpenCode IP 池探测）；每个模型还有**测试**按钮。 |
+| **WorkBuddy / Trae / Qoder / OpenCode** | 状态卡 + **账号信息**（当前账号、账号列表含积分、积分总额 / 套餐包、签到、凭据到期）+ **模型列表**（每个模型的上下文 / 倍率 / 标签，区域切换、搜索、刷新）+ **账号配置**（Qoder PAT 增删、**本地登录拉取 / 记录 / 切换**、Qoder 账号下拉切换、WorkBuddy 账号切换与 OAuth 登录、Trae 账号刷新、OpenCode IP 池探测）；每个模型还有**测试**按钮。 |
 | **手风琴选项** | 排序方式、固定高度、收藏（清空）、自动探测开关，以及「刷新全部模型」。 |
 
 中心用纯浏览器 `fetch` 打四个 vendored 宿主已有的同源路由来重做这些配置流程。参考的
@@ -130,8 +131,33 @@ OpenCode 用 `POST /api/opencode2dsh/ip-pool/status` 与 `/models`。`400`/`404`
 | --- | --- | --- |
 | WorkBuddy | `POST /__save {field:"accounts"}`（切换）、`/oauth?action=start\|poll`（登录）、`/accounts/refresh` | `POST /probe {modelIds:[id]}` |
 | Trae | `/accounts/refresh`（加账号走桌面 App / `/transfer`） | `POST /models/test {ids:[id]}` —— **消耗真实额度** |
-| Qoder | `POST /accounts?action=add\|remove {pat/accountId}` | `GET /probe?model=<id>` |
+| Qoder | `POST /__save {field:"regions", value:{[区域]:{accountId}}}`（切换）、`POST /accounts?action=add\|remove {pat/accountId}`、`GET\|POST /local-login?region=<区域> {action:pull\|select\|remove}`（桌面登录态） | `GET /probe?model=<id>` |
 | OpenCode | `/ip-pool/probe {scope:"all"}` | —（无单模型探测） |
+
+### Qoder 本地登录
+
+Qoder 桌面客户端把登录态存在 Electron `safeStorage` 密文里：
+`~/Library/Application Support/com.qoder(cn).app.stable/auth.v1.dat`。中心的
+Qoder 分页可以直接读取它，因此**无需创建 Personal Access Token** 就能使用
+客户端当前已登录的账号：
+
+1. 先在 Qoder 桌面客户端里登录到目标账号。
+2. 打开中心 → **Qoder** → 「Qoder 本地登录」 → 「拉取当前本地登录」。
+3. 账号会记入 `~/.dsh/.qoder-local-logins.<区域>.json`（权限 `0600`），并出现在
+   「切换账号」下拉里，与 PAT 账号并列。
+4. 选中它（或点该行的「切换账号」按钮）即写入
+   `regions.<区域>.accountId` —— 连接器原生的账号选中字段。
+
+要在已记录的账号之间切换，需要**先到 Qoder 客户端切换登录**，再回来点「拉取」：
+客户端同一时刻只有一个活跃会话，因此选中一条「非当前登录」的记录会被
+**明确报错并给出操作指引**，绝不会静默用另一个账号顶替。
+
+实现上它不是 PAT：桌面 `dt-` 设备令牌过不了网关的 `jobToken` 交换（返回
+`401 personal token is invalid`），但携带解密得到的真实 uid 后，可以直接作为
+COSY 的 `security_oauth_token` 建会话（与 buddy-switch 的做法一致）。宿主因此
+增加了一条设备凭据分支，用实时桌面登录态驱动对话 / 模型列表 / 用量查询。
+凭据每次都从客户端加密文件重新读取——记录簿与 Web 接口只含身份元数据
+（uid、昵称、到期时间），**不含任何令牌**。
 
 设置卡之所以出现在「内置插件配置」，是因为中心客户端注册了 `plugins.item` slot —— 插件管理器只根据 slot 条目构建该列表，
 不依赖任何 settings 命名空间，因此它与「已安装插件」列表是否包含某个包无关。主插件自己的宿主半部 `lib/index.js`

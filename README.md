@@ -67,6 +67,7 @@ same star appears in the `/model` popup, where the rows are wider:
 | **Account info** (0.9.0) | The unified hub shows current account name / id / domain / region / expiry, the full account list with per-account credits, credit totals, credit packages, check-in streak and OpenCode IP-pool state. |
 | **Model lists** (0.9.0) | The hub lists every model with context window, credit multiplier and reasoning/image/new/off tags; region selector + search box + refresh button. |
 | **Account config** (0.9.0) | Add/remove Qoder PATs, switch WorkBuddy accounts, OAuth login, refresh Trae accounts, probe the OpenCode IP pool — directly from the hub. |
+| **Qoder local login** (0.9.1) | Pull the Qoder desktop client's **current** sign-in (no PAT needed), record it, and switch to it from the same account dropdown as PAT accounts. See [Qoder local login](#qoder-local-login). |
 | **Test a model** (0.9.0) | Each model row has a 「测试」 button that makes one real upstream call and shows the outcome / latency inline. |
 | **Current model on the label** | The provider holding the active model shows `● <model> · <count>`. |
 | **Stable height** | The menu keeps a constant height instead of jumping between 260 px and 368 px. |
@@ -134,7 +135,7 @@ plugins' own config pages:
 | Tab | Contents |
 | --- | --- |
 | **Overview** | Probes every connector at once and shows a status grid (reachability, sign-in state, model count). |
-| **WorkBuddy / Trae / Qoder / OpenCode** | Status card + **account info** (current account, account list with credits, credit totals / packages, check-in, credential expiry), **model list** (every model with context window / credit multiplier / tags, region selector, search, refresh) and **account config** (Qoder PAT add/remove, WorkBuddy account switch + OAuth login, Trae account refresh, OpenCode IP-pool probe). Each model has a **test** button. |
+| **WorkBuddy / Trae / Qoder / OpenCode** | Status card + **account info** (current account, account list with credits, credit totals / packages, check-in, credential expiry), **model list** (every model with context window / credit multiplier / tags, region selector, search, refresh) and **account config** (Qoder PAT add/remove, **local desktop login pull/record/switch**, Qoder account dropdown switch, WorkBuddy account switch + OAuth login, Trae account refresh, OpenCode IP-pool probe). Each model has a **test** button. |
 | **Accordion options** | Sort mode, stable height, favorites (clear), the auto-probe toggle and a refresh-all button. |
 
 The hub re-implements the connector config flows with plain browser `fetch`
@@ -159,8 +160,36 @@ unreachable endpoint never breaks the card. Write routes are loopback-guarded:
 | --- | --- | --- |
 | WorkBuddy | `POST /__save {field:"accounts"}` (switch), `/oauth?action=start\|poll` (login), `/accounts/refresh` | `POST /probe {modelIds:[id]}` |
 | Trae | `/accounts/refresh` (add account goes through the desktop app / `/transfer`) | `POST /models/test {ids:[id]}` — **costs real quota** |
-| Qoder | `POST /accounts?action=add\|remove {pat/accountId}` | `GET /probe?model=<id>` |
+| Qoder | `POST /__save {field:"regions", value:{[r]:{accountId}}}` (switch), `POST /accounts?action=add\|remove {pat/accountId}`, `GET\|POST /local-login?region=<r> {action:pull\|select\|remove}` (desktop sign-in) | `GET /probe?model=<id>` |
 | OpenCode | `/ip-pool/probe {scope:"all"}` | — (no per-model probe) |
+
+### Qoder local login
+
+Qoder's desktop client keeps its sign-in in an Electron `safeStorage` blob at
+`~/Library/Application Support/com.qoder(cn).app.stable/auth.v1.dat`. The hub's
+Qoder tab can read it directly, so you do **not** need to create a Personal
+Access Token to use the account you are already logged into:
+
+1. Sign in to the account you want in the Qoder desktop client.
+2. Open the hub → **Qoder** → 「Qoder 本地登录」 → 「拉取当前本地登录」.
+3. The account is recorded under `~/.dsh/.qoder-local-logins.<region>.json`
+   (`0600`) and appears in the 「切换账号」 dropdown alongside PAT accounts.
+4. Select it (or the row's 「切换账号」 button). That writes
+   `regions.<region>.accountId`, the connector's normal selection field.
+
+Switching between recorded accounts requires switching the sign-in in the Qoder
+client first and pulling again — the client has exactly one live session, so a
+recorded account that is not the current sign-in is **rejected with a clear
+error** rather than silently serving a different account.
+
+Under the hood this is not a PAT: the desktop `dt-` device token cannot be used
+for the gateway's `jobToken` exchange (it returns `401 personal token is
+invalid`), but it is accepted directly as the COSY `security_oauth_token` when
+the session carries the real uid from the decrypted login. The connector host
+therefore has a device-credential branch that builds the COSY session from the
+live desktop sign-in and drives chat / models / usage through it. Credentials
+are re-read from the encrypted client file on every use — the ledger and the
+web API contain only identity metadata (uid, name, expiry), never tokens.
 
 The card is listed under "内置插件配置" because of the hub client's `plugins.item`
 slot registration; the plugin manager builds that list purely from slot entries,

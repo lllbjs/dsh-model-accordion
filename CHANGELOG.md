@@ -1,5 +1,56 @@
 # Changelog
 
+## 0.9.1 (unreleased)
+
+- **Fixed Qoder / Trae model-list refresh in the hub.** Two independent causes:
+  - `hubUsageView` normalized model entries as `{ id: m.id }`, but Qoder's
+    `/usage` uses `key` (settings-catalog shape). Every Qoder model was filtered
+    out by `.filter(m => m.id !== "")`, so the tab always showed
+    「模型列表 · 0」. It now accepts `m.id || m.key` (plus `displayName`,
+    `nativeContextWindow`, `supportsThinking`).
+  - A connector's `POST /models/refresh` only **returns** the live roster into
+    its settings draft; it does not write `lastCatalog` back, so re-probing
+    `/usage` still showed the stale short list (Trae: 4 shown vs 33 live). The
+    hub now keeps the POST's `models` per `connector|region` and renders that
+    live roster after a refresh — for both the per-tab 「刷新模型」 and
+    「刷新全部模型」 buttons. Verified: Qoder 0→11, Trae 4→33.
+- **Pull Qoder's live desktop-client login and use it as a switchable account.**
+  The unified hub's Qoder tab now has a 「Qoder 本地登录」 section:
+  - 「拉取当前本地登录」 reads the Qoder desktop client's current sign-in
+    directly — `~/Library/Application Support/com.qoder(cn).app.stable/auth.v1.dat`
+    (Electron `safeStorage` `v10`, macOS Keychain password per region) — and
+    records the identity into a per-region ledger
+    (`~/.dsh/.qoder-local-logins.<region>.json`, mode `0600`). **No PAT needed.**
+  - Recorded logins appear in the Qoder account dropdown next to PAT / vault /
+    daddy-suite accounts; selecting one writes
+    `regions.<region>.accountId` via the existing `__save` endpoint, so the
+    normal account-switch machinery applies.
+  - The hub also lists recorded logins with an active/inactive tag, a per-row
+    「切换账号」 button and a remove button.
+- **Why this is not just "store the desktop `drt-` as a PAT".** Verified on both
+  regions: the connector gateway's `jobToken` exchange only accepts `pt-` PATs;
+  desktop `dt-` / `drt-` tokens are rejected with
+  `HTTP 401 personal token is invalid`. But `dt-` **is** accepted directly as
+  the COSY `security_oauth_token` (with the real uid from the decrypted login),
+  exactly as buddy-switch does. So `QoderUpstreamClient` gained a device-credential
+  branch: `dt-…` credentials skip the jobToken exchange, build the COSY session
+  from the live desktop login, and drive chat / model listing / usage. End to end
+  verified: model list (11 models), real chat probe `outcome: ok`, usage 200.
+- **Qoder account switching in the hub was broken** — it POSTed
+  `{ field: "accounts", value: { [region]: id } }`, but Qoder stores the
+  selection in `regions.<region>.accountId`. `switchAccount` now uses the
+  correct `field: "regions"` payload for Qoder; WorkBuddy keeps `accounts`.
+- **New loopback-only route** `GET|POST /plugins/dsh-connect-qoder/local-login?region=<r>`
+  (`action: pull | select | remove`). It never returns credential material —
+  only uid / display name / expiry / client status. The ledger likewise stores
+  no tokens (verified): tokens are re-read from the client's encrypted file on
+  every use, so a client re-login always yields the freshest credential and a
+  leaked ledger cannot be replayed.
+- Selecting a recorded login that is **not** the client's current sign-in is a
+  hard, readable error (409) with instructions to switch accounts in the Qoder
+  client and pull again — it never silently serves a different account. The
+  read path (`/usage`) degrades to 「所选账号已不存在」 instead of 500.
+
 ## 0.9.0
 
 - **Account info, model lists and model testing in the unified hub.** The
