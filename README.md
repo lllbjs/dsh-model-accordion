@@ -407,12 +407,17 @@ function. Two events are broadcast around every run:
 ### Limitation
 
 A connector's `/models/refresh` route only **returns** the live roster into its
-settings draft; it does not write `lastCatalog` or emit `llm/adapters-updated`.
-Trae's route additionally updates its runtime `latestDiscovery` pool, so its new
-models show up immediately. WorkBuddy's host-side catalog changes only after
-that connector commits a settings save — a browser plugin cannot force that
-republish. The button therefore does the browser-reachable maximum: warm every
-connector's upstream data and force the composer to re-read its catalog.
+settings draft; it does not emit `llm/adapters-updated`.
+
+- **Trae / Qoder** now persist the discovered roster: Trae writes
+  `regions.<panel>.lastCatalog` through the host's settings service (the same
+  path its native settings page uses) and reinstalls the runtime catalog, so
+  the full list survives a page reload **and a full app restart**. The hub's
+  `refreshedModels` overlay is now only a same-session convenience.
+- **WorkBuddy's** host-side catalog changes only after that connector commits
+  a settings save — a browser plugin cannot force that republish. For those
+  connectors the button does the browser-reachable maximum: warm upstream data
+  and force the composer to re-read its catalog.
 
 ---
 

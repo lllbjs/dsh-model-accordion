@@ -2,6 +2,25 @@
 
 ## 0.9.1 (unreleased)
 
+- **Fixed Trae refreshed models not being saved.** `POST /models/refresh` ran
+  `discoverModels()` and returned the live roster (33 CN / 26 Intl models), but
+  the host never wrote it anywhere durable: `/usage` reads
+  `displayModels()`, which serves `settings.regions.<panel>.lastCatalog` — the
+  stale 4/7-row snapshot saved by the native settings page. The hub's
+  `refreshedModels` overlay covered it for the current tab only, so a page
+  reload or app restart lost the full list again.
+  - New `persistDiscovery(panel, models)` in the Trae host writes the discovered
+    roster into `regions.<panel>.lastCatalog` through the same
+    `settingsService.mutate` path the native settings page uses (whole `regions`
+    dict merged, only the target panel's `lastCatalog` replaced, every other
+    field preserved), then reinstalls the in-memory catalog and invalidates the
+    adapter so the composer sees it in the same session.
+  - The refresh route calls it best-effort: a settings write failure still
+    returns the discovered models instead of failing the whole refresh.
+  - Verified on an isolated DSH web instance: CN `/usage` went 4 → 33 and Intl
+    7 → 26 immediately after refresh, both **persisted across two full
+    restarts** (settings file carried the new `lastCatalog`), and Qoder stayed
+    healthy.
 - **Fixed Trae model-list refresh showing the wrong roster.** The live roster
   cached by a successful `POST /models/refresh` was a permanent override with
   no account binding, so after switching Trae accounts (or regions) the hub

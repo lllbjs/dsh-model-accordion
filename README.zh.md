@@ -348,11 +348,16 @@ const off = window.__dshModelAccordion.registerRefreshTarget(
 
 ### 限制
 
-连接器的 `/models/refresh` 路由只把实时列表**返回**给设置草稿，不会写
-`lastCatalog`，也不会发 `llm/adapters-updated`。Trae 的路由还会更新运行时的
-`latestDiscovery` 池，因此它的新模型能立刻出现；WorkBuddy 的宿主侧目录只有在
-该连接器提交设置保存后才会变化 —— 浏览器插件无法强制这次重新发布。因此按钮做的是
-浏览器侧能做到的上限：预热各连接器的上游数据，并强制 composer 重读目录。
+连接器的 `/models/refresh` 路由只把实时列表**返回**给设置草稿，不会发
+`llm/adapters-updated`。
+
+- **Trae / Qoder** 现在会持久化发现的目录：Trae 通过宿主的 settings 服务写入
+  `regions.<panel>.lastCatalog`（与原生设置页同一条写入路径）并重装运行时目录，
+  因此全量模型在页面刷新**以及完整重启应用后**都保留。中心的
+  `refreshedModels` 覆盖层现在只是本次会话内的便利补丁。
+- **WorkBuddy** 的宿主侧目录只有在该连接器提交设置保存后才会变化 —— 浏览器插件
+  无法强制这次重新发布。对这类连接器，按钮做的是浏览器侧能做到的上限：预热
+  上游数据，并强制 composer 重读目录。
 
 ---
 

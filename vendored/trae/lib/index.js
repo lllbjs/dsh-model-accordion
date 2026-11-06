@@ -9310,7 +9310,16 @@ function registerTraeUsageRoute(ctx, deps) {
 				const panel = requestRegion(req, res);
 				if (panel === void 0) return;
 				try {
-					json(res, 200, { models: await deps.discoverModels(panel) });
+					const models = await deps.discoverModels(panel);
+					/* 持久化到 settings 的 lastCatalog：刷新结果不能只回浏览器，
+					   否则 usage 仍是旧目录、重启后全丢（「保存不下来」）。
+					   写入失败不吞掉本次发现的成果，仍然把新目录返回。 */
+					try {
+						await deps.persistModels?.(panel, models);
+					} catch (error) {
+						try { ctx.logger?.warn?.(`dsh-connect-trae: could not persist ${panel} model catalog`, error); } catch {}
+					}
+					json(res, 200, { models: models });
 				} catch (error) {
 					failJson(res, error);
 				}
@@ -11046,6 +11055,38 @@ function apply(ctx, config) {
 			value: { ...current, [panel]: accountId }
 		}], void 0);
 	}
+	/**
+	* 把一次「刷新模型」拉回来的实时目录**持久化**到 `regions.<panel>.lastCatalog`。
+	*
+	* 为什么必须写：宿主启动时会 discovery 并 `stack.catalog.set(...)`，但
+	* `/usage` 的 `displayModels()` 读的是 settings 里的 `lastCatalog`（用户上次
+	* 在原生设置页保存的旧快照）。刷新路由此前只把新目录返回给浏览器，既不写
+	* settings 也不重装 catalog，于是刷新完 `/usage` 仍是旧的 4/7 条，浏览器
+	* 刷新或重启后连那份临时结果都没了 —— 用户说的「保存不下来」。
+	*
+	* 写入形状与原生设置页「保存目录」完全一致：整份 `regions` 字典合并，只替换
+	* 目标 panel 的 `lastCatalog`，其余槽位与其它 panel 原样保留。随后重装内存
+	* catalog 并让适配器失效，保证同一次会话内 composer 也立刻看到新目录。
+	*/
+	async function persistDiscovery(panel, models) {
+		if (settingsService === void 0) throw new Error("settings service not available");
+		const value = current();
+		const slot = regionSlotOf(value, panel);
+		const regions = nextRegionSlots(unwrapVolatileDeep(value.regions) ?? {}, panel, {
+			...slot,
+			lastCatalog: models
+		});
+		await settingsService.mutate(settingsNs, [{
+			op: "set",
+			path: ["regions"],
+			value: regions
+		}], void 0);
+		/* 同时更新内存目录，避免等下一次 settings 回灌才生效。 */
+		try {
+			stacks[panel].catalog.set(derive(value, models, panel));
+			stacks[panel].invalidateAdapter();
+		} catch {}
+	}
 	let current = () => config;
 	const enabledSet = (value, panel) => new Set(regionStateOf(value, panel).enabledModelIds ?? []);
 	const imageSet = (value, panel) => new Set(regionStateOf(value, panel).imageModelIds ?? []);
@@ -11974,6 +12015,7 @@ function apply(ctx, config) {
 	ctx.inject(["webServer"], (webCtx) => registerTraeUsageRoute(webCtx, {
 		store: (panel) => stacks[panel].store,
 		setAccountSelection,
+		persistModels: persistDiscovery,
 		client: (panel) => stacks[panel].usageClient,
 		displayModels: (panel) => displayModels(current(), panel),
 		enabledModelIds: (panel) => regionStateOf(current(), panel).enabledModelIds ?? [],
