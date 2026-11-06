@@ -60,6 +60,10 @@
 | **重名模型不混淆** | 同一供应商下两个模型同名时（比如付费与免费的 `Deepseek-V4.1-Flash`），收藏会记住被收藏的具体模型，点收藏不会选到另一个。 |
 | **供应商排序** | 工具栏 `↺` 循环切换：默认顺序 → 名称 A→Z → 模型数量 ↓N。 |
 | **一键刷新模型** | 工具栏 `↻` 并行重新拉取各连接器的模型列表，并强制 composer 重读模型目录。 |
+| **账号信息**（0.9.0） | 「模型连接器中心」显示当前账号名 / id / 域名 / 区域 / 凭据到期、完整账号列表（含各账号积分）、积分总额 / 套餐包、签到、OpenCode IP 池状态。 |
+| **模型列表**（0.9.0） | 中心列出每个模型的上下文长度、积分倍率、推理 / 图像 / 新 / 下线标签，带区域切换、搜索框和刷新按钮。 |
+| **账号配置**（0.9.0） | 直接在中心增删 Qoder PAT、切换 WorkBuddy 账号、OAuth 登录、刷新 Trae 账号、探测 OpenCode IP 池。 |
+| **测试模型**（0.9.0） | 每个模型行有「测试」按钮，发起一次真实上游调用并就地显示结果 / 耗时。 |
 | **标题显示当前模型** | 当前模型所在的供应商显示 `● <模型> · <数量>`。 |
 | **固定高度** | 菜单高度保持稳定，不再在 260 px 和 368 px 之间跳动。 |
 | **搜索穿透** | 在搜索框输入时所有供应商自动展开，匹配项不会被折叠藏住。 |
@@ -102,23 +106,32 @@ Qoder（`@dmh2002/dsh-connect-qoder` 1.16.4）、OpenCode（`@opencode2dsh/dsh-p
   DSH 自带的 `~/.dsh/profiles/node_modules`（全局-backed，`pnpm remove` 不会删）。已验证：DSH 的
   `ResolutionRouter` 把这些 `file:` URL 交给原生 ESM，shim 正是解析裸 import 的地方。
 
-统一设置界面（0.7.0 引入）继续作为集中控制面板，在「设置 → 插件」页的**内置插件配置**里注册一张设置卡，
-把四个连接器集中到一组标签页里：
+统一设置界面（0.7.0 引入）是集中控制面板，在「设置 → 插件」页的**内置插件配置**里注册一张设置卡，
+把四个连接器集中到一组标签页里。**从 0.9.0 起，四个原生设置页能做的事也搬进了中心**，不再需要打开原插件自己的配置页：
 
 | 标签页 | 内容 |
 | --- | --- |
 | **总览** | 一次性探测全部连接器，用状态网格显示每个连接器的可达性、登录状态与模型数。 |
-| **WorkBuddy / Trae / Qoder / OpenCode** | 单个连接器的状态卡，提供「重新探测」「刷新模型」「打开连接器设置」三个操作。 |
+| **WorkBuddy / Trae / Qoder / OpenCode** | 状态卡 + **账号信息**（当前账号、账号列表含积分、积分总额 / 套餐包、签到、凭据到期）+ **模型列表**（每个模型的上下文 / 倍率 / 标签，区域切换、搜索、刷新）+ **账号配置**（Qoder PAT 增删、WorkBuddy 账号切换与 OAuth 登录、Trae 账号刷新、OpenCode IP 池探测）；每个模型还有**测试**按钮。 |
 | **手风琴选项** | 排序方式、固定高度、收藏（清空）、自动探测开关，以及「刷新全部模型」。 |
 
-这个中心是统一控制面板——集中查看状态、触发模型刷新，并跳转到每个连接器自带的完整设置页
-（账号 / 积分 / SDK 表单由 vendored 的客户端提供，不在中心里重复）。「打开连接器设置」会尝试跳到「已安装插件」里
-对应包的详情页；**卸载原独立插件后该列表行会消失**，此时按钮会给出明确提示，而不会影响模型与登录态 —— 中心本身
+中心用纯浏览器 `fetch` 打四个 vendored 宿主已有的同源路由来重做这些配置流程。参考的
+`daddy-suite` 代码贡献了「数据归一化 / 卡片字段 / 60 秒轮询（页面隐藏时跳过）」的范式；它的 CDP /
+`window.ipc` / Electron 专用部分无法移植到 DSH 浏览器端插件，故刻意未照搬。「打开连接器设置」仍会尝试
+跳到「已安装插件」里对应包的详情页；**卸载原独立插件后该列表行会消失**，此时按钮给出明确提示 —— 但中心本身
 始终可用。四个宿主与中心都由本包提供，所以「插件」页里是否还列着原来的四个 npm 包已经无关紧要。
 
-状态探测是只读的：三个 `/plugins/` 连接器用 `GET <prefix>/usage?region=<first>&detail=fast`（同源 loopback 守卫、
-8 秒超时），OpenCode 用 `POST /api/opencode2dsh/ip-pool/status`。`400`/`404`/`405` 或超时一律显示「未知」而不是报错，
-所以某个端点暂时不可达也不会让整张卡失效。
+状态探测是只读的：三个 `/plugins/` 连接器用 `GET <prefix>/usage?region=<r>`（**0.9.0 去掉
+`&detail=fast`**，保留完整账号 / 积分 / 模型字段）、`GET <prefix>/account-credits?region=<r>` 拿各账号积分；
+OpenCode 用 `POST /api/opencode2dsh/ip-pool/status` 与 `/models`。`400`/`404`/`405` 或超时一律显示「未知」而不是报错，
+所以某个端点暂时不可达也不会让整张卡失效。写路由都受 loopback 守卫保护：
+
+| 连接器 | 账号配置 | 测试模型 |
+| --- | --- | --- |
+| WorkBuddy | `POST /__save {field:"accounts"}`（切换）、`/oauth?action=start\|poll`（登录）、`/accounts/refresh` | `POST /probe {modelIds:[id]}` |
+| Trae | `/accounts/refresh`（加账号走桌面 App / `/transfer`） | `POST /models/test {ids:[id]}` —— **消耗真实额度** |
+| Qoder | `POST /accounts?action=add\|remove {pat/accountId}` | `GET /probe?model=<id>` |
+| OpenCode | `/ip-pool/probe {scope:"all"}` | —（无单模型探测） |
 
 设置卡之所以出现在「内置插件配置」，是因为中心客户端注册了 `plugins.item` slot —— 插件管理器只根据 slot 条目构建该列表，
 不依赖任何 settings 命名空间，因此它与「已安装插件」列表是否包含某个包无关。主插件自己的宿主半部 `lib/index.js`
@@ -205,7 +218,7 @@ rm ~/.dsh/profiles/desktop/node_modules/dsh-model-accordion
 插件挂载后，页面控制台可以访问 `window.__dshModelAccordion`：
 
 ```js
-__dshModelAccordion.version      // "0.8.0"
+__dshModelAccordion.version      // "0.9.0"
 __dshModelAccordion.rescan()     // 重新扫描 DOM
 __dshModelAccordion.state()      // [{ open: [...], groups: [{ label, models, collapsed }] }]
 __dshModelAccordion.favorites()  // ["qoder/qmodel_latest", ...]

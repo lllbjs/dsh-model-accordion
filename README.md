@@ -64,6 +64,10 @@ same star appears in the `/model` popup, where the rows are wider:
 | **Duplicate names stay distinct** | When one provider ships two models under the same name (a paid and a free `Deepseek-V4.1-Flash`, say), a favorite remembers the exact model that was starred, so clicking it never selects the twin. |
 | **Provider sorting** | Toolbar `↺` cycles default order → name (A→Z) → model count (↓N). |
 | **One-click model refresh** | Toolbar `↻` re-pulls every connector's model list in parallel and forces the composer catalog to re-read. |
+| **Account info** (0.9.0) | The unified hub shows current account name / id / domain / region / expiry, the full account list with per-account credits, credit totals, credit packages, check-in streak and OpenCode IP-pool state. |
+| **Model lists** (0.9.0) | The hub lists every model with context window, credit multiplier and reasoning/image/new/off tags; region selector + search box + refresh button. |
+| **Account config** (0.9.0) | Add/remove Qoder PATs, switch WorkBuddy accounts, OAuth login, refresh Trae accounts, probe the OpenCode IP pool — directly from the hub. |
+| **Test a model** (0.9.0) | Each model row has a 「测试」 button that makes one real upstream call and shows the outcome / latency inline. |
 | **Current model on the label** | The provider holding the active model shows `● <model> · <count>`. |
 | **Stable height** | The menu keeps a constant height instead of jumping between 260 px and 368 px. |
 | **Search passthrough** | Typing in the search box expands every provider, so a match can never hide inside a collapsed group. |
@@ -121,30 +125,42 @@ How it is wired:
   Verified: DSH's `ResolutionRouter` routes these `file:` URLs to native ESM,
   so the shim is what resolves their bare imports.
 
-The unified settings hub (added in 0.7.0) remains the central control panel: a
+The unified settings hub (added in 0.7.0) is the central control panel: a
 settings card under "内置插件配置" (Built-in plugin config) on the Plugins page,
-putting all four connectors behind one set of tabs:
+putting all four connectors behind one set of tabs. **Since 0.9.0 it also does
+what the four native settings pages did** — you no longer need the original
+plugins' own config pages:
 
 | Tab | Contents |
 | --- | --- |
 | **Overview** | Probes every connector at once and shows a status grid (reachability, sign-in state, model count). |
-| **WorkBuddy / Trae / Qoder / OpenCode** | A status card per connector with "Re-probe", "Refresh models" and "Open connector settings" actions. |
+| **WorkBuddy / Trae / Qoder / OpenCode** | Status card + **account info** (current account, account list with credits, credit totals / packages, check-in, credential expiry), **model list** (every model with context window / credit multiplier / tags, region selector, search, refresh) and **account config** (Qoder PAT add/remove, WorkBuddy account switch + OAuth login, Trae account refresh, OpenCode IP-pool probe). Each model has a **test** button. |
 | **Accordion options** | Sort mode, stable height, favorites (clear), the auto-probe toggle and a refresh-all button. |
 
-The hub is a central *control panel* — status, model refreshes, and a link to
-each connector's own full settings page (account / credits / SDK forms are
-served by the vendored clients, not duplicated here). "Open connector settings"
-tries to jump to that package's detail view under "已安装插件"; **once the
-original standalone plugins are uninstalled that list row is gone**, so the
-button shows a clear message instead. That does not affect models or sign-in —
-the hub itself always stays available, and all four hosts are provided by this
-package regardless of what the Plugins page lists.
+The hub re-implements the connector config flows with plain browser `fetch`
+against the vendored hosts' existing same-origin routes. The reference
+`daddy-suite` code contributed its data-normalization / card / polling patterns
+(60 s refresh, skipped while `document.hidden`); its CDP / `window.ipc` /
+Electron-specific parts are not portable to a DSH web-client plugin and were
+deliberately not copied. "Open connector settings" also still tries to jump to
+that package's detail view under "已安装插件"; **once the original standalone
+plugins are uninstalled that list row is gone**, so the button shows a clear
+message instead — but the hub itself always stays available and all four hosts
+are provided by this package regardless of what the Plugins page lists.
 
-Status probes are read-only: `GET <prefix>/usage?region=<first>&detail=fast`
-for the three `/plugins/` connectors (same-origin loopback guard, 8 s timeout),
-and `POST /api/opencode2dsh/ip-pool/status` for OpenCode. Any `400`/`404`/`405`
-or timeout shows "Unknown" rather than an error, so an unreachable endpoint
-never breaks the card.
+Status probes are read-only: `GET <prefix>/usage?region=<r>` **without**
+`detail=fast` (0.9.0 keeps the full account / credits / models payload),
+`GET <prefix>/account-credits?region=<r>` for per-account credits, and
+`POST /api/opencode2dsh/ip-pool/status` + `/models` for OpenCode. Any
+`400`/`404`/`405` or timeout shows "Unknown" rather than an error, so an
+unreachable endpoint never breaks the card. Write routes are loopback-guarded:
+
+| Connector | Account config | Test a model |
+| --- | --- | --- |
+| WorkBuddy | `POST /__save {field:"accounts"}` (switch), `/oauth?action=start\|poll` (login), `/accounts/refresh` | `POST /probe {modelIds:[id]}` |
+| Trae | `/accounts/refresh` (add account goes through the desktop app / `/transfer`) | `POST /models/test {ids:[id]}` — **costs real quota** |
+| Qoder | `POST /accounts?action=add\|remove {pat/accountId}` | `GET /probe?model=<id>` |
+| OpenCode | `/ip-pool/probe {scope:"all"}` | — (no per-model probe) |
 
 The card is listed under "内置插件配置" because of the hub client's `plugins.item`
 slot registration; the plugin manager builds that list purely from slot entries,
@@ -246,7 +262,7 @@ All state lives in `localStorage` on the GUI origin:
 While mounted, `window.__dshModelAccordion` is available in the page console:
 
 ```js
-__dshModelAccordion.version      // "0.8.0"
+__dshModelAccordion.version      // "0.9.0"
 __dshModelAccordion.rescan()     // re-run the DOM sweep
 __dshModelAccordion.state()      // [{ open: [...], groups: [{ label, models, collapsed }] }]
 __dshModelAccordion.favorites()  // ["qoder/qmodel_latest", ...]

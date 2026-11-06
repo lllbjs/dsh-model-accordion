@@ -1,5 +1,52 @@
 # Changelog
 
+## 0.9.0
+
+- **Account info, model lists and model testing in the unified hub.** The
+  「模型连接器中心」 settings page now does what the four native connector
+  settings pages did, in one place — no need to open the original plugins:
+  - **Account info** (`/usage` full detail, no more `&detail=fast`) — current
+    account name / id / domain / region / credential expiry, the full account
+    list with per-account credits (from `/account-credits`), credit total /
+    used / available, credit packages, check-in streak, and the OpenCode IP
+    pool state / total / enabled flag.
+  - **Model lists** — every model from `/usage` (`models`, or `pool.catalog`
+    for Qoder, or `/ip-pool/models` for OpenCode) with context window, credit
+    multiplier, reasoning / image / verified / new / off tags, enabled-state,
+    a region selector, a search box and a refresh button that reuses the
+    existing `POST /models/refresh` refresh skeleton.
+  - **Account configuration** — Qoder PAT add/remove (`POST /accounts` with
+    `?action=add|remove`), WorkBuddy account switching (`POST /__save` with
+    `field:"accounts"`) plus OAuth login (`/oauth?action=start|poll`), Trae
+    account refresh and a hint pointing at its native/transfer flow (Trae has
+    no add-account route), OpenCode IP-pool probe (`/ip-pool/probe`).
+  - **Test a model** — each model row has a 「测试」 button that makes one real
+    upstream call: WorkBuddy `POST /probe {modelIds:[id]}`, Trae
+    `POST /models/test {ids:[id]}`, Qoder `GET /probe?model=<id>`. Results
+    (outcome / elapsed ms / message) render inline. Note: Trae's test costs
+    real quota, so the UI shows a warning.
+  - **Live refresh** — the open connector tab re-probes every 60s, skipping
+    ticks while `document.hidden` (the daddy-suite polling pattern).
+- All of the above is pure browser-side `fetch` against the four vendored
+  hosts' existing same-origin routes: **no host code, `configForms`, or
+  `dsh.client.inject` changes were needed**. The reference implementation in
+  `daddy-suite` was used for the data-normalization / card / polling patterns
+  only; its CDP / `window.ipc` / Electron-specific parts are not portable to a
+  DSH web-client plugin and were deliberately not copied.
+- Fixed the OpenCode bridge status shape: `value` is flat (`state`, `total`),
+  not nested under `value.snapshot`; the pool count now shows.
+- Added ~50 new `HUB_MESSAGES` keys (zh + en) and ~27 `[data-dsh-hub]` CSS
+  rules (inputs, selects, form rows, key/value grids, model list, tags,
+  inline notes) to `lib/client.js`.
+- Version bumped to 0.9.0; `package.json` description updated; README.md /
+  README.zh.md document the new capabilities.
+- Host-provided packages are now declared as `peerDependencies` on the plugin
+  itself (`@deepseek-ai/schemastery`, `@earendil-works/pi-ai`, `yaml`). DSH
+  resolves peers of a linked plugin from its own installation scope, so the
+  vendored OpenCode host (whose own `dependencies` are not installed next to
+  it) loads from the DSH app tree instead of needing `install.sh`'s
+  `node_modules` shim — which cannot point inside a macOS `app.asar` bundle.
+
 ## 0.8.0
 
 - **Self-contained connectors (物理合并).** The four connector host adapters —

@@ -1,9 +1,9 @@
 {
   "name": "dsh-model-accordion",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "private": true,
   "type": "module",
-  "description": "Self-contained DSH plugin: collapses the model list by provider in the web GUI and bundles the WorkBuddy / Trae / Qoder / OpenCode connector host adapters (vendored) plus a unified connector settings hub, so models, login state and settings keep working even after the four original connector plugins are uninstalled.",
+  "description": "Self-contained DSH plugin: collapses the model list by provider and bundles the WorkBuddy / Trae / Qoder / OpenCode connector hosts (vendored), with a unified settings hub that shows account info and model lists, configures accounts (PAT / OAuth / switching), refreshes models and tests individual models — all working after the original four connector plugins are uninstalled.",
   "main": "lib/index.js",
   "exports": {
     ".": "./lib/index.js",
@@ -38,6 +38,11 @@
         "@deepseek-ai/dsh-client-ui-plugin-manager"
       ]
     }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/schemastery": ">=3.18.4 <4.0.0",
+    "@earendil-works/pi-ai": ">=0.85.0 <2.0.0",
+    "yaml": ">=2.9.0 <3.0.0"
   },
   "scripts": {
     "check": "node --check lib/client.js && node --check lib/index.js"
