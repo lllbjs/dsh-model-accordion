@@ -68,6 +68,7 @@ same star appears in the `/model` popup, where the rows are wider:
 | **Model lists** (0.9.0) | The hub lists every model with context window, credit multiplier and reasoning/image/new/off tags; region selector + search box + refresh button. |
 | **Account config** (0.9.0) | Add/remove Qoder PATs, switch WorkBuddy accounts, OAuth login, refresh Trae accounts, probe the OpenCode IP pool — directly from the hub. |
 | **Qoder local login** (0.9.1) | Pull the Qoder desktop client's **current** sign-in (no PAT needed), record it, and switch to it from the same account dropdown as PAT accounts. See [Qoder local login](#qoder-local-login). |
+| **Trae multi-account** (0.9.1) | List every Trae login already saved on this machine and switch between them from the hub — no re-login required. See [Trae local accounts](#trae-local-accounts). |
 | **Test a model** (0.9.0) | Each model row has a 「测试」 button that makes one real upstream call and shows the outcome / latency inline. |
 | **Current model on the label** | The provider holding the active model shows `● <model> · <count>`. |
 | **Stable height** | The menu keeps a constant height instead of jumping between 260 px and 368 px. |
@@ -159,7 +160,7 @@ unreachable endpoint never breaks the card. Write routes are loopback-guarded:
 | Connector | Account config | Test a model |
 | --- | --- | --- |
 | WorkBuddy | `POST /__save {field:"accounts"}` (switch), `/oauth?action=start\|poll` (login), `/accounts/refresh` | `POST /probe {modelIds:[id]}` |
-| Trae | `/accounts/refresh` (add account goes through the desktop app / `/transfer`) | `POST /models/test {ids:[id]}` — **costs real quota** |
+| Trae | `POST /local-accounts?region=<r> {action:sync\|switch, accountId}` (switch), `/accounts/refresh`, `POST /__save` equivalent via settings (add account goes through the desktop app / `/transfer`) | `POST /models/test {ids:[id]}` — **costs real quota** |
 | Qoder | `POST /__save {field:"regions", value:{[r]:{accountId}}}` (switch), `POST /accounts?action=add\|remove {pat/accountId}`, `GET\|POST /local-login?region=<r> {action:pull\|select\|remove}` (desktop sign-in) | `GET /probe?model=<id>` |
 | OpenCode | `/ip-pool/probe {scope:"all"}` | — (no per-model probe) |
 
@@ -190,6 +191,39 @@ therefore has a device-credential branch that builds the COSY session from the
 live desktop sign-in and drives chat / models / usage through it. Credentials
 are re-read from the encrypted client file on every use — the ledger and the
 web API contain only identity metadata (uid, name, expiry), never tokens.
+
+### Trae local accounts
+
+The Trae connector already supports multiple accounts in its own credential
+file (`~/.dsh/.trae-auth.<region>.json`, a `{version:2, credentials:[...]}`
+array). By default the host only mirrors the desktop client's **current** login
+into that file, so the hub shows a single account. But every Trae login you have
+ever used on this machine is already saved with a usable token in TraeDaddy's
+account library:
+
+```
+~/Library/Application Support/TraeDaddy/profiles/
+  trae-solo-cn/trae-native-<uid>.json     # CN accounts
+  trae-solo-intl/trae-native-<uid>.json   # international accounts
+```
+
+The hub's Trae tab reads that library directly:
+
+1. Open the hub → **Trae** → 「Trae 本地账号库」. Every saved login is listed
+   with its nickname and an 「客户端当前登录」 tag.
+2. Click 「同步本地账号」 once to merge all of them into the connector's
+   credential file (this also happens automatically on any switch).
+3. Pick an account from the 「切换账号」 dropdown, or use the row's 「切换」
+   button. The change takes effect immediately — verified with a real upstream
+   model call — and survives a restart.
+
+Switching merges the library into the connector's own file, calls
+`store.selectAccount(id)` for the current session, and writes
+`accounts.<panel>` through the same settings path the native settings page
+uses. The chosen account is also placed first in the credential file as an
+independent fallback, so the selection persists even if the settings service
+is unavailable. The web API returns only identity metadata (uid, nickname,
+expiry, active flag); **tokens never leave the host process**.
 
 The card is listed under "内置插件配置" because of the hub client's `plugins.item`
 slot registration; the plugin manager builds that list purely from slot entries,

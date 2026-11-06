@@ -2,6 +2,34 @@
 
 ## 0.9.1 (unreleased)
 
+- **Trae multi-account switching from the local login library.** Trae's hub tab
+  previously showed only the one account mirrored from the desktop client's
+  current sign-in, with no way to switch. The machine already stores full login
+  snapshots for **every** Trae account in TraeDaddy's library
+  (`~/Library/Application Support/TraeDaddy/profiles/trae-solo-{cn,intl}/trae-native-<uid>.json`,
+  CN: 4 accounts, Intl: 2 on this machine), each carrying a usable JWT.
+  - New host module `vendored/trae/lib/local-accounts.js` lists those accounts
+    (identity / expiry / active flag only — **never tokens**) and can merge them
+    into the connector's own credential file (`~/.dsh/.trae-auth.<region>.json`,
+    `{version:2, credentials:[...]}`), which the existing `TraeCredentialStore`
+    already supports.
+  - New loopback-only route `GET|POST /plugins/dsh-connect-trae/local-accounts?region=<r>`
+    (`action: sync | switch`). `switch` merges the library, puts the chosen
+    account first in the own file, calls `store.selectAccount(id)` so it takes
+    effect immediately, and writes `accounts.<panel>` through the same
+    `settingsService.mutate` path the native settings page uses. The own-file
+    ordering is a second, independent persistence layer: `preferred()` picks
+    `eligible[0]` when no explicit binding exists, so the choice survives a
+    restart even if the settings write is unavailable.
+  - The hub's Trae tab now has a 「切换账号」 dropdown plus a 「Trae 本地账号库」
+    section listing every saved login with an 「客户端当前登录」 tag, a per-row
+    「切换」 button and a 「同步本地账号」 button.
+  - Verified on an isolated DSH web instance: `sync` merged 3/1 accounts,
+    `switch` changed `/usage` from 15号 → 17号 (CN) and 19号 → 20号 (Intl) with
+    4/2 accounts listed and `selected` on the right row, a real upstream
+    `models/test` call answered `verdict: "available"` with the switched
+    credential, and the selection **persisted across a full restart**. Bad
+    action / malformed id / non-loopback origin return 400 / 400 / 403.
 - **Fixed Qoder / Trae model-list refresh in the hub.** Two independent causes:
   - `hubUsageView` normalized model entries as `{ id: m.id }`, but Qoder's
     `/usage` uses `key` (settings-catalog shape). Every Qoder model was filtered

@@ -1,4 +1,5 @@
 import z from "@deepseek-ai/schemastery";
+import { listTraeLocalAccounts, syncTraeLocalAccounts, isTraeLocalAccountId } from "./local-accounts.js";
 import { createProvider } from "@earendil-works/pi-ai";
 import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
 import { resolveRetryPolicy } from "@deepseek-ai/dsh-llm";
@@ -1362,6 +1363,8 @@ const TRAE_MODELS_REFRESH_PATH = "/plugins/dsh-connect-trae/models/refresh";
 const TRAE_MODELS_TEST_PATH = "/plugins/dsh-connect-trae/models/test";
 /** Plugin-owned local account rescan endpoint. */
 const TRAE_ACCOUNTS_REFRESH_PATH = "/plugins/dsh-connect-trae/accounts/refresh";
+/** 本机 TraeDaddy 账号库：多账号列表 + 切换（loopback-only）。 */
+const TRAE_LOCAL_ACCOUNTS_PATH = "/plugins/dsh-connect-trae/local-accounts";
 /**
 * General balance of EVERY account in a region, for the composer panel's table.
 *
@@ -9163,6 +9166,80 @@ function registerTraeUsageRoute(ctx, deps) {
 			}
 		});
 		/**
+		* 本机 TraeDaddy 账号库：列出全部已保存的登录快照并可切换。
+		*
+		* GET  → `{ panel, accounts, selectedAccountId }`，只回身份 / 到期时间，
+		*        绝不下发 token。
+		* POST → `{ action: "sync" | "switch", accountId? }`
+		*   - `sync`   把库里所有账号合并进宿主 own 凭据文件（不切换）
+		*   - `switch` 合并 + 把选中账号排到 own 文件第一位 +
+		*              调用 `store.selectAccount(id)` 让本次会话立即生效
+		*
+		* 为什么 own 文件第一位就是「当前账号」：`preferred()` 在未显式绑定时
+		* 取 eligible[0]，own 记录全是 `dsh` source，所以第一位生效且重启后
+		* 依然成立。settings 的 `accounts.<panel>` 也会被写入（可用时），与
+		* 原生设置页的保存行为一致。
+		*/
+		const disposeLocalAccounts = ctx.webServer.register({
+			kind: "exact",
+			path: TRAE_LOCAL_ACCOUNTS_PATH,
+			handler: async (req, res) => {
+				if (!loopbackOrigin(req)) return json(res, 403, { error: "origin-not-trusted" });
+				const panel = requestRegion(req, res);
+				if (panel === void 0) return;
+				if (req.method === "GET") {
+					try {
+						const accounts = await listTraeLocalAccounts(panel);
+						let selectedAccountId;
+						try {
+							const offered = await deps.store(panel).accounts();
+							selectedAccountId = offered.find((account) => account.selected)?.id;
+						} catch {}
+						return json(res, 200, { panel, accounts, selectedAccountId });
+					} catch (error) {
+						return json(res, 500, { error: safeMessage(error) });
+					}
+				}
+				if (req.method !== "POST") return json(res, 405, { error: "method not allowed" });
+				let body;
+				try {
+					body = await readTransferBody(req);
+				} catch (error) {
+					return json(res, 400, { error: safeMessage(error) });
+				}
+				const action = typeof body.action === "string" ? body.action : "";
+				const accountId = typeof body.accountId === "string" ? body.accountId : "";
+				try {
+					if (action === "sync") {
+						const result = await syncTraeLocalAccounts(panel);
+						return json(res, 200, { action, ...result });
+					}
+					if (action === "switch") {
+						if (!isTraeLocalAccountId(accountId)) return json(res, 400, { error: "accountId is required and must be a Trae account id" });
+						const accounts = await listTraeLocalAccounts(panel);
+						const target = accounts.find((account) => account.id === accountId);
+						if (target === undefined) return json(res, 404, { error: "account not found in the local Trae library" });
+						const result = await syncTraeLocalAccounts(panel, accountId);
+						/* 立即生效：内存里的 store 从 own 文件重新解析该账号。 */
+						await deps.store(panel).selectAccount(accountId);
+						/* 持久化：与原生设置页一致写 accounts.<panel>（best-effort）。 */
+						try {
+							await deps.setAccountSelection?.(panel, accountId);
+						} catch {}
+						return json(res, 200, {
+							action,
+							accountId,
+							accountName: target.accountName,
+							...result
+						});
+					}
+					return json(res, 400, { error: "action is required (sync|switch)" });
+				} catch (error) {
+					return json(res, 409, { error: safeMessage(error) });
+				}
+			}
+		});
+		/**
 		* Batch credential export / import (issue #37).
 		*
 		* The Host owns every byte of the credential store; the browser only receives
@@ -9499,6 +9576,7 @@ function registerTraeUsageRoute(ctx, deps) {
 			disposeRefresh();
 			disposeTransfer();
 			disposeModelsTest();
+			disposeLocalAccounts();
 			disposeAccounts();
 			disposeAccountCredits();
 			disposeAccountStatus();
@@ -10950,6 +11028,24 @@ const POOL_OUTCOME_BY_KIND = {
 };
 function apply(ctx, config) {
 	const settingsNs = settingsNamespaceOf(ctx);
+	/** DSH settings service，供本地账号切换路由持久化 `accounts.<panel>`。 */
+	let settingsService;
+	/**
+	* 与原生设置页「保存选中账号」完全同构的写入。
+	*
+	* `accounts` 是 `{ cn, ai, enterprise }` 字典，这里整份合并后写回，
+	* 不会抹掉其它面板的选中。settings 尚未注入时抛错，由路由 best-effort
+	* 吞掉（own 文件排序已经保证重启后仍生效）。
+	*/
+	async function setAccountSelection(panel, accountId) {
+		if (settingsService === void 0) throw new Error("settings service not available");
+		const current = unwrapVolatileDeep(config.accounts) ?? {};
+		await settingsService.mutate(settingsNs, [{
+			op: "set",
+			path: ["accounts"],
+			value: { ...current, [panel]: accountId }
+		}], void 0);
+	}
 	let current = () => config;
 	const enabledSet = (value, panel) => new Set(regionStateOf(value, panel).enabledModelIds ?? []);
 	const imageSet = (value, panel) => new Set(regionStateOf(value, panel).imageModelIds ?? []);
@@ -11877,6 +11973,7 @@ function apply(ctx, config) {
 	};
 	ctx.inject(["webServer"], (webCtx) => registerTraeUsageRoute(webCtx, {
 		store: (panel) => stacks[panel].store,
+		setAccountSelection,
 		client: (panel) => stacks[panel].usageClient,
 		displayModels: (panel) => displayModels(current(), panel),
 		enabledModelIds: (panel) => regionStateOf(current(), panel).enabledModelIds ?? [],
@@ -12022,6 +12119,7 @@ function apply(ctx, config) {
 	})();
 	ctx.inject(["settings"], (settingsCtx) => {
 		const settings = settingsCtx.settings;
+		settingsService = settings;
 		ctx.effect(() => settings.configure({ auto: true }, ctx.fiber));
 	});
 	const drawImageClient = new TraeImageClient({ logger: ctx.logger });

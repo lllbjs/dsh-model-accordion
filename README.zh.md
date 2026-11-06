@@ -64,6 +64,7 @@
 | **模型列表**（0.9.0） | 中心列出每个模型的上下文长度、积分倍率、推理 / 图像 / 新 / 下线标签，带区域切换、搜索框和刷新按钮。 |
 | **账号配置**（0.9.0） | 直接在中心增删 Qoder PAT、切换 WorkBuddy 账号、OAuth 登录、刷新 Trae 账号、探测 OpenCode IP 池。 |
 | **Qoder 本地登录**（0.9.1） | 一键拉取 Qoder 桌面客户端**当前**登录态（无需 PAT），记入账号池后即可在下拉里与 PAT 账号一起切换。详见 [Qoder 本地登录](#qoder-本地登录)。 |
+| **Trae 多账号切换**（0.9.1） | 列出本机已保存的全部 Trae 登录并直接在中心切换，无需重新登录客户端。详见 [Trae 本地账号库](#trae-本地账号库)。 |
 | **测试模型**（0.9.0） | 每个模型行有「测试」按钮，发起一次真实上游调用并就地显示结果 / 耗时。 |
 | **标题显示当前模型** | 当前模型所在的供应商显示 `● <模型> · <数量>`。 |
 | **固定高度** | 菜单高度保持稳定，不再在 260 px 和 368 px 之间跳动。 |
@@ -130,7 +131,7 @@ OpenCode 用 `POST /api/opencode2dsh/ip-pool/status` 与 `/models`。`400`/`404`
 | 连接器 | 账号配置 | 测试模型 |
 | --- | --- | --- |
 | WorkBuddy | `POST /__save {field:"accounts"}`（切换）、`/oauth?action=start\|poll`（登录）、`/accounts/refresh` | `POST /probe {modelIds:[id]}` |
-| Trae | `/accounts/refresh`（加账号走桌面 App / `/transfer`） | `POST /models/test {ids:[id]}` —— **消耗真实额度** |
+| Trae | `POST /local-accounts?region=<区域> {action:sync\|switch, accountId}`（切换）、`/accounts/refresh`（加账号走桌面 App / `/transfer`） | `POST /models/test {ids:[id]}` —— **消耗真实额度** |
 | Qoder | `POST /__save {field:"regions", value:{[区域]:{accountId}}}`（切换）、`POST /accounts?action=add\|remove {pat/accountId}`、`GET\|POST /local-login?region=<区域> {action:pull\|select\|remove}`（桌面登录态） | `GET /probe?model=<id>` |
 | OpenCode | `/ip-pool/probe {scope:"all"}` | —（无单模型探测） |
 
@@ -158,6 +159,33 @@ COSY 的 `security_oauth_token` 建会话（与 buddy-switch 的做法一致）�
 增加了一条设备凭据分支，用实时桌面登录态驱动对话 / 模型列表 / 用量查询。
 凭据每次都从客户端加密文件重新读取——记录簿与 Web 接口只含身份元数据
 （uid、昵称、到期时间），**不含任何令牌**。
+
+### Trae 本地账号库
+
+Trae 连接器宿主本身就支持多账号：自有凭据文件
+`~/.dsh/.trae-auth.<区域>.json` 是 `{version:2, credentials:[...]}` 数组。默认
+宿主只把桌面客户端**当前**登录镜像进去，所以中心只显示一个账号。但本机
+TraeDaddy 的账号库里已经为**每个**用过的 Trae 账号保存了完整可用令牌：
+
+```
+~/Library/Application Support/TraeDaddy/profiles/
+  trae-solo-cn/trae-native-<uid>.json     # 国内版账号
+  trae-solo-intl/trae-native-<uid>.json   # 国际版账号
+```
+
+中心的 Trae 分页直接读取这个库：
+
+1. 打开中心 → **Trae** → 「Trae 本地账号库」，会列出全部已保存登录，带昵称
+   和「客户端当前登录」标签。
+2. 点一次「同步本地账号」把它们合并进连接器凭据文件（切换时也会自动同步）。
+3. 在「切换账号」下拉里选，或点该行的「切换」按钮。切换**立即生效**
+   （已用一次真实上游模型调用验证），并且**重启后仍然保持**。
+
+切换时会把账号库合并进自有凭据文件、调用 `store.selectAccount(id)` 让本次
+会话立即生效，并通过与原生设置页相同的 settings 通道写入
+`accounts.<panel>`；同时把选中账号排到凭据文件第一位作为独立兜底，因此
+即使 settings 服务不可用，重启后选择也不会丢。Web 接口只返回身份元数据
+（uid、昵称、到期时间、是否当前登录），**令牌绝不离开宿主进程**。
 
 设置卡之所以出现在「内置插件配置」，是因为中心客户端注册了 `plugins.item` slot —— 插件管理器只根据 slot 条目构建该列表，
 不依赖任何 settings 命名空间，因此它与「已安装插件」列表是否包含某个包无关。主插件自己的宿主半部 `lib/index.js`
