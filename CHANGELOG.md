@@ -1,5 +1,60 @@
 # Changelog
 
+## 0.9.2 (unreleased)
+
+- **OpenCode Free no longer fails with `MISSING_BUN_RUNTIME`.** Upstream stores
+  the Bun runtime it shells out to as the *optional* dependency
+  `@oven/bun-<platform>-<arch>`. Optional dependencies are not part of a
+  package's declared dependency graph, so vendoring the host dropped it and
+  every Free request (including context compaction on a Free model) threw
+  `OpenCode Free requires the bundled Bun runtime`.
+  - `resolveFreeRuntime()` now falls back before throwing: explicit `BUN` /
+    `BUN_PATH`, the official installer location `~/.bun/bin`, then the first
+    `bun` on `PATH`. A candidate must still pass the Mach-O/ELF/PE magic check
+    the bundled path uses, so a text shim is never exec'd.
+  - Verified on this machine: the fallback resolves `/Users/xinna/.bun/bin/bun`
+    (1.4.4, matching the pinned optional dependency), the Free HTTP worker
+    starts under it, and it relays a real request to
+    `https://opencode.ai/inference/v1/models` (HTTP 200).
+  - This keeps the ~88 MB runtime binary out of the plugin payload. The Go
+    channel is unaffected — it never shells out to Bun.
+- **OpenCode Go is now vendored, and the hub can take an API key.** Previously
+  the OpenCode tab only showed the IP-pool bridge; using opencode.ai's Go
+  channel required the standalone `dsh-opencode-go` plugin and its own settings
+  page. Now:
+  - `dsh-opencode-go` ships inside this package as `vendored/opencode-go/`
+    (upstream 0.4.0, Apache-2.0, unmodified apart from the bridge below) and the
+    profile's `opencode-go` entry points at it through a `file:` URL. The entry
+    id is unchanged, so the settings namespace (`PROFILE_ENTRY_ID`) and every
+    saved credential ref keep working — **uninstalling the standalone npm
+    plugin no longer breaks OpenCode Go**.
+  - Its three runtime dependencies (`@anthropic-ai/sdk`, `openai`, `undici`)
+    and their full transitive closure are vendored with it as real files, so
+    nothing has to remain hoisted in the profile after the npm package goes.
+  - New loopback-only bridge `GET|POST /plugins/opencode-go/hub/accounts` and
+    `GET /plugins/opencode-go/hub/models`, added in
+    `vendored/opencode-go/lib/hub-routes.js`. Account commands are forwarded to
+    the host's own `GoAccountManager.execute()` — no account logic is
+    duplicated — so add / remove / select / replace-key / reorder all behave
+    exactly like the native page. Responses carry `configured` flags only;
+    API keys are never echoed to the browser.
+  - `GET /hub/models` returns the go-channel directory (30 models) with id,
+    name, context window and max output. It prefers the host catalog and falls
+    back to a direct anonymous `GET <baseURL>/models` after 8s, because that
+    endpoint is unauthenticated — an appkey is only needed to *call* a model,
+    never to list one.
+  - The hub's OpenCode tab gained an 「OpenCode Go 账号」 section: paste an
+    `oc_sk_…` key, add the account, see it listed with a configured/in-use tag,
+    switch between accounts, remove one, and refresh the model directory.
+- **`install.sh` is now idempotent about the vendored host** and fixes two
+  real bugs found while wiring it:
+  - the conversion of the npm override row now scans line-by-line; the previous
+    regex lookahead stopped at a nested `accounts: - id:` or an earlier
+    `- insert:` row, leaving half the config behind and breaking YAML parsing;
+  - `mktemp` used a fixed template, so a leftover file from an interrupted run
+    made every later install fail with `File exists`; the template now carries
+    the PID.
+
 ## 0.9.1 (unreleased)
 
 - **Fixed Trae refreshed models not being saved.** `POST /models/refresh` ran

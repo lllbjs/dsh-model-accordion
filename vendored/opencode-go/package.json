@@ -1,0 +1,251 @@
+{
+  "name": "dsh-opencode-go",
+  "version": "0.4.0",
+  "description": "OpenCode Go model provider and settings UI for DeepSeek Harness",
+  "icon": "assets/icon.png",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Duskriver/dsh-opencode-go.git"
+  },
+  "homepage": "https://github.com/Duskriver/dsh-opencode-go#readme",
+  "bugs": {
+    "url": "https://github.com/Duskriver/dsh-opencode-go/issues"
+  },
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0",
+    "dsh": ">=0.2.1-rc.5"
+  },
+  "main": "./lib/index.js",
+  "types": "./lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "types": "./lib/types/client/index.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "assets/icon.png",
+    "lib",
+    "cordis.patch.yml",
+    "THIRD_PARTY_NOTICES.md",
+    "docs/*.md",
+    "docs/assets/logo-light.png",
+    "docs/assets/logo-dark.png",
+    "examples",
+    "scripts/licenses",
+    "CHANGELOG.md",
+    "SECURITY.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-api-remotes",
+        "@deepseek-ai/dsh-client-ui-model-selection"
+      ],
+      "platform": "web"
+    }
+  },
+  "scripts": {
+    "compile": "node scripts/build.mjs",
+    "check:dist": "node scripts/build.mjs --check",
+    "check:pack": "node scripts/check-pack.mjs",
+    "check:install:pnpm": "node scripts/check-pnpm-install.mjs",
+    "typecheck": "tsc -p tsconfig.host.json --noEmit && tsc -p tsconfig.client.json --noEmit",
+    "check:hygiene": "node scripts/check-source.mjs",
+    "test": "vitest run",
+    "test:ci": "npm run check:dist && npm test",
+    "prepack": "npm run check:dist",
+    "prepublishOnly": "npm run typecheck && npm run test:ci",
+    "verify:installed": "node --expose-internals scripts/installed-smoke.mjs",
+    "verify:headless": "node scripts/headless-smoke.mjs",
+    "verify": "npm run typecheck && npm run check:hygiene && npm run test:ci && npm run verify:installed"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/dsh-api-gateway": ">=0.2.1-rc.5",
+    "@deepseek-ai/dsh-api-remotes": ">=0.2.1-rc.5",
+    "@deepseek-ai/dsh-api-settings-controller": ">=0.2.1-rc.5",
+    "@deepseek-ai/dsh-attachment": ">=0.2.1-rc.5",
+    "@deepseek-ai/dsh-brand": ">=0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-locale": ">=0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-store": ">=0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-conversation": ">=0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-model-selection": ">=0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-renderer": ">=0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-settings": ">=0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-slots": ">=0.2.1-rc.5",
+    "@deepseek-ai/dsh-credentials": ">=0.2.1-rc.5",
+    "@deepseek-ai/dsh-fs": ">=0.2.1-rc.5",
+    "@deepseek-ai/dsh-launch-environment": ">=0.2.1-rc.5",
+    "@deepseek-ai/dsh-llm": ">=0.2.1-rc.5",
+    "@deepseek-ai/dsh-settings": ">=0.2.1-rc.5",
+    "@deepseek-ai/dsh-timeout": ">=0.2.1-rc.5",
+    "@deepseek-ai/dsh-typert-protocol": ">=0.2.1-rc.5",
+    "@deepseek-ai/dsh-typert-registry": ">=0.2.1-rc.5",
+    "@deepseek-ai/schemastery": ">=3.18.5 <4"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "0.129.0",
+    "openai": "7.19.0",
+    "undici": "7.30.0"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.5",
+    "@deepseek-ai/cordis-plugin-include": "1.0.10",
+    "@deepseek-ai/cordis-plugin-loader": "1.0.6",
+    "@deepseek-ai/dsh-agent": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-agent-preset-registry": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-api-gateway": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-api-remotes": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-api-settings-controller": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-atomic-write": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-attachment": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-locale": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-store": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-conversation": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-model-selection": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-primitives": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-renderer": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-settings": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-slots": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-credentials": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-credentials-local": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-deque": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-fs": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-home-paths": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-launch-environment": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-llm": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-native-command": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-ptc-runtime": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-sandbox": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-sandbox-policy": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-scope": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-session": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-session-projection": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-settings": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-system-prompt": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-timeout": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-tools": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-typert-protocol": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-typert-registry": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-user-approval": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-util-code-language": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-util-crypto": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-util-values": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-util-workspace-path": "0.2.1-rc.5",
+    "@google/genai": "2.21.0",
+    "@shikijs/langs": "^4.3.1",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.2",
+    "@types/mdast": "^4.0.4",
+    "@types/node": "^22.20.0",
+    "@types/react": "~18.3.1",
+    "@types/react-dom": "~18.3.0",
+    "@types/semver": "7.8.0",
+    "anser": "^2.3.5",
+    "clsx": "^2.0.0",
+    "diff": "^9.0.0",
+    "esbuild": "^0.25.0",
+    "immer": "^10.1.1",
+    "jsdom": "29.1.1",
+    "katex": "^0.16.47",
+    "lightningcss": "^1.32.0",
+    "mdast-util-from-markdown": "^2.0.3",
+    "mdast-util-gfm": "^3.1.0",
+    "mdast-util-math": "^3.0.0",
+    "micromark-core-commonmark": "^2.0.3",
+    "micromark-extension-gfm": "^3.0.0",
+    "micromark-extension-math": "^3.1.0",
+    "micromark-factory-space": "^2.0.1",
+    "micromark-util-character": "^2.1.1",
+    "micromark-util-classify-character": "^2.0.1",
+    "micromark-util-sanitize-uri": "^2.0.1",
+    "micromark-util-symbol": "^2.0.1",
+    "micromark-util-types": "^2.0.2",
+    "opencode-go-pi-ai": "npm:@earendil-works/pi-ai@1.5.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "rollup": "^4.64.2",
+    "rollup-plugin-dts": "^6.5.1",
+    "semver": "7.8.5",
+    "shiki": "^4.3.1",
+    "simple-icons": "16.31.0",
+    "typescript": "6.0.3",
+    "vitest": "^4.1.8",
+    "zustand": "~4.4.7"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-api-remotes": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-api-gateway": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-api-settings-controller": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-store": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-slots": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-settings": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-renderer": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-locale": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-model-selection": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-client-ui-conversation": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-typert-registry": {
+      "optional": true
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh-plugin",
+    "dsh",
+    "opencode",
+    "opencode-go",
+    "llm",
+    "cordis"
+  ],
+  "optionalDependencies": {
+    "@oven/bun-darwin-aarch64": "1.4.4",
+    "@oven/bun-darwin-x64": "1.4.4",
+    "@oven/bun-freebsd-aarch64": "1.4.4",
+    "@oven/bun-freebsd-x64": "1.4.4",
+    "@oven/bun-linux-aarch64": "1.4.4",
+    "@oven/bun-linux-aarch64-android": "1.4.4",
+    "@oven/bun-linux-aarch64-musl": "1.4.4",
+    "@oven/bun-linux-x64": "1.4.4",
+    "@oven/bun-linux-x64-android": "1.4.4",
+    "@oven/bun-linux-x64-musl": "1.4.4",
+    "@oven/bun-windows-aarch64": "1.4.4",
+    "@oven/bun-windows-x64": "1.4.4"
+  }
+}

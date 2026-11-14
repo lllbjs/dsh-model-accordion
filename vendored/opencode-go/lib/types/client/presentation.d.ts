@@ -1,0 +1,352 @@
+/** English and Chinese copy and the shared Native/Classic presentation tokens. */
+import { type CSSProperties } from 'react';
+import { type OpencodeGoTheme } from '../contracts.ts';
+/** Copy dictionaries for the OpenCode Go settings page. English is the key-set source of truth. */
+export declare const en: {
+    accountsTitle: string;
+    accountsRefresh: string;
+    accountsBlocked: string;
+    accountsEmpty: string;
+    accountsWriteFailed: string;
+    accountsReadFailed: string;
+    accountsCleanupFailed: string;
+    accountsRemoveKeyFailed: string;
+    accountsStatusUnknown: string;
+    accountDefault: string;
+    accountAdd: string;
+    accountRename: string;
+    accountReplaceKey: string;
+    accountRemove: string;
+    accountRemoveHint: string;
+    accountName: string;
+    accountKeyHint: string;
+    accountConfirm: string;
+    accountCancel: string;
+    accountAutoSwitch: string;
+    accountAutoSwitchHint: string;
+    accountPreferredTag: string;
+    accountSwitchAction: string;
+    accountSwitchTitle: string;
+    accountSwitchBack: string;
+    accountSwitchHint: string;
+    accountSwitchFailed: string;
+    sidebarNextAccount: string;
+    sidebarAnalytics: string;
+    accountFallbackQuota: string;
+    accountFallbackCredential: string;
+    accountsSummary: string;
+    accountsSummaryEmpty: string;
+    accountsAvailability: string;
+    accountsAvailabilityFailed: string;
+    accountsDetails: string;
+    accountsDetailsHide: string;
+    accountDragHandle: string;
+    accountConfigureHint: string;
+    usageResetMinutes: string;
+    usageResetHours: string;
+    usageResetDays: string;
+    usageResetDue: string;
+    usageResetUnknown: string;
+    usageTitle: string;
+    usageRollingShort: string;
+    usageWeekShort: string;
+    usage_rolling: string;
+    usage_weekly: string;
+    usage_monthly: string;
+    usageResets: string;
+    usageLimited: string;
+    usageLoading: string;
+    usageUnavailable: string;
+    usageStaleShort: string;
+    usageFallbackShort: string;
+    usageStaleHint: string;
+    usageRefreshFailed: string;
+    usageLastUpdated: string;
+    usageRetry: string;
+    usageRefresh: string;
+    usageRefreshing: string;
+    analyticsOpen: string;
+    analyticsTitle: string;
+    analyticsSubtitle: string;
+    analyticsClose: string;
+    analyticsRange: string;
+    analyticsRangeToday: string;
+    analyticsRange7d: string;
+    analyticsRange30d: string;
+    analyticsRange90d: string;
+    analyticsAccount: string;
+    analyticsNoAccounts: string;
+    analyticsRefresh: string;
+    analyticsRetry: string;
+    analyticsLoading: string;
+    analyticsEmpty: string;
+    analyticsFailed: string;
+    analyticsRefreshed: string;
+    analyticsRefreshing: string;
+    analyticsStale: string;
+    analyticsRequests: string;
+    analyticsTokens: string;
+    analyticsSpend: string;
+    analyticsCacheHit: string;
+    analyticsInput: string;
+    analyticsOutput: string;
+    analyticsCacheRead: string;
+    analyticsCacheWrite: string;
+    analyticsDailyAverage: string;
+    analyticsModels: string;
+    analyticsActiveDays: string;
+    analyticsPerDay: string;
+    analyticsByDay: string;
+    analyticsTrendHint: string;
+    analyticsTokensMode: string;
+    analyticsRequestsMode: string;
+    analyticsChartHelp: string;
+    analyticsSelectDay: string;
+    analyticsByModel: string;
+    analyticsRankingHint: string;
+    analyticsDetails: string;
+    analyticsModel: string;
+    analyticsShare: string;
+    analyticsAllModels: string;
+    analyticsFewerModels: string;
+    analyticsExport: string;
+    analyticsExporting: string;
+    analyticsExportFailed: string;
+    analyticsPermission: string;
+    analyticsCredentials: string;
+    analyticsUnsupported: string;
+    analyticsPending: string;
+    analyticsInvalid: string;
+    analyticsQuota: string;
+    analyticsQuotaFailed: string;
+    analyticsAmountHint: string;
+    analyticsLagHint: string;
+    analyticsExportHint: string;
+    analyticsKicker: string;
+    nav: string;
+    title: string;
+    titleLabel: string;
+    intro: string;
+    starProject: string;
+    starProjectTitle: string;
+    enabledLabel: string;
+    enabledHint: string;
+    enabledOff: string;
+    enabledUnavailable: string;
+    enabledFailed: string;
+    keyLabel: string;
+    keyHint: string;
+    keyConfigured: string;
+    keyMissing: string;
+    keyNotWritable: string;
+    modelsLabel: string;
+    modelSourcesLabel: string;
+    modelsGoTab: string;
+    modelsFreeTab: string;
+    modelsGoSource: string;
+    modelsFreeSource: string;
+    modelsRefresh: string;
+    modelsLoading: string;
+    modelsFailed: string;
+    modelsStale: string;
+    modelsSourceFailed: string;
+    modelsSourceCurrent: string;
+    modelsSourceNeverFetched: string;
+    modelsSourceUpdated: string;
+    modelsRefreshing: string;
+    modelsRefreshingShort: string;
+    modelsEmpty: string;
+    limitsLabel: string;
+    limitsHint: string;
+    limitsFilterLabel: string;
+    limitsFilterPlaceholder: string;
+    limitsSummary: string;
+    limitsModel: string;
+    limitsContext: string;
+    limitsOutput: string;
+    thinkingBudgets: string;
+    thinkingBudgetsHint: string;
+    thinkingBudgetAddLabel: string;
+    thinkingBudgetAdd: string;
+    thinkingBudgetRemove: string;
+    capacityDefault: string;
+    capacityDefaultCapped: string;
+    capacityMissing: string;
+    modalityLabel: string;
+    modalityText: string;
+    modalityImage: string;
+    modalityAudio: string;
+    modalityVideo: string;
+    modalityPdf: string;
+    modalityUnknown: string;
+    modalitiesSource: string;
+    modalitiesForwarding: string;
+    visibilityHint: string;
+    modelVisibleLabel: string;
+    configurationMissing: string;
+    configurationMissingHint: string;
+    configurationUnavailable: string;
+    pickerFailed: string;
+    deprecatedBadge: string;
+    deprecatedHint: string;
+    newHint: string;
+    newBadge: string;
+    releaseSource: string;
+    modelDetails: string;
+    filterLabel: string;
+    filterAll: string;
+    filterNew: string;
+    filterCustom: string;
+    filterDeprecated: string;
+    limitsResetModel: string;
+    limitsResetAll: string;
+    limitsNoMatches: string;
+    limitsEmpty: string;
+    limitsContextLabel: string;
+    limitsOutputLabel: string;
+    advancedResetAll: string;
+    advancedLabel: string;
+    groupUsage: string;
+    groupFree: string;
+    freeEnabledLabel: string;
+    freeEnabledHint: string;
+    settingsTabsLabel: string;
+    settingsTabOverview: string;
+    settingsTabModels: string;
+    settingsTabAppearance: string;
+    settingsTabAdvanced: string;
+    usageAppearanceLabel: string;
+    usageAppearanceReset: string;
+    appearanceThemeLabel: string;
+    appearanceThemeHint: string;
+    appearanceThemePreviewHint: string;
+    appearanceTheme_native: string;
+    appearanceTheme_classic: string;
+    showSidebarQuotaLabel: string;
+    showSidebarQuotaSummary: string;
+    showSidebarQuotaHint: string;
+    usagePillStyleLabel: string;
+    usagePillStyleHint: string;
+    usagePillStylePreviewHint: string;
+    usagePillStyle_badge: string;
+    usagePillStyle_plain: string;
+    groupConnection: string;
+    groupCacheTimeouts: string;
+    groupImages: string;
+    advancedHint: string;
+    usageDisplayLabel: string;
+    usageDisplayHint: string;
+    usageDisplay_auto: string;
+    usageDisplay_always: string;
+    usageDisplay_off: string;
+    freeBaseURLLabel: string;
+    freeBaseURLHint: string;
+    baseURLLabel: string;
+    baseURLHint: string;
+    proxyURLLabel: string;
+    proxyURLHint: string;
+    proxyURLInvalid: string;
+    refreshMinutesLabel: string;
+    refreshMinutesHint: string;
+    streamIdleTimeoutMsLabel: string;
+    streamIdleTimeoutMsHint: string;
+    requestPreparationTimeoutMsLabel: string;
+    requestPreparationTimeoutMsHint: string;
+    requestTimeoutMsLabel: string;
+    requestTimeoutMsHint: string;
+    maxImagesLabel: string;
+    maxImagesHint: string;
+    maxRequestImageBytesLabel: string;
+    maxRequestImageBytesHint: string;
+    requestImagePixelBudgetLabel: string;
+    requestImagePixelBudgetHint: string;
+    requestImageMaxBytesLabel: string;
+    requestImageMaxBytesHint: string;
+    overridden: string;
+    reset: string;
+    invalidValue: string;
+    save: string;
+    discard: string;
+    saving: string;
+    savedFailed: string;
+    readOnly: string;
+    settingsLoading: string;
+    unavailable: string;
+};
+/** Chinese copy; the key set mirrors {@link en}. */
+export declare const zh: typeof en;
+/** Every copy key this page's dictionaries must supply. */
+export type OpencodeGoKey = keyof typeof en;
+/** All visual values shared by the settings, quota and history surfaces. */
+export interface GoThemeTokens {
+    readonly bg: string;
+    readonly surface: string;
+    readonly surface2: string;
+    readonly border: string;
+    /** Control boundary; a checked local value so WCAG 1.4.11 3:1 never depends on Host tokens. */
+    readonly borderStrong: string;
+    readonly text: string;
+    readonly muted: string;
+    readonly accent: string;
+    /** Output-token chart series; a checked local value, not the Host status-dot color. */
+    readonly accent2: string;
+    readonly accentSoft: string;
+    readonly onAccent: string;
+    /** Cache-read chart series; a checked local value, not the Host status-dot color. */
+    readonly cacheRead: string;
+    /** Cache-write chart series; a checked local value, not the Host status-dot color. */
+    readonly cacheWrite: string;
+    /** A complete box-shadow declaration, not merely a shadow color. */
+    readonly shadow: string;
+    readonly success: string;
+    readonly warning: string;
+    readonly danger: string;
+    readonly font: string;
+    readonly displayFont: string;
+    readonly numberFont: string;
+    readonly radiusSmall: string;
+    readonly radiusControl: string;
+    readonly radiusPill: string;
+    readonly radiusOption: string;
+    readonly radiusCard: string;
+    readonly radiusPopover: string;
+    readonly radiusModal: string;
+    readonly focusWidth: string;
+    readonly displayWeight: string;
+    readonly displayTracking: string;
+}
+/** Host color scheme followed by both visual themes. */
+export type GoThemeScheme = 'dark' | 'light';
+/**
+ * Opacity of an unselected chart bar. CSS paints the `--go-chart-*` series as
+ * a translucent layer over the page surface, so contrast checks must composite
+ * the rendered color with this value instead of measuring the raw token.
+ */
+export declare const CHART_BAR_OPACITY = 0.88;
+/**
+ * Share of the theme's text colour mixed into a quota bar's track. Native light
+ * can paint the layer a card sits on with the card's own colour, so a track
+ * made of that surface token disappears against it; mixing text into the
+ * backdrop keeps the bar legible on every Host surface the pale layer cannot
+ * guarantee (about 1.4:1 against light surfaces, 1.7:1 in dark). Exported so
+ * the contrast tests composite exactly the percentage the stylesheet paints.
+ */
+export declare const QUOTA_TRACK_PERCENT = 18;
+/** Classic is deliberately independent from Host and third-party theme overrides. */
+export declare const GO_THEME_FALLBACKS: Record<GoThemeScheme, GoThemeTokens>;
+/**
+ * Neutral values used when Native cannot resolve a Host token, and the resolved
+ * value of every contrast-checked token: those must keep WCAG 1.4.11 3:1
+ * whatever palette Host or a third-party theme supplies.
+ */
+export declare const NATIVE_THEME_FALLBACKS: Record<GoThemeScheme, GoThemeTokens>;
+/** Theme first, color scheme second: Native follows the Host, Classic stays branded. */
+export declare const GO_THEME_TOKENS: Record<OpencodeGoTheme, Record<GoThemeScheme, GoThemeTokens>>;
+/** Follow the Host's body color-scheme marker without adding a Theme service dependency. */
+export declare function useHostScheme(): GoThemeScheme;
+/** Resolve one visual theme in the Host's current color scheme. */
+export declare function useGoThemeTokens(theme?: OpencodeGoTheme): GoThemeTokens;
+/** Format a date/time stamp using a module-level cached Intl.DateTimeFormat instance. */
+export declare function formatDateTime(value: number | string | Date, locale?: string, options?: Intl.DateTimeFormatOptions): string;
+/** Internal derived custom properties; third-party themes customize the Host tokens instead. */
+export declare function themeStyle(tokens: GoThemeTokens): CSSProperties;

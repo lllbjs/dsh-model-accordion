@@ -82,7 +82,7 @@ echo "prepared the vendored hosts' dependency shim in $here/node_modules"
 # 3. Wire cordis.patch.yml + dsh.profile.bundles (done in Node for safe
 #    JSON/text editing). Env vars carry the paths into the helper.
 # ---------------------------------------------------------------------------
-tmp=$(mktemp "${TMPDIR:-/tmp}/dsh-model-accordion-wire.XXXXXX.mjs")
+tmp=$(mktemp "${TMPDIR:-/tmp}/dsh-model-accordion-wire.$$.XXXXXX.mjs")
 cat > "$tmp" <<'NODE'
 import { readFileSync, writeFileSync, existsSync, copyFileSync } from "node:fs";
 import { join } from "node:path";
@@ -93,20 +93,21 @@ const patchPath = join(profileDir, "cordis.patch.yml");
 const manifestPath = join(profileDir, "package.json");
 const MARKER = "# >>> dsh-model-accordion self-contained connectors";
 
-// 3a. Stop the two standalone connector *bundles* from also declaring their
+// 3a. Stop the standalone connector *bundles* from also declaring their
 //     bare-name rows (same package name from two sources -> client-modules throws).
-//     Their dependencies stay, so the GUI still offers "uninstall".
+//     `dsh-opencode-go` is included too: since 0.9.2 its host is vendored here,
+//     so the npm bundle is no longer needed and may be uninstalled in the GUI.
 if (existsSync(manifestPath)) {
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   const bundles = manifest?.dsh?.profile?.bundles;
   if (Array.isArray(bundles)) {
-    const drop = new Set(["dsh-connect-workbuddy", "@opencode2dsh/dsh-plugin"]);
+    const drop = new Set(["dsh-connect-workbuddy", "@opencode2dsh/dsh-plugin", "dsh-opencode-go"]);
     const next = bundles.filter((n) => !drop.has(n));
     if (next.length !== bundles.length) {
       manifest.dsh.profile.bundles = next;
       copyFileSync(manifestPath, manifestPath + ".bak-model-accordion");
       writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
-      console.log("removed the two standalone connector bundles from dsh.profile.bundles");
+      console.log("removed the standalone connector bundles from dsh.profile.bundles");
     }
   }
 }
@@ -161,6 +162,77 @@ if (!text.includes(MARKER)) {
   console.log("wired the self-contained connector rows into " + patchPath);
 } else {
   console.log("patch already carries the self-contained connector rows; nothing to do");
+}
+
+// 3c. Vendor `dsh-opencode-go` (since 0.9.2).
+//     The npm bundle exposes its host under entry id `opencode-go`, whose
+//     settings namespace (`PROFILE_ENTRY_ID`) and credential refs live in the
+//     profile. We keep that id so saved appkeys stay readable, but point the
+//     entry at our vendored copy via a file: URL. That makes the GUI work after
+//     the standalone `dsh-opencode-go` package is uninstalled.
+//
+//     The npm installer writes a *config-override* row (`- id: opencode-go`
+//     with `name: dsh-opencode-go`) further down the patch. We convert that row
+//     into an `- insert:` carrying our file: URL, preserving its `config` block
+//     byte-for-byte (only re-indented). Idempotent: skip when already converted.
+{
+  const OG_MARKER = "# >>> vendored opencode-go host (dsh-model-accordion)";
+  const ogUrl = "file://" + join(here, "vendored", "opencode-go", "lib", "index.js");
+  let patch = existsSync(patchPath) ? readFileSync(patchPath, "utf8") : "[]\n";
+
+  // Already converted? (either by us, or a fresh insert row we add below)
+  const alreadyVendored = patch.includes(ogUrl);
+
+  if (!alreadyVendored) {
+    if (existsSync(patchPath)) copyFileSync(patchPath, patchPath + ".bak-opencode-go");
+
+    // Find the override row by line, then consume every following indented
+    // line until the next TOP-LEVEL `- ` row (column 0) or EOF. A line-based
+    // scan is used deliberately: a regex lookahead stops at nested
+    // `accounts: - id:` lines or an earlier `- insert:` row and leaves half
+    // the config behind, which breaks YAML parsing.
+    const lines = patch.split("\n");
+    const start = lines.findIndex((l) => /^-\s*id:\s*opencode-go\s*$/.test(l));
+    const converted = start >= 0;
+    let config = "";
+    if (start >= 0) {
+      let end = start + 1;
+      while (end < lines.length) {
+        const l = lines[end];
+        if (l.trim() !== "" && /^-\s/.test(l)) break;  // next top-level row
+        end++;
+      }
+      const body = lines.slice(start + 1, end)
+        .filter((l) => !/^\s*name:\s*dsh-opencode-go\s*$/.test(l))
+        .join("\n");
+      // The override row's children sit at 2 spaces; under an insert item
+      // (`    - id:`) that level must be 6, so add 4 to every non-empty line.
+      config = body.split("\n").map((line) => {
+        if (line.trim() === "") return "";
+        const m2 = /^([ \t]*)(.*)$/.exec(line);
+        return "    " + (m2 ? m2[1] + m2[2] : line);
+      }).join("\n").replace(/\s+$/, "");
+      lines.splice(start, end - start);
+      patch = lines.join("\n");
+    }
+
+    const block = [
+      OG_MARKER,
+      "- insert:",
+      "    - id: opencode-go",
+      "      name: " + ogUrl,
+      ...(config ? [config] : []),
+      "",
+    ].join("\n");
+    // Append at the end: insert rows can appear anywhere after the leading
+    // bundle layers; config overrides for OTHER entries are unaffected.
+    patch = patch.replace(/\s*$/, "") + "\n" + block;
+    writeFileSync(patchPath, patch);
+    console.log("vendored the opencode-go host into " + patchPath +
+      (converted ? " (converted the npm override row)" : " (fresh insert)"));
+  } else {
+    console.log("opencode-go host already points at the vendored copy");
+  }
 }
 NODE
 DSH_PLUGIN_DIR="$here" DSH_PROFILE_DIR="$dir" node "$tmp"

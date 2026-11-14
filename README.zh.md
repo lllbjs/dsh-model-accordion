@@ -63,6 +63,7 @@
 | **账号信息**（0.9.0） | 「模型连接器中心」显示当前账号名 / id / 域名 / 区域 / 凭据到期、完整账号列表（含各账号积分）、积分总额 / 套餐包、签到、OpenCode IP 池状态。 |
 | **模型列表**（0.9.0） | 中心列出每个模型的上下文长度、积分倍率、推理 / 图像 / 新 / 下线标签，带区域切换、搜索框和刷新按钮。 |
 | **账号配置**（0.9.0） | 直接在中心增删 Qoder PAT、切换 WorkBuddy 账号、OAuth 登录、刷新 Trae 账号、探测 OpenCode IP 池。 |
+| **OpenCode Go API Key**（0.9.2） | 在 OpenCode 分页填入 `oc_sk_…` 开头的 API Key 即可拉取 go 通道的模型目录（30 个模型）并直接使用。宿主已内置在本插件，卸载独立的 OpenCode Go 插件后仍然可用。 |
 | **Qoder 本地登录**（0.9.1） | 一键拉取 Qoder 桌面客户端**当前**登录态（无需 PAT），记入账号池后即可在下拉里与 PAT 账号一起切换。详见 [Qoder 本地登录](#qoder-本地登录)。 |
 | **Trae 多账号切换**（0.9.1） | 列出本机已保存的全部 Trae 登录并直接在中心切换，无需重新登录客户端。详见 [Trae 本地账号库](#trae-本地账号库)。 |
 | **测试模型**（0.9.0） | 每个模型行有「测试」按钮，发起一次真实上游调用并就地显示结果 / 耗时。 |
@@ -133,7 +134,7 @@ OpenCode 用 `POST /api/opencode2dsh/ip-pool/status` 与 `/models`。`400`/`404`
 | WorkBuddy | `POST /__save {field:"accounts"}`（切换）、`/oauth?action=start\|poll`（登录）、`/accounts/refresh` | `POST /probe {modelIds:[id]}` |
 | Trae | `POST /local-accounts?region=<区域> {action:sync\|switch, accountId}`（切换）、`/accounts/refresh`（加账号走桌面 App / `/transfer`） | `POST /models/test {ids:[id]}` —— **消耗真实额度** |
 | Qoder | `POST /__save {field:"regions", value:{[区域]:{accountId}}}`（切换）、`POST /accounts?action=add\|remove {pat/accountId}`、`GET\|POST /local-login?region=<区域> {action:pull\|select\|remove}`（桌面登录态） | `GET /probe?model=<id>` |
-| OpenCode | `/ip-pool/probe {scope:"all"}` | —（无单模型探测） |
+| OpenCode | `/ip-pool/probe {scope:"all"}`、`GET\|POST /plugins/opencode-go/hub/accounts {command}`（appkey 账号）、`GET /plugins/opencode-go/hub/models`（go 模型目录） | —（无单模型探测） |
 
 ### Qoder 本地登录
 
