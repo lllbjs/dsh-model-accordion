@@ -97,11 +97,22 @@ const MARKER = "# >>> dsh-model-accordion self-contained connectors";
 //     bare-name rows (same package name from two sources -> client-modules throws).
 //     `dsh-opencode-go` is included too: since 0.9.2 its host is vendored here,
 //     so the npm bundle is no longer needed and may be uninstalled in the GUI.
+//     The set must cover every connector the user may have installed through the
+//     GUI, not just the ones present the first time this ran: a later
+//     `dsh-connect-trae` install would otherwise collide with the vendored
+//     `dsh-connect-trae` row below (duplicate entry id -> boot failure).
 if (existsSync(manifestPath)) {
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   const bundles = manifest?.dsh?.profile?.bundles;
   if (Array.isArray(bundles)) {
-    const drop = new Set(["dsh-connect-workbuddy", "@opencode2dsh/dsh-plugin", "dsh-opencode-go"]);
+    const drop = new Set([
+      "dsh-connect-workbuddy",
+      "dsh-connect-trae",
+      "dsh-connect-qoder",
+      "@dmh2002/dsh-connect-qoder",
+      "@opencode2dsh/dsh-plugin",
+      "dsh-opencode-go",
+    ]);
     const next = bundles.filter((n) => !drop.has(n));
     if (next.length !== bundles.length) {
       manifest.dsh.profile.bundles = next;
