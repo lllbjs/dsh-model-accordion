@@ -364,6 +364,27 @@ window.__ModuleLoader__.load({
 				pool
 			});
 		}
+		/** 界面上给的全部档位，升序。默认值不在这里 —— 见 {@link pollMinutesOf}。 */
+		const QODER_POLL_MINUTES_OPTIONS = [
+			1,
+			5,
+			10,
+			30,
+			60
+		];
+		/**
+		* 读全局的刷新间隔。
+		*
+		* 与 `sidebarPanelEnabledOf` 同规：先 `unwrapVolatileDeep`（cosmokit 的活引用
+		* 不解包时 `===` 恒假），再**白名单**校验 —— 配置是用户可编辑的 JSON，任何不在
+		* 五档里的值（手改的 `0`、`"5"`、`2.5`）都退回默认，而不是把 `setInterval` 交给
+		* 一个没校验过的数。
+		*/
+		function pollMinutesOf(value) {
+			const unwrapped = unwrapVolatileDeep(value);
+			const minutes = unwrapVolatileDeep(typeof unwrapped === "object" && unwrapped !== null && !Array.isArray(unwrapped) ? unwrapped["pollMinutes"] : void 0);
+			return QODER_POLL_MINUTES_OPTIONS.includes(minutes) ? minutes : 5;
+		}
 		/**
 		* Which seat one region's readout uses, defaulting to the composer tool row.
 		*
@@ -379,6 +400,44 @@ window.__ModuleLoader__.load({
 		*/
 		function regionCreditsShownOf(value, region) {
 			return regionSlotOf$1(value, region)["showCreditsInMainUi"] !== false;
+		}
+		/**
+		* 侧边栏面板这一行的**顶层**设置字段名（不在 `regions.<region>.` 下）。
+		*
+		* 参考：dsh-connect-workbuddy 的 `Config.sidebarPanel`（PR #188，MIT,
+		* Copyright (c) 2026 LaoDing）。
+		*
+		* 与积分读数那几个开关不同，这一项**没有区域轴**：侧边栏只有一条 Qoder 行、
+		* 一个整页，不随「国内版 / 国际版」变。所以它住在配置顶层，而不是每个区域槽
+		* 各存一份——存两份就会出现「cn 开着、global 关着，那这一行到底算谁的」这种
+		* 没有答案的状态。
+		*/
+		const QODER_SIDEBAR_PANEL_FIELD = "sidebarPanel";
+		/** The top-level settings field carrying the global upstream-refresh interval. */
+		const QODER_POLL_MINUTES_FIELD = "pollMinutes";
+		/**
+		* 侧边栏那一行与它打开的整页共用的 id。
+		*
+		* `sidebar.panellist` 的 `id` 与 `main` 的 `key` **必须相同**：侧边栏按钮
+		* 点下去是「选中 id 等于自己的中央面板」（`ui-layout` 的 `panelId` 按 key
+		* 派发），两者对不上就只是一个点了没反应的按钮。
+		*/
+		const QODER_SIDEBAR_PANEL_ID = "dsh-connect-qoder";
+		/**
+		* 是否在 DSH 侧边栏加一个 Qoder 面板行（+ 对应的整页）。
+		*
+		* **默认关闭**，且判据是 `=== true` 而不是 `!== false`：这一行占的是
+		* `sidebar.panellist` 这个**所有插件共用的全局座位**，点开还会接管中央面板。
+		* 打开它是对用户整个侧边栏的决定，不是对这张卡片的偏好——所以「没写过」
+		* 必须读成「没要」，升级不能替用户重新排一次侧边栏。
+		*
+		* 参考 workbuddy 的 `unwrapVolatile(current().sidebarPanel) === true`（同一条
+		* 理由）；Qoder 这边的字段同样声明成 volatile（见 `src/index.ts` 的
+		* `Config`），所以这里先解包再判。
+		*/
+		function sidebarPanelEnabledOf(value) {
+			const unwrapped = unwrapVolatileDeep(value);
+			return unwrapVolatileDeep(typeof unwrapped === "object" && unwrapped !== null && !Array.isArray(unwrapped) ? unwrapped[QODER_SIDEBAR_PANEL_FIELD] : void 0) === true;
 		}
 		/**
 		* The plugin's DECLARED settings namespace — the fallback name, not the value
@@ -486,6 +545,98 @@ window.__ModuleLoader__.load({
 			}
 		}
 		/**
+		* 把一个**顶层**字段写到宿主的保存端点（没有区域轴，所以 body 直接是那个值）。
+		*
+		* `regions` 走 `{ [region]: value }`，因为它是按区域槽位合并的；顶层标量
+		* （`sidebarPanel`）没有兄弟槽要保护，整份就是它自己的新值 —— 与 workbuddy
+		* 的 `__save` 对顶层开关的处理一致（`region === undefined` 时 body 直接是值）。
+		*/
+		async function saveTopLevelViaHostEndpoint(field, value) {
+			let response;
+			try {
+				response = await fetch(QODER_SAVE_PATH, {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					credentials: "same-origin",
+					body: JSON.stringify({
+						field,
+						value
+					})
+				});
+			} catch (error) {
+				throw new QoderSettingsWriteError(field, `Host save endpoint unreachable: ${String(error)}`);
+			}
+			if (!response.ok) {
+				const detail = await response.json().catch(() => ({ error: `HTTP ${String(response.status)}` }));
+				const reason = `${String(detail.errorName ?? "")} ${String(detail.error ?? "")}`.trim();
+				throw new QoderSettingsWriteError(field, `Host save refused: ${reason === "" ? String(detail.error) : reason}`);
+			}
+			return (await response.json().catch(() => void 0))?.value;
+		}
+		/**
+		* 写侧：全局的自动刷新间隔（分钟）。
+		*
+		* 与 {@link writeSidebarPanelEnabled} 逐字同形的顶层标量写入：宿主保存端点优先
+		* （权威合并、自己报告拒绝），settings 作用域次之。落地校验读的是**解包后**的值
+		* 与目标相等 —— 这个字段是枚举，写进去一个不在五档里的值等于没写。
+		*
+		* @throws {QoderSettingsWriteError} 两个写者都没能持久化时。
+		*/
+		async function writePollMinutes(scope, minutes) {
+			const field = QODER_POLL_MINUTES_FIELD;
+			let hostError;
+			try {
+				const authoritative = await saveTopLevelViaHostEndpoint(field, minutes);
+				if (authoritative !== void 0) try {
+					await scope.set(field, authoritative[field]);
+				} catch {}
+				return;
+			} catch (error) {
+				hostError = error;
+			}
+			let delivered = false;
+			try {
+				delivered = await scope.set(field, minutes) !== false;
+			} catch {
+				delivered = false;
+			}
+			if (delivered && pollMinutesOf(scope.getSnapshot().value) === minutes) return;
+			throw hostError instanceof Error ? hostError : new QoderSettingsWriteError(field, "neither the Host save endpoint nor the settings scope persisted the value");
+		}
+		/**
+		* 写侧：打开 / 关闭侧边栏面板，并验证它真的落地了。
+		*
+		* 写者顺序与 {@link writeField} 相同、理由也相同：宿主端点优先（它是权威合并，
+		* 且自己会报告拒绝），settings 作用域次之（这个命名空间的浏览器镜像在受影响的
+		* 0.1.7 部署上被记录为陈旧 —— 一行「看起来在、Host 却不这么认为」的侧边栏
+		* 比没有这一行更糟）。
+		*
+		* 这是一个顶层标量，所以写在自己那条路径上；字段里没有兄弟状态要保留。
+		*
+		* @throws {QoderSettingsWriteError} 两个写者都没能持久化时。
+		*/
+		async function writeSidebarPanelEnabled(scope, enabled) {
+			const field = QODER_SIDEBAR_PANEL_FIELD;
+			let hostError;
+			try {
+				const authoritative = await saveTopLevelViaHostEndpoint(field, enabled);
+				if (authoritative !== void 0) try {
+					await scope.set(field, authoritative[field]);
+				} catch {}
+				return;
+			} catch (error) {
+				hostError = error;
+			}
+			let delivered = false;
+			try {
+				delivered = await scope.set(field, enabled) !== false;
+			} catch {
+				delivered = false;
+			}
+			if (delivered && sidebarPanelEnabledOf(scope.getSnapshot().value)) return;
+			throw hostError instanceof Error ? hostError : new QoderSettingsWriteError(field, "neither the Host save endpoint nor the settings scope persisted the value");
+		}
+		/**
 		* Write one volatile field, then confirm the value actually landed.
 		*
 		* The Host endpoint goes FIRST — it is the only writer that cannot delete a
@@ -558,6 +709,21 @@ window.__ModuleLoader__.load({
 			});
 		}
 		/**
+		* Write one region's campaign-feed switch, with the same landed-check.
+		*
+		* Same shape as {@link writeRegionCreditsShown}: both are per-region content
+		* switches written as a whole region slot, so a sibling region is never
+		* dropped. The landed-check matters for the measured reason that switch
+		* documents: the settings mirror can silently drop a write, and a checkbox that
+		* keeps showing the old value is worse than one that reports failure.
+		*/
+		async function writeRegionCampaignsShown(scope, region, shown, slot) {
+			await writeField(scope, "regions", region, slot, (readBack) => {
+				const stored = readBack;
+				return stored !== null && stored !== void 0 && stored["showCampaigns"] === shown;
+			});
+		}
+		/**
 		* Write one region's credit-readout SEAT, with the same landed-check.
 		*
 		* The read-back check matters for the same measured reason it does for the
@@ -575,11 +741,13 @@ window.__ModuleLoader__.load({
 		*/
 		async function writePoolPreferences(scope, region, preferences) {
 			const orderAccountIds = preferences.orderAccountIds ?? [];
+			const autoCheckin = preferences.autoCheckin === true;
 			const slot = {
 				enabled: preferences.enabled,
 				targetModelId: preferences.targetModelId,
 				memberAccountIds: preferences.memberAccountIds,
-				orderAccountIds
+				orderAccountIds,
+				autoCheckin
 			};
 			if (preferences.probeInputTokens !== void 0) slot["probeInputTokens"] = preferences.probeInputTokens;
 			const next = nextRegionPool(scope.getSnapshot().value, region, slot)[region];
@@ -595,7 +763,8 @@ window.__ModuleLoader__.load({
 				if (!stored.every((id) => typeof id === "string" && wanted.has(id))) return false;
 				const storedOrder = pool["orderAccountIds"];
 				if (!Array.isArray(storedOrder) || storedOrder.length !== orderAccountIds.length) return false;
-				return storedOrder.every((id, index) => id === orderAccountIds[index]);
+				if (!storedOrder.every((id, index) => id === orderAccountIds[index])) return false;
+				return pool["autoCheckin"] === true === autoCheckin;
 			});
 		}
 		/** One region's stored slot as a plain object (node-free source of truth). */
@@ -604,6 +773,81 @@ window.__ModuleLoader__.load({
 			const regions = typeof unwrapped === "object" && unwrapped !== null && !Array.isArray(unwrapped) ? unwrapped["regions"] : void 0;
 			const slot = (typeof regions === "object" && regions !== null && !Array.isArray(regions) ? regions : {})[region];
 			return typeof slot === "object" && slot !== null && !Array.isArray(slot) ? slot : {};
+		}
+		//#endregion
+		//#region src/client/panel-switch.ts
+		/**
+		* 可选侧边栏面板的开关，在浏览器半边怎么存、怎么通知注册控制器。
+		*
+		* 参考：dingminhua/dsh-connect-workbuddy 的 `client/panel-switch.ts`（PR #188，
+		* MIT，Copyright (c) 2026 LaoDing）——模块级小 store + 订阅的形态逐字沿用。
+		*
+		* ## 为什么是模块级 store，而不是组件状态
+		*
+		* `sidebar.panellist` 那一行是由**注册元数据**渲染的，不是由组件自己决定：
+		* `ui-sidebar` 的 `SidebarRoot` 把 `usePanels(...)`（插槽的 entries）映射成
+		* `PanelRow` 按钮 —— 标签来自 `options.label`、图标来自 `renderSlot(...)`。
+		* 因此一个 `return null` 的组件**不会**让那一行消失：它留下的是一个空白但
+		* 仍可点击的导航按钮。
+		*
+		* 这正是本插件**不能**照搬 `ComposerCreditsGate` 那种「渲染时决定」的原因：
+		* 那个席位渲染的是一个组件列表，`null` 就是「不存在」；这一行是元数据。
+		* 所以行只能在开关打开时**注册**，关掉时**注销**。
+		*
+		* 按条件注册又要求有人负责「设置变了就重注册」——那个人在入口（`apply`）里，
+		* 不在组件里。本模块就是两者的接缝：卡片在**确认写入落地之后**把值写进这里，
+		* 入口订阅它、按需注册或注销。
+		*
+		* ## 为什么用 Host 的答案做种子
+		*
+		* 值由 Host 在状态文档里下发（`sidebarPanelEnabled`），理由与本插件每个其它
+		* 开关相同：这个命名空间的浏览器镜像在受影响的 0.1.7 部署上被记录为「陈旧」。
+		* 只在启动时读 settings 作用域，会让一个陈旧的 `false` 藏起 Host 认为正在
+		* 服务的行 —— 而之后**没有任何事件**去纠正它，因为 `whileServed` 只在命名空间
+		* 边缘触发，不在值变化时触发。
+		*
+		* 页面开着时把面板关掉不需要特殊处理：`ui-layout` 的 `retainMainPanels` 会丢掉
+		* 一个 `main` key 已不存在的 `activePanelId`，中央那一列自己回到对话。
+		*/
+		/** 等待开关变化的监听者。 */
+		const listeners = /* @__PURE__ */ new Set();
+		/**
+		* 当前答案，默认**关闭**。
+		*
+		* 关闭正是这个开关的全部意义：缺席或读不出来的值绝不能把这一行打开。
+		* 见 `src/index.ts` 的 `Config.sidebarPanel`。
+		*/
+		let wanted = false;
+		/** 侧边栏面板此刻是否应该被注册。 */
+		function sidebarPanelWanted() {
+			return wanted;
+		}
+		/**
+		* 设置开关状态并通知注册控制器。
+		*
+		* 幂等：控制器每次都会重新注册，而 settings 订阅完全可能把同一个值报告两次。
+		* 无法判断值是否真的变了的调用方不必先比较。
+		*
+		* @param next - 期望状态。
+		*/
+		function setSidebarPanelWanted(next) {
+			if (wanted === next) return;
+			wanted = next;
+			for (const listener of [...listeners]) try {
+				listener();
+			} catch {}
+		}
+		/**
+		* 观察开关状态的变化。
+		*
+		* @param listener - 每次变化后调用。
+		* @returns 移除该监听者的 disposer。
+		*/
+		function subscribeSidebarPanelWanted(listener) {
+			listeners.add(listener);
+			return () => {
+				listeners.delete(listener);
+			};
 		}
 		//#endregion
 		//#region src/client/remaining.ts
@@ -661,12 +905,12 @@ window.__ModuleLoader__.load({
 		//#endregion
 		//#region src/client/exclusion-text.ts
 		/** The exclusion label for one account, or undefined when it is usable. */
-		function exclusionText(t, excludedBy, retryAtMs, nowMs = Date.now()) {
+		function exclusionText(t, excludedBy, retryAtMs, nowMs = Date.now(), retrySource) {
 			const label = exclusionLabel(t, excludedBy);
 			if (label === void 0) return void 0;
 			const remaining = retryAtMs === void 0 ? "" : remainingText(t, retryAtMs, nowMs);
-			if (remaining === "") return label;
-			return `${label} · ${t("row.unlockSuffix", { when: remaining })}`;
+			if (remaining === "") return retrySource === "unknown-cooldown" ? `${label} · ${t("row.poolRetryUnknown")} · ${t("row.poolRetryFallback")}` : label;
+			return `${label} · ${t(retrySource === "quota-refresh" ? "row.unlockSuffixWindow" : "row.unlockSuffix", { when: remaining })}`;
 		}
 		/** 排除原因的固定短标签（不含时间）。 */
 		function exclusionLabel(t, excludedBy) {
@@ -681,6 +925,94 @@ window.__ModuleLoader__.load({
 				case "unusable": return t("row.poolExcludedUnusable");
 				default: return;
 			}
+		}
+		/**
+		* 某一时刻在指定时区里的当天分钟数。
+		*
+		* 只用来把「上游声明的墙钟时间」和「此刻」放到同一个坐标系里。时区名读不懂时
+		* 返回 `undefined`，由调用方决定回落——**不静默退回浏览器本地时间**：那会让
+		* 一个跨零点窗口在别的时区悄悄错位 8 小时。
+		*
+		* `hourCycle: 'h23'` 是刻意的：部分引擎在 `hour12: false` 下会把午夜报成 24，
+		* 那会让「22:00–08:00」在 00:00 判定失败。
+		*/
+		function zonedClock(now, timeZone) {
+			let parts;
+			try {
+				parts = new Intl.DateTimeFormat("en-US", {
+					timeZone,
+					hourCycle: "h23",
+					hour: "2-digit",
+					minute: "2-digit"
+				}).formatToParts(now);
+			} catch {
+				return;
+			}
+			const read = (type) => parts.find((part) => part.type === type)?.value;
+			const hour = Number(read("hour"));
+			const minute = Number(read("minute"));
+			if (!Number.isFinite(hour) || !Number.isFinite(minute)) return void 0;
+			return { minutes: hour % 24 * 60 + minute };
+		}
+		/**
+		* 此刻是否落在该规则的时段内。
+		*
+		* 语义与 Qoder 自己的描述一致（「10 PM-8 AM UTC+8」）：
+		* - **起点含、终点不含**：22:00 已生效，08:00 已失效；`22:00–24:00` 覆盖到当天结束。
+		* - **跨零点**：`start > end` 时命中区间是 `[start, 24:00) ∪ [0, end)`。
+		* - `start === end` 视为**全天**：上游写「22:00–22:00」只可能是这个意思（与
+		*   Trae 那边 `start===end` 的取舍一致）。
+		* - **读不懂的时区一律返回 `false`**：judge 不了就不画。退回浏览器时区会让一个
+		*   跨零点窗口在别的时区错位几小时，比不画更糟。
+		* - 没有窗口声明时返回 `true`——这一支只由 `promoLiveAt` 在「确实没声明」时走到。
+		*/
+		function promoWithinWindow(promo, now) {
+			const window = promo.window;
+			if (window === void 0) return true;
+			const clock = zonedClock(now, promo.timeZone ?? "Asia/Shanghai");
+			if (clock === void 0) return false;
+			const { startMinute, endMinute } = window;
+			if (startMinute === endMinute) return true;
+			if (startMinute < endMinute) return clock.minutes >= startMinute && clock.minutes < endMinute;
+			return clock.minutes >= startMinute || clock.minutes < endMinute;
+		}
+		function promoDisplayAt(promo, now) {
+			if (promo === void 0) return "none";
+			if (promo.windowUnreadable === true) return "none";
+			if (promo.window === void 0) return promo.active ? "live" : "none";
+			return promoWithinWindow(promo, now) ? "live" : "pending";
+		}
+		/**
+		* 某一时刻 UI 该显示的积分倍率 = 基准价 × 当前生效活动的折扣系数。
+		*
+		* **只是显示。** 计费由 Qoder 服务端按请求结算，pi-ai 请求体、目标模型 id、
+		* `creditMultiplier` 的「免费即 0」判据、落盘的 `priceFactor` 全部仍走基准价，
+		* 这里碰都不会碰（issue #41 的建议就是加一个「显示倍率」字段仅用于 UI）。
+		*
+		* 为什么不把结果存成目录字段：折扣随窗口开关，是个渲染时刻的纯函数；一旦
+		* 写进 `lastCatalog`，夜里读到的一份就会冻结到第二天早上——这与 §3.2「判定
+		* 必须在渲染时刻」是同一条理由。所以这里现算，卡片/选择器各自用自己的时钟。
+		*
+		* 采信一条折扣的前提（任何一条不满足就**原样退回基准价**，宁可少显示也不说错话）：
+		* - 此刻 `promoDisplayAt === 'live'`（有窗口按窗口，没窗口才看 `active`）；
+		* - 上游给了可信的 `discountFactor`（有限数，且 `0 ≤ x ≤ 1`——0 = 免费，1 = 不打折）；
+		* - 算出的结果必须有限且非负，按两位小数归一（消除 `0.5 × 0.4 = 0.20000000000000001`）。
+		*
+		* `before_promotion_price_factor` **不**用来校验：限时免费这类活动里它可能与目录里的
+		* `price_factor` 对不上，拿它当门恰好会压掉 issue #41 要修的 `x0.00`。基准价永远取
+		* 目录当前值（`source.priceFactor`），而不是折前快照。
+		*
+		* @param source - 基准价与该模型的活动规则（缺席即无活动）。
+		* @param now - 判定用的时刻（渲染时刻现给的 `new Date()`）。
+		*/
+		function displayMultiplierOf(source, now) {
+			const base = source.priceFactor;
+			const promo = source.promotion;
+			if (promo === void 0 || promoDisplayAt(promo, now) !== "live") return base;
+			const factor = promo.discountFactor;
+			if (factor === void 0 || !Number.isFinite(factor) || factor < 0 || factor > 1) return base;
+			const result = Math.round(base * factor * 100) / 100;
+			return Number.isFinite(result) && result >= 0 ? result : base;
 		}
 		//#endregion
 		//#region src/client/account-state.ts
@@ -1156,7 +1488,8 @@ window.__ModuleLoader__.load({
 				targetModelId: pool?.targetModelId || pool?.staleTargetModelId || "",
 				probeInputTokens: pool?.probeInputTokens ?? 0,
 				memberAccountIds: pool?.memberAccountIds ?? [],
-				orderAccountIds: pool?.orderAccountIds ?? []
+				orderAccountIds: pool?.orderAccountIds ?? [],
+				autoCheckin: pool?.autoCheckin === true
 			};
 			/**
 			* 正在计费的那个账号，或 undefined（池里没有 `current` 行时）。
@@ -1529,7 +1862,7 @@ window.__ModuleLoader__.load({
 						} else {
 							if (rows.length === 0) appendLog({
 								atMs: Date.now(),
-								text: t("row.poolLogBatchFailed", { message: t("row.poolTargetNone") }),
+								text: effective.length === 0 ? t("row.poolLogBatchFailed", { message: t("row.poolTargetNone") }) : t("row.poolLogTestNoneRan"),
 								tone: "warn"
 							});
 							else for (const row of rows) logTestRowOnce(row, Date.now());
@@ -1628,6 +1961,43 @@ window.__ModuleLoader__.load({
 				}
 			};
 			const targetMisses = pool?.targetModelSource === "none" || pool?.targetModelSource === "stale";
+			/**
+			* 自动签到今天的进度，或什么都不渲染。
+			*
+			* 读的是**保存着的**开关（`saved`），不是草稿：这一段描述的是运行器在做什么，
+			* 而一个草稿状态下「打开」的开关还没启动任何东西 —— 给它显示进度等于宣称一个
+			* 任务正在跑。
+			*
+			* 三态三句话：全做完了、做到一半、以及「还欠着重试」。最后一句是用户唯一能
+			* 知道「它还在试」而不是「它悄悄卡住了」的地方。
+			*/
+			const autoCheckinStatus = (() => {
+				if (!saved.autoCheckin) return null;
+				const today = pool?.autoCheckinToday;
+				if (today === void 0) return null;
+				const headline = today.pending === 0 && today.done === today.total ? t("row.poolAutoCheckinDone", { total: String(today.total) }) : t("row.poolAutoCheckinToday", {
+					done: String(today.done),
+					total: String(today.total)
+				});
+				return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+					className: "dsm-qoder-pool-auto-checkin-status",
+					children: [
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							className: "dsm-qoder-pool-auto-checkin-line",
+							children: headline
+						}),
+						today.pending === 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							className: "dsm-qoder-pool-auto-checkin-pending",
+							children: t("row.poolAutoCheckinPending", { count: String(today.pending) })
+						}),
+						today.lastError === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							className: "dsm-qoder-pool-auto-checkin-error",
+							title: today.lastError,
+							children: t("row.poolAutoCheckinFailed", { message: today.lastError })
+						})
+					]
+				});
+			})();
 			/**
 			* 运行中的模式（`saved.enabled`），**不是**草稿（`active.enabled`）。
 			*
@@ -1736,38 +2106,67 @@ window.__ModuleLoader__.load({
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 						className: "dsm-qoder-pool-settings dsm-qoder-pool-modebar",
-						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-							className: "dsm-qoder-pool-modebar-row",
-							children: [
-								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
-									className: "sw",
-									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
-										type: "checkbox",
-										checked: active.enabled,
-										disabled: !canEditPool,
-										onChange: (e) => editDraft((prev) => ({
-											...prev,
-											enabled: e.target.checked
-										}))
-									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { className: "sw-track" })]
-								}),
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("b", {
-									className: "dsm-qoder-pool-modebar-label",
-									children: t("row.poolEnabled")
-								}),
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: "dsm-qoder-pool-modebar-state",
-									children: poolRunning ? t("row.poolModeAuto") : t("row.poolModeManual")
-								}),
-								dirty ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: "dsm-qoder-pool-dirty",
-									children: t("row.poolDirty")
-								}) : null
-							]
-						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-							className: "dsm-qoder-pool-note",
-							children: t("row.poolEnabledHint")
-						})]
+						children: [
+							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+								className: "dsm-qoder-pool-modebar-row",
+								children: [
+									/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
+										className: "sw",
+										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
+											type: "checkbox",
+											checked: active.enabled,
+											disabled: !canEditPool,
+											onChange: (e) => editDraft((prev) => ({
+												...prev,
+												enabled: e.target.checked
+											}))
+										}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { className: "sw-track" })]
+									}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("b", {
+										className: "dsm-qoder-pool-modebar-label",
+										children: t("row.poolEnabled")
+									}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "dsm-qoder-pool-modebar-state",
+										children: poolRunning ? t("row.poolModeAuto") : t("row.poolModeManual")
+									}),
+									dirty ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "dsm-qoder-pool-dirty",
+										children: t("row.poolDirty")
+									}) : null
+								]
+							}),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+								className: "dsm-qoder-pool-note",
+								children: t("row.poolEnabledHint")
+							}),
+							checkinOn ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+								className: "dsm-qoder-pool-modebar-row dsm-qoder-pool-auto-checkin",
+								children: [
+									/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
+										className: "sw",
+										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
+											type: "checkbox",
+											checked: active.autoCheckin,
+											disabled: !canEditPool,
+											onChange: (e) => editDraft((prev) => ({
+												...prev,
+												autoCheckin: e.target.checked
+											}))
+										}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { className: "sw-track" })]
+									}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("b", {
+										className: "dsm-qoder-pool-modebar-label",
+										children: t("row.poolAutoCheckin")
+									}),
+									autoCheckinStatus
+								]
+							}) : null,
+							checkinOn ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+								className: "dsm-qoder-pool-note",
+								children: t("row.poolAutoCheckinHint")
+							}) : null
+						]
 					}),
 					servingOutside ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 						className: "dsm-qoder-pool-note dsm-qoder-pool-serving-note",
@@ -1854,7 +2253,7 @@ window.__ModuleLoader__.load({
 									]
 								})
 							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+							(pool?.accounts.length ?? 0) === 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 								className: `dsm-qoder-pool-table${checkinOn ? " dsm-qoder-pool-table-checkin" : ""}`,
 								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 									className: "dsm-qoder-pool-row dsm-qoder-pool-row-head",
@@ -1863,11 +2262,11 @@ window.__ModuleLoader__.load({
 										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("row.poolColumnCredits") }),
 										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("row.poolColumnProbe") }),
 										checkinOn ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("row.poolColumnCheckin") }) : null,
-										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {})
+										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { "aria-hidden": "true" })
 									]
 								}), sortAccountsByOrder(pool?.accounts ?? [], orderIds).map((account) => {
 									const name = account.accountName === "" ? t("row.accountUnnamed") : account.accountName;
-									const excluded = exclusionText(t, account.excludedBy, account.probe?.retryAtMs, nowMs);
+									const excluded = exclusionText(t, account.excludedBy, account.probe?.retryAtMs, nowMs, account.probe?.retrySource);
 									const inPool = active.memberAccountIds.includes(account.accountId);
 									return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 										className: `dsm-qoder-pool-row${account.current ? " dsm-qoder-pool-row-current" : ""}`,
@@ -1891,68 +2290,64 @@ window.__ModuleLoader__.load({
 													}),
 													/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
 														className: "dsm-qoder-pool-account-name",
-														children: [
-															/* @__PURE__ */ (0, react_jsx_runtime.jsx)("b", { children: name }),
-															!inPool ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-																className: orderIsManual ? "dsm-qoder-pool-rank" : "dsm-qoder-pool-rank-auto",
-																title: t(!orderIsManual ? "row.poolRankAutoHint" : account.excludedBy === void 0 ? "row.poolRankHint" : "row.poolRankExcludedHint"),
-																children: !orderIsManual ? t("row.poolRankAuto") : account.excludedBy === void 0 ? t("row.poolRank", { rank: String(orderIds.indexOf(account.accountId) + 1) }) : t("row.poolRankExcluded", { rank: String(orderIds.indexOf(account.accountId) + 1) })
-															}),
-															pool?.enabled === true && inPool && canEditPool ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-																className: "dsm-qoder-pool-move",
-																role: "group",
-																"aria-label": t("row.poolMoveAria", { accountName: name }),
-																children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-																	type: "button",
-																	className: "dsm-qoder-pool-move-btn",
-																	title: t("row.poolMoveUp"),
-																	"aria-label": t("row.poolMoveUp"),
-																	disabled: orderIds.indexOf(account.accountId) <= 0,
-																	onClick: () => {
-																		moveMember(account.accountId, -1);
-																	},
-																	children: "↑"
-																}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-																	type: "button",
-																	className: "dsm-qoder-pool-move-btn",
-																	title: t("row.poolMoveDown"),
-																	"aria-label": t("row.poolMoveDown"),
-																	disabled: orderIds.indexOf(account.accountId) >= orderIds.length - 1,
-																	onClick: () => {
-																		moveMember(account.accountId, 1);
-																	},
-																	children: "↓"
-																})]
-															}) : null,
-															account.current ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-																className: "dsm-qoder-pool-current-tag",
-																title: t(pool?.servingSource === "failover" ? "row.poolCurrentHintFailover" : "row.poolCurrentHintSelected"),
-																children: t(pool?.servingSource === "failover" ? "row.poolCurrentBadgeFailover" : "row.poolCurrentBadge")
-															}) : null,
-															inPool ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-																className: "dsm-qoder-pool-not-member",
-																children: t("row.poolNotMember")
-															}),
-															excluded === void 0 ? account.probe === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("row.poolTestedAt", { at: formatProbeMoment(account.probe.atMs) }) }) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-																className: "dsm-qoder-pool-excluded",
-																children: excluded
-															})
-														]
+														children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+															className: "dsm-qoder-pool-account-line",
+															children: [
+																/* @__PURE__ */ (0, react_jsx_runtime.jsx)("b", { children: name }),
+																!inPool ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+																	className: orderIsManual ? "dsm-qoder-pool-rank" : "dsm-qoder-pool-rank-auto",
+																	title: t(!orderIsManual ? "row.poolRankAutoHint" : account.excludedBy === void 0 ? "row.poolRankHint" : "row.poolRankExcludedHint"),
+																	children: !orderIsManual ? t("row.poolRankAuto") : account.excludedBy === void 0 ? t("row.poolRank", { rank: String(orderIds.indexOf(account.accountId) + 1) }) : t("row.poolRankExcluded", { rank: String(orderIds.indexOf(account.accountId) + 1) })
+																}),
+																account.current ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+																	className: "dsm-qoder-pool-current-tag",
+																	title: t(pool?.servingSource === "failover" ? "row.poolCurrentHintFailover" : "row.poolCurrentHintSelected"),
+																	children: t(pool?.servingSource === "failover" ? "row.poolCurrentBadgeFailover" : "row.poolCurrentBadge")
+																}) : null,
+																inPool ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+																	className: "dsm-qoder-pool-not-member",
+																	children: t("row.poolNotMember")
+																}),
+																pool?.enabled === true && inPool && canEditPool ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+																	className: "dsm-qoder-pool-move",
+																	role: "group",
+																	"aria-label": t("row.poolMoveAria", { accountName: name }),
+																	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+																		type: "button",
+																		className: "dsm-qoder-pool-move-btn",
+																		title: t("row.poolMoveUp"),
+																		"aria-label": t("row.poolMoveUp"),
+																		disabled: orderIds.indexOf(account.accountId) <= 0,
+																		onClick: () => {
+																			moveMember(account.accountId, -1);
+																		},
+																		children: "↑"
+																	}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+																		type: "button",
+																		className: "dsm-qoder-pool-move-btn",
+																		title: t("row.poolMoveDown"),
+																		"aria-label": t("row.poolMoveDown"),
+																		disabled: orderIds.indexOf(account.accountId) >= orderIds.length - 1,
+																		onClick: () => {
+																			moveMember(account.accountId, 1);
+																		},
+																		children: "↓"
+																	})]
+																}) : null
+															]
+														}), excluded === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+															className: "dsm-qoder-pool-excluded",
+															children: excluded
+														})]
+													}),
+													/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+														className: "dsm-qoder-pool-credits",
+														children: account.credits === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+															className: "dsm-qoder-pool-unknown",
+															children: "—"
+														}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("b", { children: String(account.credits) })
 													})
 												]
-											}),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-												className: "dsm-qoder-pool-credits",
-												children: [account.credits === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													className: "dsm-qoder-pool-unknown",
-													children: "—"
-												}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("b", { children: String(account.credits) }), account.expiringSoon !== void 0 && account.expiringSoon > 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													className: "dsm-qoder-pool-soon",
-													children: t("row.poolCreditSoon", { count: String(account.expiringSoon) })
-												}) : account.nearestExpiryMs === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													className: "dsm-qoder-pool-soon-plain",
-													children: t("row.poolCreditNearest", { at: formatProbeMoment(account.nearestExpiryMs) })
-												})]
 											}),
 											/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
 												className: "dsm-qoder-pool-probe",
@@ -2151,17 +2546,6 @@ window.__ModuleLoader__.load({
 						className: "dsm-qoder-pool-tools",
 						children: accountTools
 					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: "dsm-qoder-pool-card-head",
-						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("h4", {
-							className: "dsm-qoder-pool-card-title",
-							children: t("row.poolSettingsTitle")
-						})
-					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-						className: "dsm-qoder-pool-note",
-						children: t("row.poolSettingsHint")
-					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 						className: "dsm-qoder-pool-settings",
 						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
@@ -2191,7 +2575,10 @@ window.__ModuleLoader__.load({
 										}) : null,
 										(catalog ?? []).map((model) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
 											value: model.id,
-											children: model.creditMultiplier === void 0 ? model.name : `${model.name} (x${model.creditMultiplier.toFixed(2)})`
+											children: model.creditMultiplier === void 0 ? model.name : `${model.name} (x${displayMultiplierOf({
+												priceFactor: model.creditMultiplier,
+												promotion: model.promotion
+											}, /* @__PURE__ */ new Date()).toFixed(2)})`
 										}, model.id))
 									]
 								})
@@ -2335,8 +2722,8 @@ window.__ModuleLoader__.load({
 		*
 		* **可用性压过用户顺序**，与宿主 `rankPool` 的第 1 层用的是同一条规则
 		* （`excludedBy === undefined`）。这条不能只在宿主生效而表格不管：
-		* 用户实拍（2026-10-18）——`nick1064248741` 用量已达上限却被排在第 1 位，
-		* 而第 2 位的 `shangxinyu2002@msn.com` 写着「✓ 可用」。请求实际发给的是
+		* 用户实拍（2026-10-18）——`account-a` 用量已达上限却被排在第 1 位，
+		* 而第 2 位的 `account-b` 写着「✓ 可用」。请求实际发给的是
 		* 第 2 位，表格却宣称第 1 位优先。**名次表撒谎比没有名次表更糟**。
 		*
 		* 用户仍能决定「能用的号之间谁先」，出池的号只是沉到末尾 —— 它们在池里
@@ -2373,7 +2760,7 @@ window.__ModuleLoader__.load({
 		* 同名账号必须还能分辨：同一个邮箱重新签发 PAT 会得到**两条**记录（id 由 PAT
 		* 推导，是不同的），两条显示名一模一样。只显示名字的话，「我当前在用哪一条」
 		* 这个问题的答案是「看不出」——用户实拍的就是这种两条同名、一条已过期的情况。
-		* 重名时补 id 尾号（id 形如 `pat-5d76517ac7699f87`，末 4 位足够区分）。
+		* 重名时补 id 尾号（id 形如 `pat-0123456789abcdef`，末 4 位足够区分）。
 		*
 		* 这里**不**再加「使用中」后缀：下拉的选中值本身就是当前在服务的账号，头部还
 		* 有一枚 `row.poolCurrentHeader` 标签，同一个事实说三遍反而是噪音。
@@ -2962,6 +3349,27 @@ window.__ModuleLoader__.load({
 			if (link !== void 0) parts.push(link);
 			return parts.join(" · ");
 		}
+		/**
+		* 倍率标签的悬停（issue #41）：显示的是活动实际价时，补一句「这是活动价，
+		* 基准价是 N.NN」，避免用户拿它去和别处（或下个月的账单）对不上而误以为出错。
+		*
+		* 只有显示倍率与基准价**不同**时才给提示；相同（没有折扣、窗口外、不采信折扣）
+		* 时返回 `undefined`，调用方不挂 title——没有差异就不必解释。
+		*
+		* 这句是插件自己写的解释，不是上游的话：上游 `promotion` 只给折扣数字，没给
+		* 「基准价是多少」的文案，而用户需要知道屏幕上那个 0 是活动价（与「免费」徽标
+		* 的判据解释 `row.modelFreeHint` 同一类用法）。
+		*
+		* @param source - 该模型的基准价与活动规则。
+		* @param now - 与显示倍率同一个渲染时刻，保证「显示值」与「提示里的基准价」同源。
+		* @param t - 当前界面的翻译函数。
+		*/
+		function rateHint(source, now, t) {
+			if (displayMultiplierOf(source, now) === source.priceFactor) return void 0;
+			const key = "row.ratePromoHint";
+			const template = t?.(key, { base: source.priceFactor.toFixed(2) }) ?? key;
+			return template === key ? `Base rate x${source.priceFactor.toFixed(2)} during this promotion` : template;
+		}
 		//#endregion
 		//#region src/client/Campaigns.tsx
 		/**
@@ -3028,6 +3436,7 @@ window.__ModuleLoader__.load({
 			const [state, setState] = (0, react.useState)({
 				feed: null,
 				error: void 0,
+				noCredential: false,
 				loading: true
 			});
 			(0, react.useEffect)(() => {
@@ -3037,6 +3446,7 @@ window.__ModuleLoader__.load({
 				setState((prev) => ({
 					feed: prev.feed,
 					error: void 0,
+					noCredential: false,
 					loading: true
 				}));
 				fetch(withQoderRegion(QODER_CAMPAIGNS_PATH, region), {
@@ -3044,26 +3454,34 @@ window.__ModuleLoader__.load({
 					credentials: "same-origin",
 					signal: current.signal
 				}).then(async (response) => {
-					if (!response.ok) throw new Error(`HTTP ${response.status}`);
+					if (!response.ok) {
+						const body = await response.json().catch(() => ({}));
+						const thrown = new Error(body.error ?? `HTTP ${String(response.status)}`);
+						if (body.reason === "no-credential") Object.assign(thrown, { noCredential: true });
+						throw thrown;
+					}
 					const feed = await response.json();
 					if (current.signal.aborted) return;
 					setState({
 						feed,
 						error: void 0,
+						noCredential: false,
 						loading: false
 					});
 				}).catch((error) => {
 					if (current.signal.aborted) return;
 					const message = error instanceof Error ? error.message : String(error);
+					const noCredential = error?.noCredential === true;
 					setState({
 						feed: null,
 						error: message,
+						noCredential,
 						loading: false
 					});
 				});
 				return () => current.abort();
 			}, [region]);
-			const { feed, error, loading } = state;
+			const { feed, error, noCredential, loading } = state;
 			const campaigns = feed?.campaigns ?? [];
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				className: "dsm-qoder-campaigns",
@@ -3077,6 +3495,10 @@ window.__ModuleLoader__.load({
 						role: "alert",
 						children: t("row.campaignsError", { message: error })
 					}) : null,
+					noCredential ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+						className: "dsm-qoder-campaigns-hint",
+						children: t("row.campaignsNoCredential")
+					}) : null,
 					error === void 0 && loading && campaigns.length === 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 						className: "dsm-qoder-campaigns-empty",
 						children: t("row.campaignsLoading")
@@ -3085,47 +3507,50 @@ window.__ModuleLoader__.load({
 						className: "dsm-qoder-campaigns-empty",
 						children: t("row.campaignsEmpty")
 					}) : null,
-					campaigns.map((campaign) => {
-						const row = rowOf(campaign, feed ?? { campaigns: [] }, language, t);
-						const claimKey = campaign.actionType === "CLAIM_BENEFIT" ? claimKeyOf(campaign.claimStatus) : void 0;
-						const status = claimKey === void 0 ? void 0 : t(CLAIM_KEYS[claimKey]);
-						return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-							className: "dsm-qoder-campaign-row",
-							children: [
-								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-									className: "dsm-qoder-campaign-row-head",
-									children: [
-										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className: "dsm-qoder-campaigns-grid",
+						children: campaigns.map((campaign) => {
+							const row = rowOf(campaign, feed ?? { campaigns: [] }, language, t);
+							const claimKey = campaign.actionType === "CLAIM_BENEFIT" ? claimKeyOf(campaign.claimStatus) : void 0;
+							const status = claimKey === void 0 ? void 0 : t(CLAIM_KEYS[claimKey]);
+							return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+								className: "dsm-qoder-campaign-row",
+								children: [
+									/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+										className: "dsm-qoder-campaign-row-head",
+										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 											className: "dsm-qoder-campaign-row-title",
 											children: row.title
-										}),
-										row.amount !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+										}), row.amount !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
 											className: "dsm-qoder-campaign-row-amount",
 											children: [
 												"+",
 												row.amount,
 												" Credits"
 											]
-										}) : null,
-										status !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										}) : null]
+									}),
+									row.description !== void 0 && row.description !== "" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+										className: "dsm-qoder-campaign-row-desc",
+										title: row.description,
+										children: row.description
+									}) : null,
+									/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+										className: "dsm-qoder-campaign-row-foot",
+										children: [status !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 											className: `dsm-qoder-campaign-row-status dsm-qoder-campaign-row-status-${row.claimStatus?.toLowerCase() ?? "unknown"}`,
 											children: status
-										}) : null
-									]
-								}),
-								row.description !== void 0 && row.description !== "" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-									className: "dsm-qoder-campaign-row-desc",
-									children: row.description
-								}) : null,
-								row.detailUrl !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("a", {
-									className: "dsm-qoder-campaign-row-link",
-									href: row.detailUrl,
-									target: "_blank",
-									rel: "noreferrer",
-									children: t("row.campaignDetails")
-								}) : null
-							]
-						}, row.key);
+										}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {}), row.detailUrl !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("a", {
+											className: "dsm-qoder-campaign-row-link",
+											href: row.detailUrl,
+											target: "_blank",
+											rel: "noreferrer",
+											children: t("row.campaignDetails")
+										}) : null]
+									})
+								]
+							}, row.key);
+						})
 					})
 				]
 			});
@@ -3414,6 +3839,23 @@ window.__ModuleLoader__.load({
  */
 .dsm-qoder-model-label{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;vertical-align:baseline;min-width:0}
 .dsm-qoder-model-label-promo{max-width:6em;overflow:hidden;text-overflow:ellipsis}
+/*
+ * 别家 provider 行上那枚胶囊：**逐条复现宿主 Tag 的几何**（0.2.2-rc.1 的
+ * Tag.module.css）。颜色由行内样式给（四个 tone 各一对主题变量，见
+ * host-badge.tsx），这里只管形状：
+ *
+ *   display:inline-flex / align-items:center / border-radius:999px /
+ *   corner-shape:round / padding:1px 8px / font-size:11px / line-height:17px /
+ *   font-weight:500 / white-space:nowrap
+ *
+ * 宿主那颗**没有描边**，所以这里也不画 —— 加了描边，同一行里两颗胶囊就会一个
+ * 有圈一个没有。同理**不加 max-width / 省略号**：宿主不截断，我们截了就会在同一
+ * 行宽下显示成「限时免…」，比不显示更糟。
+ *
+ * vertical-align:baseline 与 .dsm-qoder-model-label 同一取舍：行高由 picker
+ * 决定，自己抬到 middle 会跟名字错位。
+ */
+.dsm-qoder-model-label-host-badge{display:inline-flex;align-items:center;border-radius:999px;corner-shape:round;padding:1px 8px;font-size:11px;line-height:17px;font-weight:500;white-space:nowrap;vertical-align:baseline;flex:none}
 .dsm-qoder-model-desc{margin:0;color:var(--dsw-alias-label-tertiary,#9aa0a8);font-size:12px;line-height:18px}
 .dsm-qoder-model-details{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0}
 .dsm-qoder-model-meta{display:flex;align-items:center;gap:7px 12px;flex-wrap:wrap;color:var(--dsw-alias-label-tertiary,#999);font-size:11px;line-height:16px}
@@ -3509,7 +3951,7 @@ window.__ModuleLoader__.load({
    堆叠样式（组件测试把「启用账号池」定位为它里面的第一个复选框），另加一层
    品牌色描边与浅底，让它读作「这一页其余部分由我定义」而不是又一张设置卡。
    开关原先在**页面底部**，比它控制的一切低 400px。 */
-.dsm-qoder-pool-modebar{padding:12px 14px;gap:8px;border-color:rgba(86,134,254,.36);background:linear-gradient(180deg,rgba(86,134,254,.10),rgba(86,134,254,.02)),var(--dsw-alias-bg-layer-2,#24262c)}
+.dsm-qoder-pool-modebar{padding:12px 14px;gap:8px;border:1px solid rgba(86,134,254,.36);border-radius:12px;overflow:hidden;background:linear-gradient(180deg,rgba(86,134,254,.10),rgba(86,134,254,.02)),var(--dsw-alias-bg-layer-2,#24262c)}
 .dsm-qoder-pool-modebar-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .dsm-qoder-pool-modebar-label{font-size:13px;font-weight:600;color:var(--dsw-alias-label-primary,#e6e6e6)}
 /* 模式用文字说出来：开关的位置是一个 20px 的形状要解码，这枚芯片直接说
@@ -3517,11 +3959,21 @@ window.__ModuleLoader__.load({
 .dsm-qoder-pool-modebar-state{flex:none;padding:1px 9px;border-radius:999px;font-size:12px;line-height:18px;font-weight:500;color:var(--dsw-alias-brand-primary,#5686fe);background:rgba(86,134,254,.14);border:1px solid rgba(86,134,254,.3)}
 .dsm-qoder-pool-modebar .dsm-qoder-pool-dirty{margin-left:auto}
 .dsm-qoder-pool-modebar .dsm-qoder-pool-note{margin:0;line-height:18px;color:var(--dsw-alias-label-secondary,#c6c9d0)}
+/* 自动签到那一行（issue #36）。它紧跟在「启用账号池」下面，共用模式条的盒子：
+   两个开关管的是两件不同的事（谁挑号 / 插件能不能自己动手），但它们都是
+   「这一页的模式」，所以用同一个形状。上边一条淡分隔线把两行分开。 */
+.dsm-qoder-pool-auto-checkin{padding-top:8px;border-top:1px solid rgba(86,134,254,.16)}
+/* 进度那一行是**事实**不是警告：中性色写计数，只有真的失败那一段才用琥珀色。
+   不做成横幅——它挂在开关右边，与开关属于同一句话。 */
+.dsm-qoder-pool-auto-checkin-status{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary,#c6c9d0)}
+.dsm-qoder-pool-auto-checkin-pending{color:var(--dsw-alias-brand-primary,#5686fe)}
+.dsm-qoder-pool-auto-checkin-error{color:var(--dsw-alias-state-warn-primary,#f59e0b);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* 「有人在服务但不在池里」：一条左竖线标它是上一行的旁注，不是警告 */
 .dsm-qoder-pool-serving-note{padding-left:10px;border-left:2px solid rgba(86,134,254,.5);color:var(--dsw-alias-label-secondary,#c6c9d0)}
-/* 批量动作条：成员区内部一行，所以没有上边框——分隔线会把按钮和上一行
-   「已选 N / M」切开，而那两个数字正是这些按钮的作用范围。 */
-.dsm-qoder-pool-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+/* 批量动作条：成员卡片内部一行，所以没有上边框——分隔线会把按钮和上一行
+   「已选 N / M」切开，而那两个数字正是这些按钮的作用范围。左右内边距跟着卡头
+   走，三行的左对齐线才是同一条。 */
+.dsm-qoder-pool-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:0 14px 12px}
 .dsm-qoder-pool-actions-group{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .dsm-qoder-pool-hint{font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary,#c6c9d0)}
 .dsm-qoder-pool-note{margin:0;font-size:12px;line-height:17px;color:var(--dsw-alias-label-secondary,#c6c9d0)}
@@ -3530,29 +3982,158 @@ window.__ModuleLoader__.load({
    读起来像「出问题了」。 */
 .dsm-qoder-pool-empty{margin:0;padding:9px 11px;border-radius:9px;font-size:12px;line-height:17px;color:var(--dsw-alias-label-secondary,#666);background:var(--dsw-alias-fill-tertiary,rgba(127,127,127,.08));border:1px dashed var(--dsw-alias-border-secondary,rgba(127,127,127,.3))}
 .dsm-qoder-pool-error{margin:0;font-size:12px;line-height:17px;color:var(--dsw-alias-state-error-primary,#ef4444);white-space:pre-line}
-.dsm-qoder-pool-table{border:1px solid var(--dsw-alias-border-l2,#3a3d45);border-radius:12px;overflow:hidden;background:var(--dsw-alias-bg-layer-2,#24262c)}
-.dsm-qoder-pool-row{display:grid;grid-template-columns:1.6fr 1fr 1.3fr .9fr .8fr;gap:10px;align-items:center;padding:10px 14px;border-top:1px solid var(--dsw-alias-border-l1,#2c2d31);font-size:13px;color:var(--dsw-alias-label-secondary,#c6c9d0)}
-/* 没有签到列时（国际版暂不通），把空出的轨道让给操作列。
-   CN 有签到，走上面那套 5 列默认值。 */
-.dsm-qoder-pool-table:not(.dsm-qoder-pool-table-checkin) .dsm-qoder-pool-row{grid-template-columns:1.6fr 1fr 1.3fr 1.7fr}
+.dsm-qoder-pool-table{
+  /* CONTAINMENT ROOT */
+  container-type:inline-size;
+  /* 列轨道写在变量里，由表格自己按「有没有签到列」声明一次；行与表头都读它。
+     此前是两条规则各写一遍 grid-template-columns，于是「有签到列」那条
+     （.dsm-qoder-pool-table-checkin .dsm-qoder-pool-row，两个类）在层叠上
+     压过了媒体查询里的宽屏那条（一个类）——**宽屏形态从来没有渲染过**，
+     窗口多宽都是两行紧凑排法。变量只在一处声明，行与表头不可能再分叉。 */
+  /* 尾部两条轨道都是**固定 px**，不用 fr / auto：轨道的宽度必须与格子里有没有
+     内容无关，否则表头与数据行会各自算出不同的轨道宽度、越往右错得越多
+     （实测过表头「账号」w=275 而数据格 w=246）。
+     两份定义各写一次，是因为「有签到列」与否轨道数不同。 */
+  /* 签到列给 118px：这一格的文案是「23:59:59 后可再签到」这种**最长**形态，
+     实测 116px。给 96px 时它会溢出自己的轨道，而数字每秒在变，溢出量也跟着变
+     ——看着像这一格在抖。
+   *
+   * 末尾固定 96px 给**操作列**（测试 / 删除）：它在宽屏是独立一格，在窄形态里
+   * 则是第二行的右端 —— 同一组按钮，两种排法。曾经删掉过这一条（按钮那时住在
+   * 账号格的名字行里），结果宽屏那一列空着；现在按钮回到行级，轨道重新有主。 */
+  --dsm-qoder-pool-cols:minmax(0,1.75fr) minmax(0,.95fr) minmax(0,1.35fr) 118px 96px;
+  /* 表格不再自己描边：它现在是成员卡片里的一段，卡片已经有那圈边框了。
+     自己再描一圈会得到「框中框」——两圈相距 1px，看着像渲染出错。 */
+  border:0;border-radius:0;overflow:hidden;
+  border-top:1px solid var(--dsw-alias-border-l1,#2c2d31);
+  background:var(--dsw-alias-bg-layer-2,#24262c);
+}
+/* 国际版暂不通签到：少一条签到轨道，操作列（末尾固定 96px）仍在。 */
+.dsm-qoder-pool-table:not(.dsm-qoder-pool-table-checkin){--dsm-qoder-pool-cols:minmax(0,1.9fr) minmax(0,.9fr) minmax(0,1.4fr) 96px}
+/* 行布局：**窄是默认，宽由容器查询升级**。
+ *
+ * 断点测的必须是**这张表**的宽度，不是视口。这张卡同时画在三处，宽度与窗口毫无
+ * 关系：输入框卡片、整页版（上限 860px）、以及设置面板的内容列（1400px 屏上是
+ * 578px）。此前用的是 @media (min-width:761px)——在 1440px 的窗口里它永远成立，
+ * 于是 578px 的表格拿到了宽屏那套，账号列被撑到 402px、行高 108px，而右侧 134px
+ * 的积分列里只有两位数。实测（1440 视口 / 578px 表格）：
+ *   账号 x=1159 w=402 │ 积分 x=1573 w=134 │ 状态 x=1159 w=402 │ 签到 x=1573 w=36
+ *
+ * 窄形态用 flex + wrap，按**两行**排（用户第三次实拍后定的形态）：
+ *
+ *   第一行：账号（辨认的一端）… 积分（**推到这一行最右**）
+ *   第二行：状态 · 签到 … 操作按钮（**推到这一行最右**）
+ *
+ * 为什么是两行而不是三行：原来第二行整行只有「积分 + 到期两句」，而到期那两句
+ * 已被移除（界面上不再提供到期时刻），于是那一行只剩下一个数字——让一整行只为
+ * 一个数字存在，是把每行的高度白付一次。数字短、右对齐无害，所以它上提进第一行
+ * 的右端；状态与签到顺势上移成第二行，操作按钮落在同一行的右端。
+ *
+ * 两行各自「左端是内容、右端是补充」：第一行左端是**你是谁**、右端是**多少分**；
+ * 第二行左端是**能不能用**、右端是**能对它做什么**。
+ *
+ * 走错的路记在这里免得再走一遍：
+ *   - 全部 flex-wrap 挤成一行（三行时代的进一步压缩）会变成「888  可用(1.5s)
+ *     测得 · 1 分钟前  已签到  [测试] [删除]」——只读事实与可点按钮挤成一句话；
+ *   - 固定 grid 两行时账号名短也撑满整行，横向空出一大片；
+ *   - 三行时操作按钮 flex-basis:100% 独占一行：每个账号白付一整行高度。
+ */
+.dsm-qoder-pool-row{
+  display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;padding:10px 14px;
+  border-top:1px solid var(--dsw-alias-border-l1,#2c2d31);font-size:13px;color:var(--dsw-alias-label-secondary,#c6c9d0);
+}
+.dsm-qoder-pool-account{display:flex;align-items:center;gap:8px;min-width:0;flex:1 1 100%}
+/* 积分：**贴在第一行（账号格）最右端**。
+ *
+ * 它现在住在 .dsm-qoder-pool-account 里，是该格内的最后一个 flex 项，靠
+ * margin-left:auto 推到这一格的右端 —— 而账号格本身 flex:1 1 100% 独占第一行，
+ * 所以这就是**第一行的右端**。
+ *
+ * 为什么不放在行级：行级的序号在状态与签到之后，放那里它只会落在第二行。
+ *
+ * flex:none + white-space:nowrap：数字是这一行的右边界，它一折行，第一行就
+ * 变成两行，整个「两行」形态就塌了。 */
+.dsm-qoder-pool-credits{display:flex;flex-direction:row;align-items:baseline;gap:2px 8px;min-width:0;flex:none;margin-left:auto;white-space:nowrap;font-variant-numeric:tabular-nums}
+/* 状态这一格允许自己折行：主行（结果 · 原因）与出处行本来就是一句话。 */
+.dsm-qoder-pool-probe{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;font-size:12px;line-height:17px;color:var(--dsw-alias-label-tertiary,#999);min-width:0;flex:1 1 auto;overflow-wrap:anywhere}
+/* 签到跟在状态后面，**不再自己抢右端**：第二行的右端留给操作按钮（见下）。
+ * 之前它靠 margin-left:auto 占右端，那时按钮在第三行；现在两者同一行，右端只能
+ * 有一个主人，否则两个 auto 会把这一行撕成三截。 */
+.dsm-qoder-pool-checkin{font-size:12px;line-height:17px;color:var(--dsw-alias-label-tertiary,#999);white-space:nowrap;flex:none;margin-left:0}
+/* 行内操作（测试 / 删除）坐**第二行的右端**（1.20.0 定稿）。
+ *
+ * 走过的三条路，按顺序记下来，因为每一条都对应一次用户实拍：
+ *   1. flex:1 1 100% 独占第三行、左对齐 —— 每个账号白付一整行高度；
+ *   2. 挪进名字那一行、margin-left:auto 推右 —— 省了一行，但名字行因此被
+ *      名次、「当前使用」、↑↓、按钮挤满；
+ *   3. **现在**：回到行级，与状态、签到同处第二行，由 margin-left:auto 推到
+ *      这一行的右端。第一行留给「你是谁 + 多少分」，第二行是「能不能用 + 能对它
+ *      做什么」。
+ *
+ * flex:none 承重：状态文本可以折行，按钮不行 —— 被压窄的按钮点不准。
+ */
+.dsm-qoder-pool-row-actions{display:flex;gap:6px;align-items:center;flex:none;margin-left:auto}
+/* 窄形态不画表头：它的标签描述的是宽屏那套轨道，折行之后每一个标签都对不上
+   自己的值——实测「签到」标签停在 x=1476，它的值在 1573，差 97px。一堆对不上的
+   表头比没有表头更糟（dsh-connect-trae 在 700px 以下是同一条判断）。 */
+.dsm-qoder-pool-row-head{display:none;padding:8px 14px;background:var(--dsw-alias-bg-layer-3,#2a2c33);color:var(--dsw-alias-label-tertiary,#999);font-size:11px;font-weight:600;letter-spacing:.02em;text-transform:uppercase}
 .dsm-qoder-pool-row:first-child{border-top:0}
-.dsm-qoder-pool-row-head{padding:8px 14px;background:var(--dsw-alias-bg-layer-3,#2a2c33);color:var(--dsw-alias-label-tertiary,#999);font-size:11px;font-weight:600;letter-spacing:.02em;text-transform:uppercase}
+/* 宽屏：这张表自己够宽时才排成一行 5 列，一眼横向可比。
+ * 阈值 700px 与 dsh-connect-trae 取同一个数，理由相同：表格没有「稍微窄一点」的
+ * 形态值得保留——要么放得下这些列，要么放不下。 */
+@container (min-width:700px){
+  .dsm-qoder-pool-row{display:grid;grid-template-columns:var(--dsm-qoder-pool-cols);align-items:center;gap:12px}
+  /* 宽屏那张表是**单行**，所以每一格回到自己的轨道：窄形态那几条 flex 覆盖
+     （100% 占满、margin-left:auto 推右）必须在这里让位，否则操作按钮会带着
+     flex-basis:100% 挤到第二行，五行变六行。 */
+  .dsm-qoder-pool-account,.dsm-qoder-pool-credits,.dsm-qoder-pool-probe,
+  .dsm-qoder-pool-checkin{flex:none;margin-left:0;padding-top:0}
+  .dsm-qoder-pool-credits{flex-direction:column;align-items:flex-start;gap:1px}
+  .dsm-qoder-pool-probe{flex-direction:column;align-items:flex-start;gap:4px}
+  .dsm-qoder-pool-checkin{margin-left:0}
+  /* 操作按钮在宽屏是**自己的最后一格**，靠 justify-self 贴右端；窄形态那条
+     margin-left:auto 在这个单行网格里必须让位（否则它会把按钮从格子里顶出去）。 */
+  .dsm-qoder-pool-row-actions{justify-self:end;margin-left:0}
+  .dsm-qoder-pool-account-name{flex:1 1 auto}
+  /* 表头回到宽屏那套轨道上——它现在与行读的是**同一个变量**，不会再错位。 */
+  .dsm-qoder-pool-row-head{display:grid;grid-template-columns:var(--dsm-qoder-pool-cols);align-items:center;gap:12px}
+  /* 操作列表头是个空 span；display:block 让它占住自己的轨道（否则某些外壳会
+     把它塌成 0 宽，四条 fr 轨道于是各多分到一点，标签整体右移）。 */
+  .dsm-qoder-pool-row-head > span:last-child{display:block}
+}
 .dsm-qoder-pool-row-current{background:rgba(86,134,254,.07)}
 /* 左侧 3px 竖条：正在计费的那一行必须一眼可见。只靠 7% 的背景色，在暗色主题
    下几乎看不出区别（workbuddy 同规，两条规则共用同一个类名）。 */
 .dsm-qoder-pool-row-current{box-shadow:inset 3px 0 0 var(--dsw-alias-brand-primary,#5686fe)}
-.dsm-qoder-pool-account{display:flex;align-items:center;gap:8px;min-width:0}
-.dsm-qoder-pool-account-name{display:flex;flex-direction:column;gap:1px;min-width:0}
-.dsm-qoder-pool-account-name b{font-weight:500;color:var(--dsw-alias-label-primary,#e6e6e6);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 名字块占满账号格里**除积分以外**的剩余宽度（flex:1 1 auto）。
+ *
+ * 这个 1 现在是**积分右对齐的前提**：积分在同一个格子里靠 margin-left:auto 推右，
+ * 只有名字块把剩余空间吃掉，auto 才有「剩余」可推。名字块若是 0 1 auto（有多宽算
+ * 多宽），积分就会紧贴名字后面，右对齐又回到半途 —— 上一版正是这样差了 113px。
+ *
+ * min-width:0 保留：长账号名要能省略，不能把块撑破。 */
+.dsm-qoder-pool-account-name{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1 1 auto}
+/* 第一行：名字 + 名次 + 「当前使用」+ 上下移，全部**同一行**。
+   这一列原来是 5 行竖排（名次 / 箭头 / 徽章 / 测试于 / 上一行结果），把整行
+   撑到 90px 以上，而同一行的另外四列各自都只有一行 —— 高度全浪费在这里。
+   现在压缩成 2 行：身份 + 一句话原因。 */
+.dsm-qoder-pool-account-line{display:flex;align-items:center;gap:6px;min-width:0;flex-wrap:wrap}
+.dsm-qoder-pool-account-name b{font-weight:600;font-size:13px;color:var(--dsw-alias-label-primary,#e6e6e6);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .dsm-qoder-pool-account-name span{font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary,#999)}
-.dsm-qoder-pool-account-name .dsm-qoder-pool-current-tag{align-self:flex-start;margin-top:2px;padding:1px 6px;border-radius:999px;background:rgba(86,134,254,.16);color:var(--dsw-alias-brand-primary,#5686fe);font-size:11px;font-weight:600;line-height:16px;white-space:nowrap}
+.dsm-qoder-pool-account-name .dsm-qoder-pool-current-tag{margin:0;padding:1px 6px;border-radius:999px;background:rgba(86,134,254,.16);color:var(--dsw-alias-brand-primary,#5686fe);font-size:11px;font-weight:600;line-height:16px;white-space:nowrap;flex:none}
+/* 上下移**紧贴「当前使用」**，不推到这一行的右端。
+ *
+ * 它读起来是「名字 · 第 1 位 · 当前使用 · ↑↓」这一句话：↑↓ 改的是**名次**，
+ * 而名次就画在名字旁边。曾经用 margin-left:auto 把它推到行尾（当时的理由是
+ * 「它改的是名次，贴着名字会让人以为它只作用于名字」），用户实拍指出那一段空白
+ * 让控件看起来像掉队的第四个徽章 —— 现在第一行的右端由**积分**占据，这一行不再
+ * 需要谁来撑满。
+ *
+ * 这条对宽屏同样成立，所以不再需要容器查询里的那条覆盖（原先宽屏要把它改回 0）。
+ */
+.dsm-qoder-pool-account-line .dsm-qoder-pool-move{margin-left:0}
 .dsm-qoder-pool-excluded{color:var(--dsw-alias-state-warn-primary,#f59e0b)}
-.dsm-qoder-pool-credits{display:flex;flex-direction:column;gap:1px;min-width:0;font-variant-numeric:tabular-nums}
 .dsm-qoder-pool-credits b{color:var(--dsw-alias-label-primary,#e6e6e6);font-weight:600}
-.dsm-qoder-pool-soon{font-size:11px;line-height:16px;color:var(--dsw-alias-state-warn-primary,#f59e0b)}
-.dsm-qoder-pool-soon-plain{font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary,#999)}
-.dsm-qoder-pool-probe,.dsm-qoder-pool-checkin{font-size:12px;line-height:17px;color:var(--dsw-alias-label-tertiary,#999);min-width:0;overflow-wrap:anywhere}
-.dsm-qoder-pool-probe{display:flex;flex-direction:column;gap:4px}
 .dsm-qoder-pool-probe-main{color:var(--dsw-alias-label-secondary,#c6c9d0)}
 .dsm-qoder-pool-probe-prov{display:flex;align-items:center;gap:5px;font-size:11px;line-height:15px;color:var(--dsw-alias-label-tertiary,#999);min-width:0;flex-wrap:wrap}
 .dsm-qoder-pool-prov-tag{padding:1px 6px;border-radius:999px;background:var(--dsw-alias-bg-layer-3,#2a2c33);color:var(--dsw-alias-label-tertiary,#999);font-size:10px;font-weight:600;line-height:15px;white-space:nowrap}
@@ -3560,8 +4141,13 @@ window.__ModuleLoader__.load({
 .dsm-qoder-pool-prov-unknown{background:var(--dsw-alias-bg-layer-3,#2a2c33);border:1px solid var(--dsw-alias-border-l1,#2c2d31);color:var(--dsw-alias-label-secondary,#c6c9d0)}
 .dsm-qoder-pool-prov-sep{color:var(--dsw-alias-label-dimmed,#9aa0a6);opacity:.7}
 .dsm-qoder-pool-prov-age{color:var(--dsw-alias-label-tertiary,#999);white-space:nowrap}
-.dsm-qoder-pool-members{display:flex;flex-direction:column;gap:10px}
-.dsm-qoder-pool-members-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+/* 成员区是一张**卡片**：卡头（标题 + 已选/全选/全不选）、批量条、表格全在同一个
+   边框里（学 dsh-connect-trae 的 .dsm-trae-pool-card）。
+   此前是「标题浮在外面 + 表格自己描一圈边」：标题与表格之间隔着一条 gap，读起来
+   像两个不相干的东西，而卡头上那枚「已选 2 / 2」与它要看管的复选框之间又隔着
+   一条批量条。一张卡片、一条分隔线，谁管谁就一目了然。 */
+.dsm-qoder-pool-members{display:flex;flex-direction:column;gap:0;border:1px solid var(--dsw-alias-border-l2,#3a3d45);border-radius:12px;overflow:hidden;background:var(--dsw-alias-bg-layer-2,#24262c)}
+.dsm-qoder-pool-members-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:14px 14px 12px}
 .dsm-qoder-pool-members-title{margin:0 0 3px;font-size:13px;font-weight:600;color:var(--dsw-alias-label-primary,#e6e6e6)}
 .dsm-qoder-pool-members-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .dsm-qoder-pool-small-btn{padding:3px 10px;font-size:12px}
@@ -3593,7 +4179,18 @@ window.__ModuleLoader__.load({
 .dsm-qoder-pool-card-head{display:flex;align-items:center;gap:8px}
 .dsm-qoder-pool-card-title{margin:0;font-size:13px;font-weight:600;color:var(--dsw-alias-label-secondary,#c6c9d0)}
 .dsm-qoder-pool-dirty{font-size:12px;line-height:18px;font-weight:500;color:var(--dsw-alias-state-warn-primary,#f59e0b)}
-.dsm-qoder-pool-settings{display:flex;flex-direction:column;gap:1px;border:1px solid var(--dsw-alias-border-l2,#3a3d45);border-radius:12px;overflow:hidden;background:var(--dsw-alias-bg-layer-2,#24262c)}
+/* 设置区**不带框**（1.20.0，用户实拍「下面的功能设置也不要外围的框」）。
+ *
+ * 它曾经是一张带边框 + 圆角 + 底色的卡片。边框在这里没有承托任何东西：里面只有
+ * 两行设置，而每一行自己都有标题；外框反而让它读起来像页面里的第二张卡片
+ * （页面上已经有成员卡片与账号工具虚线框两张）。
+ *
+ * container-type:inline-size 不是装饰：下面那条窄列容器查询（设置行改成上下
+ * 两段）要有这条线的祖先声明才可能生效。
+ *
+ * ⚠️ **模式条复用同一个类名**（.dsm-qoder-pool-modebar），所以它现在把边框、
+ * 圆角、overflow 全部**写在自己那条规则里**，不再依赖共享类提供。 */
+.dsm-qoder-pool-settings{container-type:inline-size;display:flex;flex-direction:column;gap:1px}
 /* Add-PAT + export/import, above the 「更多设置」 heading. */
 /*
  * 账号工具（添加 PAT / 导出 / 导入）：三颗按钮共用一行。
@@ -3622,7 +4219,15 @@ window.__ModuleLoader__.load({
  */
 .dsm-qoder-pool-tools .dsm-qoder-bar-actions{margin-left:0}
 .dsm-qoder-pool-tools .dsm-qoder-transfer-dialog{order:2;flex:1 1 100%;margin:0}
-.dsm-qoder-pool-set{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:12px 14px;border-top:1px solid var(--dsw-alias-border-l1,#2c2d31)}
+/* 两行设置：**左右不内缩**，与账号工具虚线框、保存行落在同一条竖线上。
+ *
+ * 那 14px 左右内边距原本是外层卡片的内边距（卡片在 1.20.0 已被去掉，见
+ * .dsm-qoder-pool-settings 那条）。卡片没了之后它没有任何东西可承托，只会让这两行
+ * 比周围的块窄一截 —— 实测 564px 列里，账号工具与保存行从 x=24 起，这两行从
+ * x=38 起，说明文字因此只有 292px、折成四行（用户实拍「宽度也要调整啊」）。
+ *
+ * 纵向 12px 保留：两行之间要透气，那是行距，不是内缩。 */
+.dsm-qoder-pool-set{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:12px 0;border-top:1px solid var(--dsw-alias-border-l1,#2c2d31)}
 .dsm-qoder-pool-set:first-child{border-top:0}
 .dsm-qoder-pool-set-copy{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
 .dsm-qoder-pool-set-copy b{font-size:13px;font-weight:500;color:var(--dsw-alias-label-primary,#e6e6e6)}
@@ -3658,24 +4263,55 @@ window.__ModuleLoader__.load({
 .dsm-qoder-pool-log-error{color:var(--dsw-alias-state-error-primary,#ef4444)}
 .dsm-qoder-pool-log-info{color:var(--dsw-alias-label-secondary,#c6c9d0)}
 .dsm-qoder-pool-log-empty{padding:14px;font-size:12px;color:var(--dsw-alias-label-tertiary,#999)}
-.dsm-qoder-pool-row-actions{display:flex;gap:6px;align-items:center;justify-content:flex-end;flex:none}
 /* 操作列只有 .8fr（约 88px 内容宽），两颗按钮必须**不换行**：中文可以在任意
    两字之间断行，于是「测试」「删除」会被压成竖排的两个字（桌面宽度下实测）。
    nowrap + 略收窄的左右 padding，比给这一列加宽更划算——加宽要从「账号」列
    拿空间，而账号名那一列本来就挤（名次、箭头、徽章都在里面）。 */
 .dsm-qoder-pool-row-actions .dsm-qoder-pool-small-btn{padding:2px 7px;font-size:12px;white-space:nowrap;flex:none}
-/* 「删除」在静止态刻意保持中性（outline）：它和「测试」并排，一个中性一个危险，
-   每次看都要重新判断哪个会丢数据。危险色留给按下去之后那条确认条里的按钮——
-   也就是用户已经明确表达「我要删」的那一刻。 */
-.dsm-qoder-pool-delete-btn{color:var(--dsw-alias-state-error-primary,#ef4444)}
-.dsm-qoder-pool-delete-btn:hover:not(:disabled){border-color:var(--dsw-alias-state-error-primary,#ef4444)}
+/* 「删除」分三档，按「用户离不可逆操作还有多远」决定红的浓度。
+ *
+ *   1. 静止态 —— 淡红。它和「测试」并排，两者都是 outline 小按钮，若删除也用
+ *      满饱和红，整行右侧会一直有一块红色在喊；而这一行在绝大多数时候是被扫视
+ *      而不是被操作的。用 color-mix 把危险色调到 62% 再混一点标签灰，得到一个
+ *      「看得出是危险动作、但不抢注意力」的强度。
+ *   2. 悬停 —— 回到满饱和红，边框也跟着点亮。指针已经停在它上面，此刻该明确。
+ *   3. 确认条里的「确认删除」—— 实心红底白字（见下面的 .dsm-btn-danger）。
+ *      只有走到这一步才是真的要删。
+ *
+ * 兜底值写成 #c76a6a 而不是 #ef4444：不支持 color-mix 的环境（老 WebView）
+ * 拿到的是同一条柔和红，而不是突然变回满饱和。
+ * （注释里不能用反引号 —— CSS 整段是模板字符串，反引号会把它拦腰截断。这条
+ * 在 1.17.x 里已经踩过两次。） */
+.dsm-qoder-pool-delete-btn{color:#c76a6a;color:color-mix(in srgb,var(--dsw-alias-state-error-primary,#ef4444) 62%,var(--dsw-alias-label-tertiary,#9aa0a8))}
+.dsm-qoder-pool-delete-btn:hover:not(:disabled){color:var(--dsw-alias-state-error-primary,#ef4444);border-color:color-mix(in srgb,var(--dsw-alias-state-error-primary,#ef4444) 55%,transparent)}
 /* 二次确认就地展开在这一行的操作格里，不弹窗：确认的是什么（哪个账号）必须
    和被确认的那一行待在同一视线内，隔到弹窗里就说错了对象。 */
 .dsm-qoder-pool-confirm{display:flex;gap:6px;align-items:center;justify-content:flex-end;flex-wrap:wrap}
 .dsm-qoder-pool-confirm-text{font-size:11px;line-height:15px;color:var(--dsw-alias-state-error-primary,#ef4444);text-align:right}
 .dsm-qoder-pool .dsm-btn-danger{border-color:var(--dsw-alias-state-error-primary,#ef4444);color:#fff;background:var(--dsw-alias-state-error-primary,#ef4444)}
 .dsm-qoder-pool .dsm-btn-danger:hover:not(:disabled){opacity:.9}
-@media (max-width:760px){.dsm-qoder-pool-row{grid-template-columns:1fr 1fr;row-gap:6px}.dsm-qoder-pool-select{max-width:180px}}
+/* 设置面板那种窄列（564px）里，两行设置改成**上下两段**：说明文字独占整宽，
+   下拉框落到它下面一行并占满整宽。
+ *
+ * 并排时说明文字只剩约 320px —— 那句「全池共用这一个模型…」要折四行，而下拉框
+ * 右侧还有一片用不掉的空白。上下排之后文字拿到约 516px，行数减半。
+ * 判据与 workbuddy 的 @container max-width:620px 同一条。
+ *
+ * 用**容器查询**不用媒体查询：这张卡画在输入框、整页版、设置面板三处，视口宽度
+ * 与这张表的宽度毫无关系（设置面板里视口是 1400px 而表格只有 564px）。
+ */
+@container (max-width:620px){
+  .dsm-qoder-pool-set{flex-direction:column;align-items:stretch;gap:8px}
+  .dsm-qoder-pool-set-ctl{flex:1 1 auto;justify-content:flex-start}
+  /* width:100% 会输给 max-width：下拉框基础规则里有 max-width:260px，下面那条
+     @media 又把它压到 180px —— 两者都会盖住 width:100%，所以这里必须把
+     max-width 一起放开，否则下拉框在窄列里仍只占 180px。 */
+  .dsm-qoder-pool-select{max-width:none;width:100%}
+}
+/* 手机上把下拉框收窄：这一条量的是**视口**，而它服务的正是插件市场那个宽页面
+   （视口就是约束）。设置面板里的窄列由上面那条容器查询负责 —— 在面板里视口是
+   1400px，这条永远不成立，所以两者不会打架。 */
+@media (max-width:760px){.dsm-qoder-pool-select{max-width:180px}}
 /* Pool switch, namespaced under .dsm-qoder-pool so it cannot collide with host styles. */
 .dsm-qoder-pool .sw{position:relative;display:inline-block;width:38px;height:22px;flex:none;cursor:pointer}
 .dsm-qoder-pool .sw input{position:absolute;opacity:0;width:0;height:0}
@@ -3777,6 +4413,96 @@ window.__ModuleLoader__.load({
 @keyframes dsm-qoder-veil-spin{to{transform:rotate(360deg)}}
 @keyframes dsm-qoder-veil-dash{0%{stroke-dasharray:12 150;stroke-dashoffset:0}50%{stroke-dasharray:24 150;stroke-dashoffset:-6}to{stroke-dasharray:12 150;stroke-dashoffset:0}}
 @media (prefers-reduced-motion: reduce){.dsm-qoder-veil-spinner{animation:none}.dsm-qoder-veil-spinner-arc{animation:none;stroke-dasharray:18 150;stroke-dashoffset:-3}}
+/*
+ * 侧边栏那一行的图标，以及它打开的整页。
+ *
+ * 图标只有一个约束：它是 PNG 品牌标，所以在 currentColor 主题的图标格里
+ * 必须**按自己的颜色**画（不能套 filter / fill:currentColor），选中态由
+ * 宿主围着它画。圆角与卡片头部那个 32px 图标同规，只是尺寸小一号。
+ */
+.dsm-qoder-panel-icon{display:block;border-radius:4px}
+/*
+ * 整页（sidebar.panellist 行打开的 main 页）。
+ *
+ * 形状照 workbuddy 的同名页：整页占满中央那一列、内容居中限宽 860px，因为
+ * 卡片正文在设置页里只有 ~600px 宽，铺满一屏会把它拉成一条极长的行。
+ * overflow:auto 在**这一层**：页面比一屏高时滚动的是页面，不是外框。
+ */
+.dsm-qoder-page{box-sizing:border-box;height:100%;display:flex;flex-direction:column;align-items:center;gap:20px;padding:28px clamp(24px,4vw,48px) 48px;overflow:auto;color:var(--dsw-alias-label-primary,#e6e6e6)}
+.dsm-qoder-page>*{width:100%;max-width:860px}
+.dsm-qoder-page-head{display:flex;flex-direction:column;gap:6px}
+.dsm-qoder-page-back{appearance:none;font:inherit;cursor:pointer;border:1px solid var(--dsw-alias-border-l2,#36373b);background:var(--dsw-alias-bg-layer-1,#17181b);color:var(--dsw-alias-label-secondary,#c7c7c7);border-radius:8px;padding:5px 12px;display:inline-flex;align-items:center;gap:6px;align-self:flex-start;font-size:13px;line-height:20px}
+.dsm-qoder-page-back:hover{color:var(--dsw-alias-label-primary,#e6e6e6);border-color:var(--dsw-alias-label-dimmed,#777)}
+.dsm-qoder-page-back svg{flex:none}
+.dsm-qoder-page-icon{width:40px;height:40px;border-radius:9px;align-self:flex-start;margin-top:14px}
+.dsm-qoder-page-title{margin:0;font-size:20px;font-weight:600;line-height:1.4}
+.dsm-qoder-page-desc{margin:0;font-size:13px;line-height:1.5;color:var(--dsw-alias-label-tertiary,#999)}
+/*
+ * 设置页（settings.section）形态：标题 → 总述 → 三条用途 → 正文。
+ *
+ * 这里不套 .dsm-plugin-card 那套列表外壳（折叠 header、边框）。
+ *
+ * **正文那层盒子在设置页里要拆掉，这是与侧边栏整页不同的一处。** 设置面板自己
+ * 已经有 24px 的列内边距与一层底色，再在里面套一张「1px 边框 + 底色 + 12px 圆角 +
+ * 20px 内边距」的卡片，页面就变成「一张浮在页面里的卡」，左边还多出一圈 20px 的
+ * 真空 —— 用户实拍 workbuddy 的设置页做对照，那边内容直接铺在列里。规则与
+ * workbuddy 的 .dsm-workbuddy-settings .dsm-workbuddy-page-body .dsm-workbuddy-usage
+ * 同一条（padding:0 / border:0 / border-radius:0），但这里**不给设置页自己补底色**：
+ * 本插件的面板列本来就是实底，补一层只会在实底上再叠一层同色，而壁纸场景由宿主
+ * 自带的列底色负责（workbuddy 补那条是因为它的列在壁纸主题下半透明）。
+ */
+.dsm-qoder-section{display:flex;flex-direction:column;gap:14px;min-width:0}
+.dsm-qoder-section-heading{margin:0;font-size:16px;font-weight:600;line-height:24px;color:var(--dsw-alias-label-primary,#e6e6e6)}
+.dsm-qoder-section-intro{margin:0;font-size:13px;line-height:20px;color:var(--dsw-alias-label-secondary,#b8b8b8)}
+.dsm-qoder-section-body .dsm-plugin-card-body{margin:0;padding:0;border:0;border-radius:0;background:none}
+/*
+ * 整页里的正文自带外壳：.dsm-plugin-card-body 在列表卡片里靠外层 <li> 提供
+ * 边框与内边距，整页没有那个 <li>，所以由这条规则补上同一套外观——整页看到的
+ * 是一个有边界的盒子，而不是一片裸内容。设置页**不**走这条（见上）。
+ */
+.dsm-qoder-page-body .dsm-plugin-card-body{margin:0;padding:20px 20px 8px;border:1px solid var(--dsw-alias-border-l2,#36373b);background:var(--dsw-alias-bg-layer-3,#202126);border-radius:12px}
+/*
+ * 可选侧边栏开关那一行。类名与积分开关**刻意不同**（.dsm-qoder-pref-check
+ * 是积分那一块用例的定位器，多一个同类勾选框会把那条选择器变成二义），
+ * 布局规则则与 .dsm-qoder-credit-toggle 同源：勾选框 + 一段两行说明。
+ */
+.dsm-qoder-sidebar-panel-pref{cursor:pointer}
+/* 开关自己的失败提示：与那一行同宽缩进（借复选框那一列），红字。 */
+.dsm-qoder-sidebar-panel-error{padding-left:25px;color:var(--dsw-alias-state-error-primary,#ef4444)}
+
+/* 活动区（Campaigns.tsx）。**这一段曾经住在 QODER_COMPOSER_CSS 里** —— 那份样式
+   表由 composer 积分读数组件注入，而设置页从不渲染那个组件，于是活动区的类名
+   一条规则都没有：界面上是一列没有边框、没有分栏的裸文字（见 1.18.0 的截图）。
+   样式必须跟着**渲染它的组件**走：QoderCampaigns 挂在卡片正文里，它就该在卡片
+   样式表里。 */
+.dsm-qoder-campaigns{display:flex;flex-direction:column;gap:10px;margin-top:6px;padding-top:14px;border-top:1px solid var(--dsw-alias-border-l2,#36373b)}
+/* 区块标题，不是表格头。 */
+.dsm-qoder-campaigns-title{margin:0;color:var(--dsw-alias-label-primary,#e6e6e6);font-size:14px;font-weight:600;line-height:20px}
+.dsm-qoder-campaigns-empty{margin:0;color:var(--dsw-alias-label-tertiary,#999);font-size:12px;line-height:18px}
+.dsm-qoder-campaigns-error{margin:0;color:var(--dsw-alias-state-error-primary,#ef4444);font-size:12px;line-height:18px;white-space:pre-line}
+/* issue #47：无凭据时的可操作引导，跟在错误行后面。用中性提示色，不叠加第二个红字。 */
+.dsm-qoder-campaigns-hint{margin:0;color:var(--dsw-alias-label-secondary,#bbb);font-size:12px;line-height:18px}
+/* 瓦片网格：auto-fill + 260px 下限，在约 580px 宽的正文栏里自然排成两列，
+   窄容器（侧边栏面板更窄时）退回一列。minmax(0,...) 而不是 1fr：没有它，
+   一条长英文标题会把整列撑破（grid 的 min-content 陷阱）。 */
+.dsm-qoder-campaigns-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+/* 每条活动是一张等高小卡片：边框 + 底色把它和相邻那条分开，align-items 默认
+   stretch 让同一排的两张高度一致。 */
+.dsm-qoder-campaign-row{display:flex;flex-direction:column;gap:6px;min-width:0;padding:11px 13px;border:1px solid var(--dsw-alias-border-l2,#36373b);border-radius:10px;background:var(--dsw-alias-bg-layer-3,#202126)}
+/* 标题行：标题吃掉剩余宽度，额度不换行。 */
+.dsm-qoder-campaign-row-head{display:flex;align-items:baseline;gap:8px;min-width:0;flex-wrap:wrap}
+.dsm-qoder-campaign-row-title{flex:1 1 auto;min-width:0;color:var(--dsw-alias-label-primary,#e6e6e6);font-size:13px;line-height:19px;font-weight:600}
+.dsm-qoder-campaign-row-amount{padding:1px 7px;border-radius:6px;background:rgba(34,160,107,.18);color:var(--dsw-alias-state-success-primary,#22a06b);font-size:11px;font-weight:600;line-height:16px;white-space:nowrap;flex:none}
+/* 描述限两行：这是摘要位，不是正文。三条活动各带一段长描述时，不限行会让
+   卡片高度随上游文案长短跳动，整排格子高低不齐 —— 全文仍在 title 悬停里。 */
+.dsm-qoder-campaign-row-desc{margin:0;color:var(--dsw-alias-label-secondary,#b8b8b8);font-size:12px;line-height:17px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+/* 页脚贴底：状态在左、出口在右，同一排卡片因此共用一条基线。 */
+.dsm-qoder-campaign-row-foot{margin-top:auto;padding-top:2px;display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0}
+.dsm-qoder-campaign-row-status{padding:1px 6px;border-radius:6px;font-size:11px;font-weight:600;line-height:16px;white-space:nowrap;flex:none}
+.dsm-qoder-campaign-row-status-claimable{background:rgba(34,160,107,.18);color:var(--dsw-alias-state-success-primary,#22a06b)}
+.dsm-qoder-campaign-row-status-claimed{background:var(--dsw-alias-bg-layer-2,#25262b);color:var(--dsw-alias-label-tertiary,#9aa0a8);border:1px solid var(--dsw-alias-border-l2,#36373b)}
+.dsm-qoder-campaign-row-link{font-size:12px;line-height:18px;color:var(--dsw-alias-brand-primary,#5686fe);text-decoration:none;white-space:nowrap;flex:none;margin-left:auto}
+.dsm-qoder-campaign-row-link:hover{text-decoration:underline}
 `;
 		/**
 		* Composer credit readout styles, injected by the readout component itself.
@@ -3807,20 +4533,103 @@ window.__ModuleLoader__.load({
   backdrop-filter:var(--dsw-menu-backdrop-filter,none);
   font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary,#444);
 }
+/* 多一列专属积分时的加宽（issue #38）。248px 是按「账号名 + 64px 数字」调的：
+   再塞一列进来，账号名会直接从两行文字被压成一截省略号。56px 是那一列自己的
+   宽度预算（与 .dsm-qoder-composer-panel-dedicated 的 width 对齐），加宽的是
+   **浮层**；表格仍是 width:100% + table-layout:fixed（issue #34 的修复不动）。
+   clamp 的上限照旧是视口：窄屏上它仍然是「不超出窗口」，只是少了 56px 可用宽。 */
+.dsm-qoder-composer-panel-wide{width:min(304px,calc(100vw - 24px))}
 .dsm-qoder-composer-panel-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
-.dsm-qoder-composer-panel-title{font-size:13px;font-weight:600;color:var(--dsw-alias-label-primary,CanvasText)}
-.dsm-qoder-composer-panel-refresh{
-  appearance:none;flex:none;margin-left:auto;padding:3px 10px;
-  border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.34));
-  border-radius:7px;background:transparent;
-  color:var(--dsw-alias-label-secondary,#444);
-  font:inherit;font-size:11px;line-height:16px;cursor:pointer;
+/* nowrap 不是洁癖：页头是一个标题加一颗 11px 的控件挤在约 250px 的浮层里，
+   设置按钮一进来，标题当场折成两行（workbuddy 在真机 Desktop 上量到过
+   「WB AI」/「积分」断开）。标题是这一行里唯一必须保持单行的东西，它后面
+   跟着的东西按构造都是短的。 */
+.dsm-qoder-composer-panel-title{flex:none;white-space:nowrap;font-size:13px;font-weight:600;color:var(--dsw-alias-label-primary,CanvasText)}
+/* 页头右侧控件的外壳。**不是**给按钮本身加 auto margin：那颗按钮并非总在
+   （宿主没有去处的路由时根本不渲染），而一个始终存在的外壳让页头在两种情形下
+   排布完全一致 —— 否则按钮消失时标题会因为 auto margin 的消失而左移。 */
+.dsm-qoder-composer-panel-actions{flex:none;margin-left:auto;display:flex;align-items:center}
+/* 安静的**药丸**，不是带框的按钮，也不是下划线链接（对齐 workbuddy 实测结论）：
+   下划线会让一个单词的标签读成「碰巧能点的正文」，13px 页头里根本不像控件；
+   带框按钮又太吵，13px 标题旁边一颗带框按钮读成工具栏。品牌色 10% 底色让它
+   静止时就有形状 —— 可点击性正该在这个时刻被看见，而不是悬停之后。
+   边框只在 hover/focus 出现，那里才真的需要提示。 */
+.dsm-qoder-composer-panel-settings{
+  appearance:none;flex:none;
+  display:inline-flex;align-items:center;gap:4px;
+  padding:3px 8px 3px 6px;
+  border:1px solid transparent;border-radius:999px;
+  background:rgba(86,134,254,.10);
+  color:var(--dsw-alias-brand-primary,#5686fe);
+  font:inherit;font-size:11px;line-height:16px;font-weight:500;
+  cursor:pointer;
+  transition:background-color .12s ease,border-color .12s ease,color .12s ease;
 }
-.dsm-qoder-composer-panel-refresh:hover:not(:disabled){border-color:var(--dsw-alias-label-dimmed,rgba(127,127,127,.6));color:var(--dsw-alias-label-primary,CanvasText)}
+.dsm-qoder-composer-panel-settings:hover{
+  background:rgba(86,134,254,.18);
+  border-color:rgba(86,134,254,.34);
+  color:var(--dsw-alias-brand-primary,#5686fe);
+}
+.dsm-qoder-composer-panel-settings:active{background:rgba(86,134,254,.26)}
+.dsm-qoder-composer-panel-settings:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#5686fe);outline-offset:1px}
+/* 齿轮不许被压扁：flex 子项默认会 shrink，标签换成更长的词（「Settings」对
+   「设置」）时，窄浮层里的图标会被挤成椭圆。 */
+.dsm-qoder-composer-panel-settings-icon{flex:none;display:block}
+/* 标签永不换行：16px 高的药丸里折成两行会把页头撑高，下面的表格就脱开了。 */
+.dsm-qoder-composer-panel-settings-label{flex:none;white-space:nowrap}
+/* 减弱动效：这个颜色过渡是装饰，关掉之后 hover 态依然完整可见。 */
+@media (prefers-reduced-motion:reduce){
+  .dsm-qoder-composer-panel-settings{transition:none}
+}
+/* 「刷新」颗按钮：**透明底**的安静药丸，hover 才出色。
+   它与「设置」是**不同的视觉权重**：设置是品牌色底的胶囊（它离开面板），刷新
+   作用于下面的表（本地、可重复）。两个一样响的胶囊会让页头读成一条工具栏。
+   逐字对齐 dsh-connect-workbuddy 的同名控件（acc8f2f / 92078a8），那边在真实
+   宿主里的渲染就是本图参照的样子：刷新是灰字透明底，设置是淡紫底深色字。 */
+.dsm-qoder-composer-panel-refresh{
+  appearance:none;flex:none;
+  display:inline-flex;align-items:center;gap:4px;
+  padding:3px 8px 3px 6px;margin-right:6px;
+  border:1px solid transparent;border-radius:999px;
+  background:transparent;
+  color:var(--dsw-alias-label-secondary,#444);
+  font:inherit;font-size:11px;line-height:16px;font-weight:500;
+  cursor:pointer;
+  transition:background-color .12s ease,border-color .12s ease,color .12s ease;
+}
+.dsm-qoder-composer-panel-refresh:hover:not(:disabled){
+  background:rgba(127,127,127,.10);
+  border-color:var(--dsw-alias-border-l2,rgba(127,127,127,.34));
+  color:var(--dsw-alias-label-primary,CanvasText);
+}
+.dsm-qoder-composer-panel-refresh:active:not(:disabled){background:rgba(127,127,127,.16)}
 .dsm-qoder-composer-panel-refresh:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#5686fe);outline-offset:1px}
-.dsm-qoder-composer-panel-refresh:disabled{opacity:.5;cursor:default}
+/* 批次在飞时按钮是禁用的，而一颗**仍然在 hover 时亮起来**的禁用控件会招来第二次
+   按压——那次按压会被忽略，用户只会更困惑。 */
+.dsm-qoder-composer-panel-refresh:disabled{cursor:default;opacity:.6}
+/* 循环箭头同样不许被压扁（与齿轮同一条理由）。 */
+.dsm-qoder-composer-panel-refresh-icon{flex:none;display:block}
+/* 在飞时转起来：用户看着一个不动的按钮等了半分钟，会以为它没点上。
+   一圈 900ms：快到读得出在动，慢到不像渲染故障。 */
+.dsm-qoder-composer-panel-refresh-icon-spin{animation:dsm-qoder-panel-refresh-spin .9s linear infinite}
+@keyframes dsm-qoder-panel-refresh-spin{to{transform:rotate(360deg)}}
+/* 标签永不换行（与设置按钮同一条理由）。 */
+.dsm-qoder-composer-panel-refresh-label{flex:none;white-space:nowrap}
+/* 减弱动效下不转，但箭头**不许消失** —— 它是「批次还活着」的唯一提示。改为变暗，
+   而真正的指示是文案（「正在刷新…」）。 */
+@media (prefers-reduced-motion:reduce){
+  .dsm-qoder-composer-panel-refresh{transition:none}
+  .dsm-qoder-composer-panel-refresh-icon-spin{animation:none;opacity:.55}
+}
+/* 表格**不许**被内容撑开（issue #34）。默认的 table-layout:auto 让列宽跟着内容走，
+   width:100% 只是下限：账号行第二行的状态文案是一条**可长可短**的翻译句子
+   （国内版「用量已达上限 · 约 7 小时后解禁（按今日额度窗口推算）」，国际版比它
+   更长），它一长，整张表就比 248px 的浮层还宽 —— 右侧「积分」列于是连数字一起
+   被推到浮层外面。实测（Chrome，真实 DOM + 本文件 CSS）：中文那条把表撑到 336px、
+   溢出 102px，英文那条撑到 543px、溢出 309px。
+   fixed 之后列宽按声明分配，内容再长也只在自己那格里换行或省略。 */
 .dsm-qoder-composer-panel-table{
-  width:100%;border-collapse:collapse;
+  width:100%;border-collapse:collapse;table-layout:fixed;
   font-size:12px;line-height:18px;
 }
 .dsm-qoder-composer-panel-table thead th{
@@ -3831,7 +4640,29 @@ window.__ModuleLoader__.load({
 .dsm-qoder-composer-panel-num{
   text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;
 }
+/* 「积分」这一列**定宽**（issue #34）。table-layout:fixed 之后列宽只认声明：
+   不写宽度的话它与账号列平分剩下的 222px，账号列被砍掉一半去换一个永远只有
+   三四位数的数字，反而更难读。
+   64px 的来历是实测：Chrome、12px、tabular-nums 下「999,999」50.9px、
+   「9,999,999」62px（最宽的一档），共用的 11px 表头「积分」/「Credits」更短。
+   overflow+ellipsis 是**兜底**：真出现十位数的余额时把它截断成省略号，而不是让它
+   画到浮层外面去（issue 报的正是「跑到框外」）。 */
+.dsm-qoder-composer-panel-table thead th.dsm-qoder-composer-panel-num,
+.dsm-qoder-composer-panel-table tbody td.dsm-qoder-composer-panel-num{
+  width:64px;overflow:hidden;text-overflow:ellipsis;
+}
 .dsm-qoder-composer-panel-table thead th.dsm-qoder-composer-panel-num{padding-right:0}
+/* 专属积分那一列（issue #38）：56px，比「积分」窄一档。
+   宽度的来历与 64px 那条相同 —— Chrome、12px、tabular-nums 下四位数（含千分位
+   「2,000」）约 36px，表头「SOTA」（11px）不到 30px，56 是留了余量的那一档；
+   再宽就只是从账号名那一格（全表最贵的一格）身上割肉。
+   它**没有**单独再写 overflow/ellipsis：那三条已经由上面「面板数字格」那条规则
+   给了（两个类名总在同一格子上），重复一遍只会让两处宽度声明打架。
+   选择器**指名 th / td 而不用裸类名**：上面那条定宽规则带着 thead th / tbody td，
+   特异性比裸类名高 —— 只写裸类名的话表头那一格仍按 64px 算，而 table-layout:fixed
+   拿表头那行当列宽基准，于是正文 56、表头 64，实际列宽以 64 为准。 */
+.dsm-qoder-composer-panel-table thead th.dsm-qoder-composer-panel-dedicated,
+.dsm-qoder-composer-panel-table tbody td.dsm-qoder-composer-panel-dedicated{width:56px}
 .dsm-qoder-composer-panel-table tbody th{
   padding:0;font-weight:400;text-align:left;vertical-align:middle;
 }
@@ -3852,9 +4683,19 @@ window.__ModuleLoader__.load({
 .dsm-qoder-composer-panel-name{overflow:hidden;text-overflow:ellipsis}
 /* 第二行的两种文字：原因（不能用的红字，与红点同义）与「当前选用」
    （能用的正向提示，绿字）。此前只有一个琥珀色的 reason 样式。 */
+/* **换行，不截断**（issue #34）。
+   外层 .dsm-qoder-composer-panel-switch 为账号名设了 white-space:nowrap，这条会
+   被继承；而这一格的文字是**翻译句子**，长度不受布局控制（国内版那句「用量已达
+   上限 · 约 7 小时后解禁（按今日额度窗口推算）」30 个字，国际版那句更长），
+   nowrap 于是让它一路顶出浮层。这里的两种候选结局里，多一行是**读得完**的，
+   截断是**读不到**的 —— 「按今日额度窗口推算」正是这句里最该被读到的一半，
+   它说明这个时刻是**推算**的、不是上游承诺的。
+   overflow-wrap:anywhere：中文没有词间空格可断，不给它这条就只会在标点处折。
+   （与 dsh-connect-workbuddy 的 issue #108 同一个判断，那边也是先截断、后改成换行。） */
 .dsm-qoder-composer-panel-mark{
   font-size:11px;line-height:15px;
   color:var(--dsw-alias-state-error-primary,#ef4444);
+  white-space:normal;overflow-wrap:anywhere;
 }
 .dsm-qoder-composer-panel-pick{
   font-size:11px;line-height:15px;
@@ -3867,6 +4708,11 @@ window.__ModuleLoader__.load({
   outline:2px solid var(--dsw-alias-brand-primary,#5686fe);outline-offset:-1px;
 }
 .dsm-qoder-composer-panel-switch:disabled{cursor:default}
+/* 这一行没有专属包时的「—」：比数字淡一档，别让读者把它读成一个读数。
+   只给专属那一列用；「余额读不出来」的格子仍是原来的裸字面量 —— 那条路
+   已有自己的回归用例（composer-billing 的「计费号哪都没有余额读数」），
+   顺手改它的样式属于本次之外的改动。 */
+.dsm-qoder-composer-panel-none{color:var(--dsw-alias-label-tertiary,GrayText)}
 /* 点的颜色由数据驱动（行内 style，见 account-state.ts），这里只留尺寸。
    此前的两条规则把颜色钉死在 CSS 里 -- 面板于是不看数据就报「当前使用」，
    额度用尽的号顶着绿点、能用的号是灰的（用户实拍 2026-10-18）。 */
@@ -3884,21 +4730,109 @@ window.__ModuleLoader__.load({
 /* 活动（Campaigns.tsx）：卡在区域作用域内、额度读数之下的一条列表。
    与模型区同款分隔线 + 标题；每行 = 标题 · 额度 · 状态 · 查看详情。
    空列表只显示一行淡字「当前没有活动」——不凭空造 banner；读不到则红字原因。 */
-.dsm-qoder-campaigns{display:flex;flex-direction:column;gap:10px;margin-top:6px;padding-top:14px;border-top:1px solid var(--dsw-alias-border-l2,#36373b)}
-.dsm-qoder-campaigns-title{margin:0;color:var(--dsw-alias-label-primary,#e6e6e6);font-size:14px;font-weight:600;line-height:20px}
-.dsm-qoder-campaigns-empty{margin:0;color:var(--dsw-alias-label-tertiary,#999);font-size:12px;line-height:18px}
-.dsm-qoder-campaigns-error{margin:0;color:var(--dsw-alias-state-error-primary,#ef4444);font-size:12px;line-height:18px;white-space:pre-line}
-.dsm-qoder-campaign-row{display:flex;flex-direction:column;gap:2px;min-width:0}
-.dsm-qoder-campaign-row-head{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}
-.dsm-qoder-campaign-row-title{margin:0;color:var(--dsw-alias-label-primary,#e6e6e6);font-size:13px;line-height:20px;font-weight:500}
-.dsm-qoder-campaign-row-amount{padding:1px 6px;border-radius:6px;background:var(--dsw-alias-state-success-primary,#22a06b);color:#0f1418;font-size:11px;font-weight:600;line-height:16px;white-space:nowrap}
-.dsm-qoder-campaign-row-status{padding:1px 6px;border-radius:6px;font-size:11px;font-weight:600;line-height:16px;white-space:nowrap}
-.dsm-qoder-campaign-row-status-claimable{background:var(--dsw-alias-state-success-primary,#22a06b);color:#0f1418}
-.dsm-qoder-campaign-row-status-claimed{background:var(--dsw-alias-label-tertiary,#9aa0a8);color:#1b1d22}
-.dsm-qoder-campaign-row-desc{margin:0;color:var(--dsw-alias-label-secondary,#b8b8b8);font-size:12px;line-height:18px}
-.dsm-qoder-campaign-row-link{margin-top:2px;align-self:flex-start;font-size:12px;line-height:18px;color:var(--dsw-alias-brand-primary,#5686fe);text-decoration:none}
-.dsm-qoder-campaign-row-link:hover{text-decoration:underline}
+
 `;
+		//#endregion
+		//#region src/version.ts
+		/**
+		* The npm package **name** this build was produced from.
+		*
+		* Needed at runtime by the browser half in two places, both of which address the
+		* bundle by its *installed package name*:
+		*
+		*  - the model-picker label registration and the plugin-market fallback
+		*    (`pluginNavigation.openBundle(<package name>)`);
+		*  - diagnostics lines and copy that name the package.
+		*
+		* The configuration page itself no longer uses it: since 1.18.0 that page is a
+		* `settings.section` addressed by `id` (the Loader entry id), not by the
+		* package-keyed `plugins.bundle.config` / `plugins.row.config` slots.
+		*
+		* Injected at build time so it cannot drift from `package.json`; the fallback
+		* only applies outside a build (the unit tests inject the real value too — see
+		* `vitest.config.ts`).
+		*/
+		const QODER_PACKAGE_NAME = "@dmh2002/dsh-connect-qoder";
+		//#endregion
+		//#region src/client/style-injector.ts
+		/**
+		* Install — or **refresh** — one plugin-owned stylesheet in the document head.
+		*
+		* ## Why this module exists
+		*
+		* Two independent mechanisms have to agree about who owns a `<style>` tag, and
+		* both of them key that ownership by the **npm package name**:
+		*
+		*   - the Host's client module system (`@deepseek-ai/dsh-client-modules`)
+		*     removes a plugin's styles by `data-plugin` when the entry is rebuilt or
+		*     evicted (`removeOwnedStyles`), and the id it uses is the client graph
+		*     row id — which IS the package name;
+		*   - the Host's own generated client bundles tag their sheets the same way
+		*     (`tag.dataset.plugin = <package name>`), so a plugin that wants to be
+		*     cleaned up with the rest of its family has to use the same spelling.
+		*
+		* The Loader entry id (`dsh-connect-qoder`) is a DIFFERENT identifier: it
+		* backs the settings namespace and the `/plugins/<id>/…` routes. Tagging
+		* styles with it means the Host can never clean them up — it looks for
+		* `data-plugin="@dmh2002/dsh-connect-qoder"` and finds nothing.
+		*
+		* ## Why the sheet is REFRESHED rather than skipped
+		*
+		* A Host that rebuilds the client bundle tears the entry down and re-imports
+		* it, which re-runs this module's top-level code. If the sheet were only
+		* appended *when absent*, the **first** version ever injected would stay in
+		* the document for the rest of the session, and every later change to the
+		* stylesheet would be invisible in the browser while the code around it
+		* updated normally.
+		*
+		* That is not hypothetical — it is exactly what happened to this plugin's
+		* composer stylesheet. The "Settings" button shipped with new CSS (a
+		* brand-coloured pill), while the browser kept the sheet from the very first
+		* page load: a version with no rule for that class at all, so the button
+		* rendered with the browser's default button chrome. The symptom reads as
+		* "the style was never applied", while the CSS on disk was already correct.
+		*
+		* Refreshing in place is the pattern the settings card already used, and it
+		* is the one that survives a rebuild.
+		*
+		* 参考：dingminhua/dsh-connect-workbuddy（MIT，Copyright (c) 2026 LaoDing）
+		*   —— 同款做法：它在样式表上只「追加」，因为它的包名恰好等于它的 entry id，
+		*   两件事碰巧是同一个字符串；本插件加了 npm scope，这层巧合没了，所以这里
+		*   把「谁拥有这张表」和「这张表要不要刷新」都写成显式的规则。
+		*/
+		/**
+		* The `data-plugin` value the Host looks for when it removes this plugin's
+		* styles.
+		*
+		* Must be the **package name**, not the Loader entry id: the Host's
+		* `removeOwnedStyles` and its own generated bundles both use the package
+		* name. A mismatch here is invisible until the plugin is rebuilt, at which
+		* point the stale sheets simply stay in the document.
+		*/
+		const PLUGIN_STYLE_OWNER = QODER_PACKAGE_NAME;
+		/**
+		* Install or refresh one stylesheet owned by this plugin.
+		*
+		* @param cssId - Stable per-sheet id, written to `data-plugin-css`. It must
+		*   not change between releases: it is the lookup key that finds the sheet
+		*   already in the document.
+		* @param css - The stylesheet text. Replacing an existing sheet's text is
+		*   what makes a rebuild visible.
+		*/
+		function installPluginStyle(cssId, css) {
+			if (typeof document === "undefined") return;
+			const existing = document.querySelector(`style[data-plugin-css="${cssId}"]`);
+			if (existing !== null) {
+				existing.textContent = css;
+				existing.dataset.plugin = PLUGIN_STYLE_OWNER;
+				return;
+			}
+			const styleTag = document.createElement("style");
+			styleTag.dataset.plugin = PLUGIN_STYLE_OWNER;
+			styleTag.dataset.pluginCss = cssId;
+			styleTag.textContent = css;
+			document.head.appendChild(styleTag);
+		}
 		//#endregion
 		//#region src/native-modality.ts
 		/**
@@ -4019,72 +4953,17 @@ window.__ModuleLoader__.load({
 			}
 			return direct;
 		}
-		/**
-		* 某一时刻在指定时区里的当天分钟数。
-		*
-		* 只用来把「上游声明的墙钟时间」和「此刻」放到同一个坐标系里。时区名读不懂时
-		* 返回 `undefined`，由调用方决定回落——**不静默退回浏览器本地时间**：那会让
-		* 一个跨零点窗口在别的时区悄悄错位 8 小时。
-		*
-		* `hourCycle: 'h23'` 是刻意的：部分引擎在 `hour12: false` 下会把午夜报成 24，
-		* 那会让「22:00–08:00」在 00:00 判定失败。
-		*/
-		function zonedClock(now, timeZone) {
-			let parts;
-			try {
-				parts = new Intl.DateTimeFormat("en-US", {
-					timeZone,
-					hourCycle: "h23",
-					hour: "2-digit",
-					minute: "2-digit"
-				}).formatToParts(now);
-			} catch {
-				return;
-			}
-			const read = (type) => parts.find((part) => part.type === type)?.value;
-			const hour = Number(read("hour"));
-			const minute = Number(read("minute"));
-			if (!Number.isFinite(hour) || !Number.isFinite(minute)) return void 0;
-			return { minutes: hour % 24 * 60 + minute };
-		}
-		/**
-		* 此刻是否落在该规则的时段内。
-		*
-		* 语义与 Qoder 自己的描述一致（「10 PM-8 AM UTC+8」）：
-		* - **起点含、终点不含**：22:00 已生效，08:00 已失效；`22:00–24:00` 覆盖到当天结束。
-		* - **跨零点**：`start > end` 时命中区间是 `[start, 24:00) ∪ [0, end)`。
-		* - `start === end` 视为**全天**：上游写「22:00–22:00」只可能是这个意思（与
-		*   Trae 那边 `start===end` 的取舍一致）。
-		* - **读不懂的时区一律返回 `false`**：judge 不了就不画。退回浏览器时区会让一个
-		*   跨零点窗口在别的时区错位几小时，比不画更糟。
-		* - 没有窗口声明时返回 `true`——这一支只由 `promoLiveAt` 在「确实没声明」时走到。
-		*/
-		function promoWithinWindow(promo, now) {
-			const window = promo.window;
-			if (window === void 0) return true;
-			const clock = zonedClock(now, promo.timeZone ?? "Asia/Shanghai");
-			if (clock === void 0) return false;
-			const { startMinute, endMinute } = window;
-			if (startMinute === endMinute) return true;
-			if (startMinute < endMinute) return clock.minutes >= startMinute && clock.minutes < endMinute;
-			return clock.minutes >= startMinute || clock.minutes < endMinute;
-		}
-		function promoDisplayAt(promo, now) {
-			if (promo === void 0) return "none";
-			if (promo.windowUnreadable === true) return "none";
-			if (promo.window === void 0) return promo.active ? "live" : "none";
-			return promoWithinWindow(promo, now) ? "live" : "pending";
-		}
 		//#endregion
 		//#region src/client/QoderCard.tsx
 		/**
-		* Qoder (Lingma) credits & models card contributed to Harness Plugin
-		* configuration.
+		* Qoder (Lingma) accounts, credits & models — the body shared by the Settings
+		* page (`settings.section`, the only configuration entry since 1.18.0) and the
+		* optional sidebar panel's full-screen surface.
 		*
 		* 参考：dingminhua/dsh-connect-workbuddy（MIT，Copyright (c) 2026 LaoDing）
 		*   — 卡片的整体结构（折叠外壳 `<li class="dsm-plugin-card">` + header/icon/title/
 		*     description/chevron、国内/国际 tab 栏 + 供应商开关、账号下拉、积分区、模型表、
-		*     探针行、60 秒轮询与 AbortController 清理、模块加载时注入一次 `<style>`、
+		*     探针行、可配的自动刷新轮询（`pollMinutes`，默认 5 分钟）与 AbortController 清理、模块加载时注入一次 `<style>`、
 		*     纯 CSS caret）、以及 `dsm-*` 类名体系与 `--dsw-alias-*` 主题变量用法，
 		*     均沿用自该项目；其又逐字承接 dingminhua/dsh-connect-trae（MIT）与
 		*     dingminhua/dsh-subagent-default-model（MIT）。
@@ -4107,20 +4986,28 @@ window.__ModuleLoader__.load({
 		*
 		* @module dsh-connect-qoder/client/QoderCard
 		*/
-		const POLL_INTERVAL_MS = 6e4;
-		/** Inject or refresh the shared card CSS for the current client bundle. */
-		if (typeof document !== "undefined") {
-			const cssId = "dsh-connect-qoder/client.css";
-			const existing = document.querySelector(`style[data-plugin-css="${cssId}"]`);
-			if (existing !== null) existing.textContent = QODER_CARD_CSS;
-			else {
-				const styleTag = document.createElement("style");
-				styleTag.dataset.plugin = "dsh-connect-qoder";
-				styleTag.dataset.pluginCss = cssId;
-				styleTag.textContent = QODER_CARD_CSS;
-				document.head.appendChild(styleTag);
-			}
-		}
+		/**
+		* 每个分栏的标签文案键。
+		*
+		* 查表而不是嵌套三元：三元在加第四项时必然退化成「其它情况都是诊断」——那一版的
+		* 第四栏会顶着「诊断」两个字。表的类型是 `Record<QoderPanel, ...>`，所以以后再加
+		* 一栏、忘了配文案，编译就会红。
+		*/
+		const PANEL_TAB_LABELS = {
+			accounts: "row.panelAccounts",
+			models: "row.panelModels",
+			diag: "row.panelDiag",
+			capabilities: "row.panelCapabilities"
+		};
+		/**
+		* Inject or refresh the shared card CSS for the current client bundle.
+		*
+		* `installPluginStyle` refreshes an existing sheet in place instead of
+		* skipping it: the Host rebuilds this bundle and re-imports it, and a sheet
+		* that is only appended-when-absent would keep the FIRST version for the
+		* rest of the session.
+		*/
+		installPluginStyle("dsh-connect-qoder/client.css", QODER_CARD_CSS);
 		function formatNumber(value) {
 			return new Intl.NumberFormat(void 0, {
 				minimumFractionDigits: 0,
@@ -4149,9 +5036,24 @@ window.__ModuleLoader__.load({
 			}
 		}
 		function QoderCard(props) {
-			const { view } = props;
+			const { view, surface, backToConversation } = props;
+			/**
+			* 同一份正文有三种装载形态：
+			*
+			*  - `surface === undefined` —— 旧的插件列表卡片（`<li>` 折叠行）。1.18.0 起
+			*    产品里不再有注册点，只留这条降级路径与既有用例；
+			*  - `surface === 'page'` —— 侧边栏那一行打开的整屏面板，带「返回会话」；
+			*  - `surface === 'section'` —— **设置 → Qoder** 那一页。没有折叠外壳，也没有
+			*    返回按钮（设置面板自己有导航与关闭），页头只是标题 + 一句话总述。
+			*
+			* 后两种都恒展开：折叠按钮只对列表项有意义。用**同一个** `open` 值让 60 秒
+			* 轮询与首次拉取的 effect 原样不动——把整页切成「收起」只会让它变成空壳。
+			*/
+			const pageSurface = surface === "page";
+			const sectionSurface = surface === "section";
+			const pageLike = pageSurface || sectionSurface;
 			const t = props.t ?? ((key) => key);
-			const [open, setOpen] = (0, react.useState)(view === "page");
+			const [open, setOpen] = (0, react.useState)(view === "page" || pageLike);
 			const [activeRegion, setActiveRegion] = (0, react.useState)(() => "cn");
 			/**
 			* 卡片正文里的**分栏**：账号 / 模型 / 诊断。
@@ -4182,6 +5084,18 @@ window.__ModuleLoader__.load({
 			const [saveError, setSaveError] = (0, react.useState)(void 0);
 			const [siblingBusy, setSiblingBusy] = (0, react.useState)(false);
 			/**
+			* 可选的**侧边栏面板**开关（对齐 workbuddy PR #188）。
+			*
+			* `undefined` 表示「这张卡片还没写过它」，于是渲染 Host 交下来的已提交值，
+			* 猜都不猜——与本卡片其它 Host 承载开关同一条规矩。
+			*/
+			const [sidebarPanelOn, setSidebarPanelOn] = (0, react.useState)(void 0);
+			const [sidebarPanelBusy, setSidebarPanelBusy] = (0, react.useState)(false);
+			const [pollMinutesBusy, setPollMinutesBusy] = (0, react.useState)(false);
+			const [pollMinutesError, setPollMinutesError] = (0, react.useState)(void 0);
+			/** 该开关自己的失败提示：它住在「账号」栏，而通用那条长在「模型」栏的保存行上。 */
+			const [sidebarPanelError, setSidebarPanelError] = (0, react.useState)(void 0);
+			/**
 			* 等待二次确认的「删除账号」目标 id。
 			*
 			* 删除是**硬删** vault 条目：vault 是这一个账号的唯一存储位置，删掉就再也
@@ -4208,6 +5122,21 @@ window.__ModuleLoader__.load({
 			*/
 			const fastControllers = (0, react.useRef)({});
 			const scope = props.settingsScope;
+			/**
+			* 打上游的自动刷新节奏（分钟），**活读**：设置镜像一变（`revision`）就重读，
+			* 轮询 effect 以它为依赖重建定时器 —— 改完下拉框，下一次心跳就是新间隔，
+			* 不必重开卡片。
+			*
+			* 三级回退与 `sidebarPanelSwitchedOn` 同规：宿主文档里的投影是权威（它来自
+			* 服务端那份配置），镜像次之，都没有就是默认 5。
+			*/
+			const pollMinutes = pollMinutesLive();
+			function pollMinutesLive() {
+				const fromScope = pollMinutesOf(scope?.getSnapshot().value);
+				if (scope !== void 0) return fromScope;
+				const fromHost = usages[activeRegion]?.pollMinutes;
+				return typeof fromHost === "number" ? pollMinutesOf({ pollMinutes: fromHost }) : fromScope;
+			}
 			(0, react.useEffect)(() => scope?.subscribe(() => setRevision((v) => v + 1)), [scope]);
 			const refresh = (0, react.useCallback)(async (region, force) => {
 				controllers.current[region]?.abort();
@@ -4295,7 +5224,7 @@ window.__ModuleLoader__.load({
 				if (typeof window !== "undefined") {
 					const timer = window.setInterval(() => {
 						for (const region of QODER_REGIONS) refresh(region);
-					}, POLL_INTERVAL_MS);
+					}, pollMinutes * 6e4);
 					return () => {
 						mounted.current = false;
 						window.clearInterval(timer);
@@ -4306,7 +5235,7 @@ window.__ModuleLoader__.load({
 					mounted.current = false;
 					abortAllRegions();
 				};
-			}, []);
+			}, [pollMinutes]);
 			(0, react.useEffect)(() => {
 				if (usages[activeRegion] === void 0) {
 					refreshFast(activeRegion);
@@ -4487,7 +5416,279 @@ window.__ModuleLoader__.load({
 				setDirty(false);
 				setSaveError(void 0);
 			};
+			/**
+			* 可选的侧边栏面板开关此刻是否打开。
+			*
+			* 三级读法，与 `creditsShownOf` 那一族同规：**这张卡片自己成功写下的值**优先，
+			* 其次是 Host 在 usage 文档里交下来的已提交值，最后才是 settings 快照。
+			*
+			* 为什么 Host 排在快照前面（而不是反过来）：这个命名空间的浏览器镜像在受影响的
+			* 0.1.7 部署上被记录为陈旧，而这里一个陈旧的 `false` 会让行永远不出现——并且
+			* 之后没有任何事件去纠正它（`whileServed` 只在命名空间边缘触发，不在值变化时
+			* 触发）。Host 的答案才是权威，与其它 Host 承载开关一致。
+			*
+			* GLOBAL：侧边栏只有一行、一个整页，所以从活动 tab 读到的那份就是全部答案，
+			* 不随区域变。
+			*/
+			const sidebarPanelSwitchedOn = () => {
+				if (sidebarPanelOn !== void 0) return sidebarPanelOn;
+				const fromHost = usage?.sidebarPanelEnabled;
+				if (typeof fromHost === "boolean") return fromHost;
+				return sidebarPanelEnabledOf(scope?.getSnapshot().value);
+			};
+			/**
+			* 翻转侧边栏面板开关。
+			*
+			* 成功后**才**发布到入口的开关 store：那一行是拿插槽注册元数据渲染的，自己
+			* 决定不了自己的可见性（见 `panel-switch.ts`）。只在写入被验证之后发布，
+			* 两者就不会打架——Host 拒绝过的值绝不会长出一行。
+			*/
+			const toggleSidebarPanel = async (enabled) => {
+				if (scope === void 0) return;
+				setSidebarPanelBusy(true);
+				setSidebarPanelError(void 0);
+				try {
+					await writeSidebarPanelEnabled(scope, enabled);
+					if (mounted.current) setSidebarPanelOn(enabled);
+					setSidebarPanelWanted(enabled);
+					await refresh(activeRegion, true);
+				} catch (error) {
+					if (mounted.current) setSidebarPanelError(t("row.sidebarPanelFailed", { message: error instanceof Error ? error.message : String(error) }));
+				} finally {
+					if (mounted.current) setSidebarPanelBusy(false);
+				}
+			};
 			const signIn = usage?.status === "signed-in" ? usage : void 0;
+			/**
+			* 正文本身，与「装在哪种外壳里」无关。
+			*
+			* 两种外壳（设置页那个 `<li>` 卡片行 / 侧边栏那一行打开的整页）渲染的是
+			* **同一份**正文：账号池、模型目录、诊断栏、以及所有即时生效的开关。把它们
+			* 抽出来的理由与 workbuddy 相同——整页不是「另一个页面」，它是同一份内容的
+			* 第二个入口；写成两份就会有两个真相，而用户会拿其中一份去对照另一份。
+			*/
+			const cardBody = /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: "dsm-plugin-card-body",
+				children: [
+					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+						className: "dsm-qoder-usage",
+						children: [
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+								className: "dsm-qoder-tabs",
+								role: "tablist",
+								"aria-label": t("row.title"),
+								children: QODER_REGIONS.map((region) => {
+									const on = region === activeRegion;
+									const regionStatus = usages[region]?.status ?? "signed-out";
+									const regionOnState = regionOnOf(usages[region]);
+									return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+										className: `dsm-qoder-tab-cell${on ? " dsm-qoder-tab-cell-active" : ""}`,
+										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+											type: "button",
+											role: "tab",
+											"aria-selected": on,
+											className: `dsm-qoder-tab${on ? " dsm-qoder-tab-active" : ""}${regionOnState ? "" : " dsm-qoder-tab-off"}`,
+											onClick: () => {
+												setActiveRegion(region);
+												setSaveError(void 0);
+											},
+											children: [usages[region] === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+												"aria-hidden": "true",
+												className: "dsm-qoder-tab-dot",
+												style: dotStyle(regionStatus)
+											}), region === "cn" ? t("row.tabCn") : t("row.tabGlobal")]
+										}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("label", {
+											className: "dsm-qoder-tab-switch",
+											title: t("row.tabSwitchHint"),
+											children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
+												type: "checkbox",
+												checked: regionOnState,
+												disabled: !canWrite(scope) || siblingBusy || poolBusy,
+												"aria-label": t("row.tabSwitchAria", { region: region === "cn" ? t("row.tabCn") : t("row.tabGlobal") }),
+												onChange: (event) => {
+													toggleRegion(region, event.target.checked);
+												}
+											})
+										})]
+									}, region);
+								})
+							}),
+							!regionOn ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+								className: "dsm-qoder-tab-off-notice",
+								children: t("row.tabOffNotice")
+							}) : null,
+							signIn === void 0 || signIn.credits !== void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+								className: "dsm-qoder-usage-text",
+								children: signIn.creditsError === void 0 ? t("row.usageUnavailable") : t("row.creditsError", { message: signIn.creditsError })
+							})
+						]
+					}),
+					regionOn && campaignsShownOf(usage) ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(QoderCampaigns, {
+						region: activeRegion,
+						t
+					}) : null,
+					signIn?.credentialRejected === true ? renderRejected(signIn) : null,
+					usage?.status === "error" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+						className: "dsm-qoder-usage-error",
+						role: "alert",
+						children: usage.message
+					}) : null,
+					renderQuotaNotice(),
+					usage?.status === "signed-in" && usage.refreshError !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+						className: "dsm-qoder-hint",
+						children: t("row.requestFailedHint", { message: usage.refreshError })
+					}) : null,
+					usage?.status === "signed-out" && usage.selectionLost === true ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+						className: "dsm-qoder-hint",
+						children: t("row.selectionLostHint")
+					}) : null,
+					regionOn && usage?.status !== "error" ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+							className: "dsm-qoder-panels",
+							role: "tablist",
+							"aria-label": t("row.panelAria"),
+							children: [
+								"accounts",
+								"models",
+								"capabilities",
+								"diag"
+							].map((id) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+								type: "button",
+								role: "tab",
+								id: `dsm-qoder-tab-${id}`,
+								"aria-controls": `dsm-qoder-panel-${id}`,
+								"aria-selected": panel === id,
+								className: `dsm-qoder-panel-tab${panel === id ? " dsm-qoder-panel-tab-active" : ""}`,
+								onClick: () => {
+									setPanel(id);
+								},
+								children: t(PANEL_TAB_LABELS[id])
+							}, id))
+						}),
+						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+							className: "dsm-qoder-panel",
+							role: "tabpanel",
+							id: "dsm-qoder-panel-accounts",
+							"aria-labelledby": "dsm-qoder-tab-accounts",
+							hidden: panel !== "accounts",
+							children: [usage === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+								className: "dsm-qoder-usage-text",
+								role: "status",
+								children: t("row.accountsLoading")
+							}) : null, renderPool()]
+						}),
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+							className: "dsm-qoder-panel",
+							role: "tabpanel",
+							id: "dsm-qoder-panel-models",
+							"aria-labelledby": "dsm-qoder-tab-models",
+							hidden: panel !== "models",
+							children: renderModels()
+						}),
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+							className: "dsm-qoder-panel",
+							role: "tabpanel",
+							id: "dsm-qoder-panel-capabilities",
+							"aria-labelledby": "dsm-qoder-tab-capabilities",
+							hidden: panel !== "capabilities",
+							children: renderCreditsSwitch()
+						}),
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+							className: "dsm-qoder-panel",
+							role: "tabpanel",
+							id: "dsm-qoder-panel-diag",
+							"aria-labelledby": "dsm-qoder-tab-diag",
+							hidden: panel !== "diag",
+							children: renderDiag()
+						})
+					] }) : null
+				]
+			});
+			/**
+			* 侧边栏整页的页头（对齐 workbuddy 的 `pageHead`）。
+			*
+			* 返回按钮由**宿主**的 layout 服务提供：`selectPanel(null)` 把中央那一列交回
+			* 对话。它是软探测的（注册处只在 `layout` 存在时才注入回调），所以一台不声明
+			* `layout` 的宿主只会少一个返回按钮，而不是整页不渲染。
+			*/
+			const pageHead = pageSurface ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: "dsm-qoder-page-head",
+				children: [
+					backToConversation === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+						type: "button",
+						className: "dsm-qoder-page-back",
+						onClick: backToConversation,
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+							width: "14",
+							height: "14",
+							viewBox: "0 0 16 16",
+							fill: "none",
+							"aria-hidden": "true",
+							children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", {
+								d: "M10 3.5 5.5 8l4.5 4.5",
+								stroke: "currentColor",
+								strokeWidth: "1.6",
+								strokeLinecap: "round",
+								strokeLinejoin: "round"
+							})
+						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("nav.back") })]
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("img", {
+						className: "dsm-qoder-page-icon",
+						src: QODER_PLUGIN_ICON,
+						alt: ""
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+						className: "dsm-qoder-page-title",
+						children: t("row.title")
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+						className: "dsm-qoder-page-desc",
+						children: t("row.desc")
+					})
+				]
+			}) : null;
+			/**
+			* 侧边栏整页：页头 + 同一份正文。
+			*
+			* 刻意**不是** `<li class="dsm-plugin-card">`：那一套外壳是「插件列表里的一
+			* 行」（折叠 header、上下分隔线），而整页不是列表项，套进去会得到一个既不像
+			* 列表项也不像页面的东西。
+			*/
+			if (pageSurface) return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: "dsm-qoder-page",
+				children: [pageHead, /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+					className: "dsm-qoder-page-body",
+					children: cardBody
+				})]
+			});
+			/**
+			* 设置页（`settings.section`）：标题 → 一句话总述 → 三条核心用途 → 正文。
+			*
+			* 与侧边栏整页的区别只有页头：设置面板自己提供导航与关闭，所以这里**没有**
+			* 返回按钮，也不需要再画一枚 40px 的品牌标（导航行里已经有了）。
+			*
+			* 三条用途不是装饰：这一页把「账号池、签到、模型目录、积分读数」四件事装在
+			* 一起，落地时用户最先看到的是 tab 栏和一张账号表，得靠这三行知道**哪些开关
+			* 买到了什么**。兄弟项目 dsh-subagent-default-model 2.1.20 做过同一件事。
+			*/
+			if (sectionSurface) return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: "dsm-qoder-section",
+				children: [
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h2", {
+						className: "dsm-qoder-section-heading",
+						children: t("section.title")
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+						className: "dsm-qoder-section-intro",
+						children: t("row.tabHint")
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className: "dsm-qoder-section-body",
+						children: cardBody
+					})
+				]
+			});
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("li", {
 				className: `dsm-plugin-card${open ? " dsm-plugin-card-open" : ""}`,
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
@@ -4521,142 +5722,7 @@ window.__ModuleLoader__.load({
 							"aria-hidden": "true"
 						})
 					]
-				}), open ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: "dsm-plugin-card-body",
-					children: [
-						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-							className: "dsm-qoder-usage",
-							children: [
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-									className: "dsm-qoder-tabs",
-									role: "tablist",
-									"aria-label": t("row.title"),
-									children: QODER_REGIONS.map((region) => {
-										const on = region === activeRegion;
-										const regionStatus = usages[region]?.status ?? "signed-out";
-										const regionOnState = regionOnOf(usages[region]);
-										return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-											className: `dsm-qoder-tab-cell${on ? " dsm-qoder-tab-cell-active" : ""}`,
-											children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
-												type: "button",
-												role: "tab",
-												"aria-selected": on,
-												className: `dsm-qoder-tab${on ? " dsm-qoder-tab-active" : ""}${regionOnState ? "" : " dsm-qoder-tab-off"}`,
-												onClick: () => {
-													setActiveRegion(region);
-													setSaveError(void 0);
-												},
-												children: [usages[region] === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													"aria-hidden": "true",
-													className: "dsm-qoder-tab-dot",
-													style: dotStyle(regionStatus)
-												}), region === "cn" ? t("row.tabCn") : t("row.tabGlobal")]
-											}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("label", {
-												className: "dsm-qoder-tab-switch",
-												title: t("row.tabSwitchHint"),
-												children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
-													type: "checkbox",
-													checked: regionOnState,
-													disabled: !canWrite(scope) || siblingBusy || poolBusy,
-													"aria-label": t("row.tabSwitchAria", { region: region === "cn" ? t("row.tabCn") : t("row.tabGlobal") }),
-													onChange: (event) => {
-														toggleRegion(region, event.target.checked);
-													}
-												})
-											})]
-										}, region);
-									})
-								}),
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-									className: "dsm-qoder-usage-hint",
-									children: t("row.tabHint")
-								}),
-								!regionOn ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-									className: "dsm-qoder-tab-off-notice",
-									children: t("row.tabOffNotice")
-								}) : null,
-								signIn === void 0 || signIn.credits !== void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-									className: "dsm-qoder-usage-text",
-									children: signIn.creditsError === void 0 ? t("row.usageUnavailable") : t("row.creditsError", { message: signIn.creditsError })
-								})
-							]
-						}),
-						regionOn ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(QoderCampaigns, {
-							region: activeRegion,
-							t
-						}) : null,
-						signIn?.credentialRejected === true ? renderRejected(signIn) : null,
-						usage?.status === "error" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-							className: "dsm-qoder-usage-error",
-							role: "alert",
-							children: usage.message
-						}) : null,
-						renderQuotaNotice(),
-						usage?.status === "signed-in" && usage.refreshError !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-							className: "dsm-qoder-hint",
-							children: t("row.requestFailedHint", { message: usage.refreshError })
-						}) : null,
-						usage?.status === "signed-out" && usage.selectionLost === true ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-							className: "dsm-qoder-hint",
-							children: t("row.selectionLostHint")
-						}) : null,
-						regionOn && usage?.status !== "error" ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-								className: "dsm-qoder-panels",
-								role: "tablist",
-								"aria-label": t("row.panelAria"),
-								children: [
-									"accounts",
-									"models",
-									"diag"
-								].map((id) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-									type: "button",
-									role: "tab",
-									id: `dsm-qoder-tab-${id}`,
-									"aria-controls": `dsm-qoder-panel-${id}`,
-									"aria-selected": panel === id,
-									className: `dsm-qoder-panel-tab${panel === id ? " dsm-qoder-panel-tab-active" : ""}`,
-									onClick: () => {
-										setPanel(id);
-									},
-									children: t(id === "accounts" ? "row.panelAccounts" : id === "models" ? "row.panelModels" : "row.panelDiag")
-								}, id))
-							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-								className: "dsm-qoder-panel",
-								role: "tabpanel",
-								id: "dsm-qoder-panel-accounts",
-								"aria-labelledby": "dsm-qoder-tab-accounts",
-								hidden: panel !== "accounts",
-								children: [
-									renderCreditsSwitch(),
-									usage === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-										className: "dsm-qoder-usage-text",
-										role: "status",
-										children: t("row.accountsLoading")
-									}) : null,
-									renderPool()
-								]
-							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-								className: "dsm-qoder-panel",
-								role: "tabpanel",
-								id: "dsm-qoder-panel-models",
-								"aria-labelledby": "dsm-qoder-tab-models",
-								hidden: panel !== "models",
-								children: renderModels()
-							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-								className: "dsm-qoder-panel",
-								role: "tabpanel",
-								id: "dsm-qoder-panel-diag",
-								"aria-labelledby": "dsm-qoder-tab-diag",
-								hidden: panel !== "diag",
-								children: renderDiag()
-							})
-						] }) : null
-					]
-				}) : null]
+				}), open ? cardBody : null]
 			});
 			function toggleRegion(region, on) {
 				if (scope === void 0) return;
@@ -4673,6 +5739,20 @@ window.__ModuleLoader__.load({
 				});
 			}
 			/**
+			* 显示/隐藏本区域的活动区。
+			*
+			* 与 `toggleCreditsShown` 逐字同形：两者都是**区域级内容开关**，写的是整个
+			* 区域槽（兄弟区域不会被吃掉），落地检查也由 `writeRegionCampaignsShown`
+			* 自己做 —— 宿主可能静默丢掉一次写入，勾选框继续显示旧值比报错更糟。
+			*/
+			function toggleCampaignsShown(on) {
+				if (scope === void 0) return;
+				setSiblingBusy(true);
+				writeRegionCampaignsShown(scope, activeRegion, on, slotWith(scope, activeRegion, { showCampaigns: on })).finally(() => {
+					if (mounted.current) setSiblingBusy(false);
+				});
+			}
+			/**
 			* Move this region's readout to another seat.
 			*
 			* A settings write, not a slot re-registration: both seats are registered
@@ -4684,6 +5764,22 @@ window.__ModuleLoader__.load({
 				setSiblingBusy(true);
 				writeRegionCreditPosition(scope, activeRegion, position, slotWith(scope, activeRegion, { creditPosition: position })).finally(() => {
 					if (mounted.current) setSiblingBusy(false);
+				});
+			}
+			/**
+			* 改全局的自动刷新间隔。顶层标量，与 `changeCreditPosition` 的区域写入不同形：
+			* 它没有区域轴，走 {@link writePollMinutes}（宿主端点优先、镜像次之）。
+			*
+			* 失败就地说话：这一行在能力栏里随时可点，而模型栏的保存行此刻可能根本没显示。
+			*/
+			function changePollMinutes(minutes) {
+				if (scope === void 0) return;
+				setPollMinutesBusy(true);
+				setPollMinutesError(void 0);
+				writePollMinutes(scope, minutes).catch((error) => {
+					if (mounted.current) setPollMinutesError(t("row.pollMinutesFailed", { message: error instanceof Error ? error.message : String(error) }));
+				}).finally(() => {
+					if (mounted.current) setPollMinutesBusy(false);
 				});
 			}
 			function renderQuotaNotice() {
@@ -4810,9 +5906,18 @@ window.__ModuleLoader__.load({
 														title: model.key,
 														children: [model.name, typeof model.creditMultiplier === "number" ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
 															className: "dsm-qoder-model-name-rate",
+															title: (() => {
+																return rateHint({
+																	priceFactor: model.creditMultiplier,
+																	promotion: model.promotion
+																}, promoNow, t);
+															})(),
 															children: [
 																"(",
-																model.creditMultiplier.toFixed(2),
+																displayMultiplierOf({
+																	priceFactor: model.creditMultiplier,
+																	promotion: model.promotion
+																}, promoNow).toFixed(2),
 																"x)"
 															]
 														}) : null]
@@ -5125,62 +6230,149 @@ window.__ModuleLoader__.load({
 			function renderCreditsSwitch() {
 				return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 					className: "dsm-qoder-prefs",
-					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
-						className: "dsm-qoder-pref dsm-qoder-credit-toggle",
-						title: activeRegion === "cn" ? t("row.showCreditsCnHint") : t("row.showCreditsGlobalHint"),
-						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
-							type: "checkbox",
-							className: "dsm-qoder-pref-check",
-							checked: regionOn ? creditsShownOf(usage) : false,
-							disabled: !regionOn || !canWrite(scope) || siblingBusy || poolBusy,
-							"aria-describedby": creditsHintId,
-							onChange: (event) => {
-								toggleCreditsShown(event.target.checked);
-							}
-						}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-							className: "dsm-qoder-pref-copy",
-							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: "dsm-qoder-pref-label",
-								id: creditsLabelId,
-								children: activeRegion === "cn" ? t("row.showCreditsCn") : t("row.showCreditsGlobal")
-							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: "dsm-qoder-pref-hint",
-								id: creditsHintId,
-								children: activeRegion === "cn" ? t("row.showCreditsCnDesc") : t("row.showCreditsGlobalDesc")
-							})]
-						})]
-					}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("label", {
-						className: "dsm-qoder-pref dsm-qoder-credit-position-pref",
-						title: t("row.creditPositionHint"),
-						children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-							className: "dsm-qoder-pref-copy",
-							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-								className: "dsm-qoder-pref-lead",
+					children: [
+						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
+							className: "dsm-qoder-pref dsm-qoder-credit-toggle",
+							title: activeRegion === "cn" ? t("row.showCreditsCnHint") : t("row.showCreditsGlobalHint"),
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
+								type: "checkbox",
+								className: "dsm-qoder-pref-check",
+								checked: regionOn ? creditsShownOf(usage) : false,
+								disabled: !regionOn || !canWrite(scope) || siblingBusy || poolBusy,
+								"aria-describedby": creditsHintId,
+								onChange: (event) => {
+									toggleCreditsShown(event.target.checked);
+								}
+							}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+								className: "dsm-qoder-pref-copy",
 								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 									className: "dsm-qoder-pref-label",
-									children: t("row.creditPositionLabel")
-								}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("select", {
-									className: "dsm-qoder-credit-position",
-									value: creditsPositionOf(usage),
-									disabled: !regionOn || !creditsShownOf(usage) || !canWrite(scope) || siblingBusy || poolBusy,
-									"aria-label": t("row.creditPositionAria", { region: activeRegion === "cn" ? "QD CN" : "QD AI" }),
-									onChange: (event) => {
-										changeCreditPosition(event.target.value === "stats" ? "stats" : "composer");
-									},
-									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
-										value: "composer",
-										children: t("row.creditPositionComposer")
-									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
-										value: "stats",
-										children: t("row.creditPositionStats")
-									})]
+									id: creditsLabelId,
+									children: activeRegion === "cn" ? t("row.showCreditsCn") : t("row.showCreditsGlobal")
+								}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+									className: "dsm-qoder-pref-hint",
+									id: creditsHintId,
+									children: activeRegion === "cn" ? t("row.showCreditsCnDesc") : t("row.showCreditsGlobalDesc")
 								})]
-							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: "dsm-qoder-pref-hint",
-								children: t("row.creditPositionHint")
 							})]
+						}),
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("label", {
+							className: "dsm-qoder-pref dsm-qoder-credit-position-pref",
+							title: t("row.creditPositionHint"),
+							children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+								className: "dsm-qoder-pref-copy",
+								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+									className: "dsm-qoder-pref-lead",
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "dsm-qoder-pref-label",
+										children: t("row.creditPositionLabel")
+									}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("select", {
+										className: "dsm-qoder-credit-position",
+										value: creditsPositionOf(usage),
+										disabled: !regionOn || !creditsShownOf(usage) || !canWrite(scope) || siblingBusy || poolBusy,
+										"aria-label": t("row.creditPositionAria", { region: activeRegion === "cn" ? "QD CN" : "QD AI" }),
+										onChange: (event) => {
+											changeCreditPosition(event.target.value === "stats" ? "stats" : "composer");
+										},
+										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
+											value: "composer",
+											children: t("row.creditPositionComposer")
+										}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
+											value: "stats",
+											children: t("row.creditPositionStats")
+										})]
+									})]
+								}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+									className: "dsm-qoder-pref-hint",
+									children: t("row.creditPositionHint")
+								})]
+							})
+						}),
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("label", {
+							className: "dsm-qoder-pref dsm-qoder-poll-minutes-pref",
+							title: t("row.pollMinutesHint"),
+							children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+								className: "dsm-qoder-pref-copy",
+								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+									className: "dsm-qoder-pref-lead",
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "dsm-qoder-pref-label",
+										children: t("row.pollMinutesLabel")
+									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("select", {
+										className: "dsm-qoder-poll-minutes",
+										value: String(pollMinutes),
+										disabled: !canWrite(scope) || siblingBusy || poolBusy || pollMinutesBusy,
+										"aria-label": t("row.pollMinutesAria"),
+										onChange: (event) => {
+											const minutes = Number(event.target.value);
+											if (QODER_POLL_MINUTES_OPTIONS.includes(minutes)) changePollMinutes(minutes);
+										},
+										children: QODER_POLL_MINUTES_OPTIONS.map((minutes) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
+											value: String(minutes),
+											children: t("row.pollMinutesOption", { minutes: String(minutes) })
+										}, minutes))
+									})]
+								}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+									className: "dsm-qoder-pref-hint",
+									children: t("row.pollMinutesHint")
+								})]
+							})
+						}),
+						pollMinutesError === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+							className: "dsm-qoder-hint dsm-qoder-poll-minutes-error",
+							role: "alert",
+							children: pollMinutesError
+						}),
+						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
+							className: "dsm-qoder-pref dsm-qoder-campaigns-pref",
+							title: t("row.showCampaignsHint"),
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
+								type: "checkbox",
+								className: "dsm-qoder-campaigns-check",
+								checked: regionOn && campaignsShownOf(usage),
+								disabled: !regionOn || !canWrite(scope) || siblingBusy || poolBusy,
+								onChange: (event) => {
+									toggleCampaignsShown(event.target.checked);
+								}
+							}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+								className: "dsm-qoder-pref-copy",
+								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+									className: "dsm-qoder-pref-label",
+									children: t("row.showCampaigns")
+								}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+									className: "dsm-qoder-pref-hint",
+									children: t("row.showCampaignsHint")
+								})]
+							})]
+						}),
+						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
+							className: "dsm-qoder-pref dsm-qoder-sidebar-panel-pref",
+							title: t("row.sidebarPanelHint"),
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
+								type: "checkbox",
+								className: "dsm-qoder-sidebar-panel-check",
+								checked: sidebarPanelSwitchedOn(),
+								disabled: !canWrite(scope) || saving || poolBusy || sidebarPanelBusy,
+								onChange: (event) => {
+									toggleSidebarPanel(event.target.checked);
+								}
+							}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+								className: "dsm-qoder-pref-copy",
+								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+									className: "dsm-qoder-pref-label",
+									children: t("row.sidebarPanelLabel")
+								}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+									className: "dsm-qoder-pref-hint",
+									children: t("row.sidebarPanelHint")
+								})]
+							})]
+						}),
+						sidebarPanelError === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+							className: "dsm-qoder-hint dsm-qoder-sidebar-panel-error",
+							role: "alert",
+							children: sidebarPanelError
 						})
-					})]
+					]
 				});
 			}
 			function renderPool() {
@@ -5246,6 +6438,20 @@ window.__ModuleLoader__.load({
 		}
 		function regionOnOf(usage) {
 			return regionEnabledOfUsage(usage);
+		}
+		/**
+		* Whether this region's campaign feed is shown.
+		*
+		* Read from the HOST's answer (`usage.showCampaigns`) rather than the browser
+		* settings mirror, for the same measured reason as `creditsShownOf`: on
+		* affected deployments that mirror never picks up writes made through the Host
+		* save endpoint. Absent (older Host, or an error document) reads as SHOWN —
+		* the feed was there before this switch existed.
+		*/
+		function campaignsShownOf(usage) {
+			if (usage === void 0) return true;
+			if (usage.status === "error") return true;
+			return usage.showCampaigns !== false;
 		}
 		function creditsShownOf(usage) {
 			if (usage === void 0) return true;
@@ -5421,7 +6627,7 @@ window.__ModuleLoader__.load({
 		* 参考：dingminhua/dsh-connect-workbuddy（MIT，Copyright (c) 2026 LaoDing）
 		*   — `ComposerCredits.tsx`：读数形态（`<区域> · <余额>`）、点击弹出锚定面板、
 		*     面板内是**账号表格**（点行即切换账号）、刷新按钮放在面板里而不是读数上、
-		*     每账号读数**只在面板打开时抓**、5 分钟定时器、失败保留上次数值。
+		*     每账号读数**只在面板打开时抓**、可配的自动刷新定时器（`pollMinutes`，默认 5 分钟）、失败保留上次数值。
 		* 改动：按 Qoder 适配——provider 路由是 `qoder` / `qoder-global`，读数标注为
 		*   「QD CN」/「QD AI」；`QODER_ACCOUNT_CREDITS_PATH` 直接返回 `QoderWebAccountCredit[]`
 		*   数组（而非 `{accounts}` 包裹）；账号选择写在 `regions.<region>.accountId`，
@@ -5438,19 +6644,15 @@ window.__ModuleLoader__.load({
 		* Same idempotent pattern as the card's injection: the classes are attached to
 		* DOM this component owns, and `QODER_CARD_CSS` only loads when the settings
 		* card does — which is not guaranteed on a host where the card is never rendered.
+		*
+		* The sheet is **refreshed in place**, not appended only when absent. The Host
+		* rebuilds this bundle and re-imports it, which re-runs this code; with an
+		* append-only sheet the browser would keep the very first version of the
+		* stylesheet for the rest of the session. That is precisely what left this
+		* plugin's "Settings" button rendering with the browser's default button
+		* chrome while the CSS on disk already carried the intended pill styling.
 		*/
-		if (typeof document !== "undefined") {
-			const cssId = "dsh-connect-qoder/composer-credits.css";
-			if (!document.querySelector(`style[data-plugin-css="${cssId}"]`)) {
-				const styleTag = document.createElement("style");
-				styleTag.dataset.plugin = "dsh-connect-qoder";
-				styleTag.dataset.pluginCss = cssId;
-				styleTag.textContent = QODER_COMPOSER_CSS;
-				document.head.appendChild(styleTag);
-			}
-		}
-		/** Automatic refresh period. Five minutes, matching a credit balance's actual rate of change. */
-		const COMPOSER_CREDITS_REFRESH_INTERVAL_MS = 3e5;
+		installPluginStyle("dsh-connect-qoder/composer-credits.css", QODER_COMPOSER_CSS);
 		/**
 		* Provider routes whose credit balance this readout can show, mapped to the
 		* region to read it from. Mirrors `QODER_PROVIDERS` on the host side; duplicated
@@ -5487,8 +6689,37 @@ window.__ModuleLoader__.load({
 				minute: "2-digit"
 			});
 		}
+		/**
+		* A calendar date in the reader's locale — for an expiry, which is usually not
+		* today.
+		*
+		* Separate from {@link formatClock} on purpose: a bare `11:59 PM` on a package
+		* that expires next week reads as tonight. The expiry of an exclusive credit
+		* package is a date the user plans around, so it gets its own format.
+		*/
+		function formatDay(value) {
+			return new Date(value).toLocaleDateString(void 0, {
+				year: "numeric",
+				month: "2-digit",
+				day: "2-digit"
+			});
+		}
+		/**
+		* 上游给的双语文案按**界面语言**挑一侧（issue #38）。
+		*
+		* 语言信号复用 `promo-badge.ts` 的 `hostLanguage(t)`：宿主绑定好的 `t` 是这里
+		* 唯一能读到的界面语言（浏览器语言不会跟着 DSH 的语言设置变，只看
+		* `navigator.language` 会出现「中文界面配英文表头」）。
+		*
+		* 只在下发的那一侧缺席时退回另一侧 —— 两条都是上游自己的话，不是我们翻译的，
+		* 所以「退回」不是降级，只是换了上游给的另一种说法。
+		*/
+		function localizedLabel(label, english) {
+			if (label === void 0) return void 0;
+			return english ? label.en ?? label.zh : label.zh ?? label.en;
+		}
 		function ComposerCredits(props) {
-			const { t, provider, region, settingsScope } = props;
+			const { t, provider, region, settingsScope, openSettings } = props;
 			if (t === void 0) throw new Error("Composer credits readout requires its translation function");
 			const owned = provider === void 0 ? void 0 : QODER_COMPOSER_PROVIDERS[provider];
 			const activeRegion = region ?? owned;
@@ -5496,11 +6727,13 @@ window.__ModuleLoader__.load({
 			const [accountCredits, setAccountCredits] = (0, react.useState)(void 0);
 			const [busy, setBusy] = (0, react.useState)(false);
 			const [switchingId, setSwitchingId] = (0, react.useState)(void 0);
-			const [testing, setTesting] = (0, react.useState)(false);
 			const [failed, setFailed] = (0, react.useState)(false);
-			const [testFailed, setTestFailed] = (0, react.useState)(false);
 			const [lastRefresh, setLastRefresh] = (0, react.useState)(void 0);
 			const [open, setOpen] = (0, react.useState)(false);
+			/** A pool batch (probe every member) is in flight. */
+			const [testing, setTesting] = (0, react.useState)(false);
+			/** The last pool batch failed to start. */
+			const [testFailed, setTestFailed] = (0, react.useState)(false);
 			const inFlight = (0, react.useRef)(false);
 			const mounted = (0, react.useRef)(true);
 			const rootRef = (0, react.useRef)(null);
@@ -5561,6 +6794,14 @@ window.__ModuleLoader__.load({
 					if (Array.isArray(data)) setAccountCredits(data);
 				} catch {}
 			}, [activeRegion]);
+			/**
+			* 本会话的刷新节奏（毫秒），活读设置镜像。
+			*
+			* 与卡片同一条规则、同一个字段：一个全局节奏管住所有打上游的自动读。镜像读不到
+			* （老宿主、单测）时退回 {@link COMPOSER_CREDITS_REFRESH_INTERVAL_MS} —— 那正是
+			* 这个读数在这个设置存在之前的间隔，所以「读不到」与「没改过」在屏幕上同形。
+			*/
+			const pollIntervalMs = pollMinutesOf(settingsScope?.getSnapshot().value) * 6e4;
 			(0, react.useEffect)(() => {
 				if (owned === void 0) return void 0;
 				let cancelled = false;
@@ -5570,14 +6811,18 @@ window.__ModuleLoader__.load({
 					if (cancelled) return;
 					timer = window.setInterval(() => {
 						fetchUsage(controller.signal);
-					}, COMPOSER_CREDITS_REFRESH_INTERVAL_MS);
+					}, pollIntervalMs);
 				});
 				return () => {
 					cancelled = true;
 					if (timer !== void 0) window.clearInterval(timer);
 					controller.abort();
 				};
-			}, [owned, fetchUsage]);
+			}, [
+				owned,
+				fetchUsage,
+				pollIntervalMs
+			]);
 			(0, react.useEffect)(() => {
 				if (!open || activeRegion === void 0) return void 0;
 				const controller = new AbortController();
@@ -5617,16 +6862,21 @@ window.__ModuleLoader__.load({
 				}
 			};
 			/**
-			* 「一键测试」：设置页工具栏那颗「一键测试所有账号」的同一件事，搬进面板。
+			* 「刷新」：把玩家池里的每个成员真跑一次探针。
 			*
-			* 原来的按钮是「刷新积分」，只重读余额——余额读不出「还能不能用」，而面板的
-			* 点色、第二行的「被拒绝／用量已达上限／限流 · 约 N 分钟后解禁」全部来自
-			* 探针结论。所以这颗按钮真正该做的是把每个成员真跑一次：探针写回宿主快照
-			* 之后，颜色与原因才是刚测出来的，而不是打开面板那一刻的旧账。
+			* 面板回答的是「谁在服务、还剩多少」，而圆点与第二行的原因（被拒绝／用量
+			* 达上限／限流 · 约 N 分钟后解禁）全部来自**探针结论**——只读余额读不出
+			* 「还能不能用」。所以这颗按钮真正该做的是重测一遍：探针写回宿主快照之后，
+			* 颜色与原因才是刚测出来的，而不是打开面板那一刻的旧账。
 			*
-			* 批量是串行的真实探针（一个号十几秒到几十秒），因此不干等整批响应：边跑边读
-			* 宿主的只读进度（`action=progress`，不碰上游），每落一行就把账号表重取一次，
-			* 用户能看着圆点一行一行翻新。整批结束（成功或失败）后再补最后一读。
+			* 走的是设置页账号池工具栏那条**同一条**路（`POST /pool?action=test`），
+			* 不另造一条：两条路测出来的结论必须一致，否则同一个号在两处显示不同。
+			*
+			* 批量是**串行**的真实探针（一个号十几秒到几十秒），因此不干等整批响应：
+			* 边跑边读宿主的**只读**进度（`action=progress`，不碰上游），每落一行就把
+			* 账号表重取一次，用户能看着圆点一行一行翻新。整批结束（成功或失败）后再补
+			* 最后一读 —— 成败都补：失败时探针可能已经落了一部分，至少别让表格停在
+			* 测试前的旧账上。
 			*/
 			const runTestAll = async () => {
 				if (activeRegion === void 0 || testing || busy || switchingId !== void 0) return;
@@ -5702,6 +6952,66 @@ window.__ModuleLoader__.load({
 				};
 			});
 			const canSwitch = settingsScope !== void 0;
+			const poolTestable = ((signedIn?.pool?.effectiveMemberAccountIds ?? signedIn?.pool?.memberAccountIds)?.length ?? 0) > 0;
+			/**
+			* 专属积分包那一列（issue #38）在**这一张表里**到底要不要画。
+			*
+			* 判据只有一条：**有没有哪一行真的带 `dedicated`**。不能按区域判（国内版实测
+			* 没有这个字段，但那是上游的现状、不是契约），也不能按「这份文档是国际版」判
+			* —— 面板列的是逐号读数，可能混着两个来源。没有专属包时整列（连 `th` 一起）
+			* 不渲染，于是国内版与没有专属包的用户看到的仍是原来那两列。
+			*/
+			const dedicatedShown = rows.some((row) => (row.dedicated?.length ?? 0) > 0);
+			/** 界面是否英文 —— 只用来挑上游双语标题/描述里的哪一侧。 */
+			const english = hostLanguage(t).toLowerCase().startsWith("en");
+			/**
+			* 一行的专属积分读数（主列 + 悬停）。
+			*
+			* **主列只显示「主包自己的余额 + 溢出标记」，绝不再把多个包相加**（issue #43）。
+			* issue #38 当时在「合计 / 按包分行」之间选了合计，但那个决定建立在「多个同类
+			* 的包」的假设上。实测上游会下发**用途不同**的包（SOTA 专属 1960 绑 Sonus、
+			* 极致专属 500 绑另一个模型），两笔钱各绑各的模型、不能互换 —— 它们相加出来的
+			* 2460 不对应任何能花出去的额度：选 Sonus 时超出 1960 的部分会掉回通用积分。
+			* 「一个数字必须对应一件真事」，所以主列取第一个包（主包）的真实余额，后面跟
+			* `+N` 表示还有 N 个别的包，逐包明细进悬停。
+			*
+			* 不按「按包分行」是为了保住 issue #38 的宽度预算：这一列只有 56px，一个账号
+			* 占三四行会挤掉别的账号；`+N` 把宽度控制在「四位数 + 两字符」以内，同时不让
+			* 数字撒谎。
+			*/
+			const dedicatedOf = (packages) => {
+				if (packages === void 0 || packages.length === 0) return void 0;
+				const primary = packages.find((entry) => entry.remaining !== void 0);
+				const lines = [];
+				for (const entry of packages) {
+					const name = localizedLabel(entry.title, english) ?? t("composer.dedicated");
+					const hint = localizedLabel(entry.description, english) ?? t("composer.dedicatedHint");
+					const amount = entry.remaining === void 0 ? "—" : formatCredits(entry.remaining);
+					const expires = entry.expiresAtMs === void 0 ? "" : ` · ${t("composer.dedicatedExpires", { time: formatDay(entry.expiresAtMs) })}`;
+					lines.push(`${name}: ${amount}${expires} — ${hint}`);
+				}
+				if (packages.length > 1) lines.unshift(t("composer.dedicatedMultiple", { count: packages.length }));
+				const primaryText = primary === void 0 ? "—" : formatCredits(primary.remaining ?? 0);
+				const overflow = packages.length - 1;
+				return {
+					text: primaryText + (overflow > 0 ? `+${overflow}` : ""),
+					title: lines.join("\n")
+				};
+			};
+			/**
+			* 这一列表头的文字：优先**上游自己的话**（`title` 的当前语言那一侧）。
+			*
+			* 上游在 `displayLabels` 里已经给了「SOTA 专属积分 / SOTA Exclusive Credits」，
+			* 而这是个营销词、不是术语 —— 自己再写一份译文只会在上游改词时落后。字典里
+			* 那条 `composer.dedicated` 只是上游没下发标题时的兜底，不是主文案。
+			*/
+			const dedicatedHeader = (() => {
+				for (const row of rows) for (const entry of row.dedicated ?? []) {
+					const label = localizedLabel(entry.title, english);
+					if (label !== void 0) return label;
+				}
+				return t("composer.dedicated");
+			})();
 			/**
 			* 页脚显示的时刻：优先用**数据的真实读取时刻**（宿主给的 `creditsAtMs`），
 			* 没有才退回本组件 fetch 成功的时刻。
@@ -5731,7 +7041,7 @@ window.__ModuleLoader__.load({
 					]
 				}), open && (0, react_dom.createPortal)(/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 					ref: panelRef,
-					className: "dsm-qoder-composer-panel",
+					className: dedicatedShown ? "dsm-qoder-composer-panel dsm-qoder-composer-panel-wide" : "dsm-qoder-composer-panel",
 					style: position ?? {
 						visibility: "hidden",
 						left: 0,
@@ -5745,15 +7055,73 @@ window.__ModuleLoader__.load({
 							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 								className: "dsm-qoder-composer-panel-title",
 								children: t(activeRegion === "cn" ? "composer.panelTitleCn" : "composer.panelTitleGlobal")
-							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								type: "button",
-								className: "dsm-qoder-composer-panel-refresh",
-								disabled: testing || busy || switchingId !== void 0,
-								title: t("composer.testAllHint"),
-								onClick: () => {
-									runTestAll();
-								},
-								children: testing ? t("composer.testing") : t("composer.testAll")
+							}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+								className: "dsm-qoder-composer-panel-actions",
+								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+									type: "button",
+									className: "dsm-qoder-composer-panel-refresh",
+									disabled: testing || busy || switchingId !== void 0 || !poolTestable,
+									title: t("composer.refreshHint"),
+									"aria-label": t("composer.refreshHint"),
+									onClick: () => {
+										runTestAll();
+									},
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+										className: testing ? "dsm-qoder-composer-panel-refresh-icon dsm-qoder-composer-panel-refresh-icon-spin" : "dsm-qoder-composer-panel-refresh-icon",
+										viewBox: "0 0 16 16",
+										width: "12",
+										height: "12",
+										fill: "none",
+										"aria-hidden": "true",
+										focusable: "false",
+										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", {
+											d: "M13.3 8a5.3 5.3 0 1 1-1.55-3.75",
+											stroke: "currentColor",
+											strokeWidth: "1.5",
+											strokeLinecap: "round"
+										}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", {
+											d: "M13.4 2.2v2.9h-2.9",
+											stroke: "currentColor",
+											strokeWidth: "1.5",
+											strokeLinecap: "round",
+											strokeLinejoin: "round"
+										})]
+									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "dsm-qoder-composer-panel-refresh-label",
+										children: testing ? t("composer.refreshing") : t("composer.refresh")
+									})]
+								}), openSettings === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+									type: "button",
+									className: "dsm-qoder-composer-panel-settings",
+									title: t("composer.openSettingsHint"),
+									onClick: () => {
+										setOpen(false);
+										openSettings();
+									},
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+										className: "dsm-qoder-composer-panel-settings-icon",
+										viewBox: "0 0 16 16",
+										width: "12",
+										height: "12",
+										fill: "none",
+										"aria-hidden": "true",
+										focusable: "false",
+										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", {
+											d: "M8 10.2a2.2 2.2 0 1 0 0-4.4 2.2 2.2 0 0 0 0 4.4Z",
+											stroke: "currentColor",
+											strokeWidth: "1.5"
+										}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", {
+											d: "M12.9 9.6a1.2 1.2 0 0 0 .24 1.32l.04.04a1.4 1.4 0 1 1-1.98 1.98l-.04-.04a1.2 1.2 0 0 0-1.32-.24 1.2 1.2 0 0 0-.72 1.1v.12a1.4 1.4 0 1 1-2.8 0v-.07a1.2 1.2 0 0 0-.78-1.1 1.2 1.2 0 0 0-1.32.24l-.04.04a1.4 1.4 0 1 1-1.98-1.98l.04-.04a1.2 1.2 0 0 0 .24-1.32 1.2 1.2 0 0 0-1.1-.72h-.12a1.4 1.4 0 1 1 0-2.8h.07a1.2 1.2 0 0 0 1.1-.78 1.2 1.2 0 0 0-.24-1.32l-.04-.04a1.4 1.4 0 1 1 1.98-1.98l.04.04a1.2 1.2 0 0 0 1.32.24h.05a1.2 1.2 0 0 0 .72-1.1v-.12a1.4 1.4 0 1 1 2.8 0v.07a1.2 1.2 0 0 0 .72 1.1 1.2 1.2 0 0 0 1.32-.24l.04-.04a1.4 1.4 0 1 1 1.98 1.98l-.04.04a1.2 1.2 0 0 0-.24 1.32v.05a1.2 1.2 0 0 0 1.1.72h.12a1.4 1.4 0 1 1 0 2.8h-.07a1.2 1.2 0 0 0-1.1.72Z",
+											stroke: "currentColor",
+											strokeWidth: "1.5",
+											strokeLinecap: "round",
+											strokeLinejoin: "round"
+										})]
+									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "dsm-qoder-composer-panel-settings-label",
+										children: t("composer.openSettings")
+									})]
+								})]
 							})]
 						}),
 						signedOut ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
@@ -5764,55 +7132,80 @@ window.__ModuleLoader__.load({
 							children: t("composer.noAccounts")
 						}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("table", {
 							className: "dsm-qoder-composer-panel-table",
-							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("thead", { children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("tr", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("th", {
-								scope: "col",
-								children: t("composer.account")
-							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("th", {
-								scope: "col",
-								className: "dsm-qoder-composer-panel-num",
-								children: t("composer.credits")
-							})] }) }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("tbody", { children: rows.map((row) => {
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("thead", { children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("tr", { children: [
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("th", {
+									scope: "col",
+									children: t("composer.account")
+								}),
+								dedicatedShown ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("th", {
+									scope: "col",
+									className: "dsm-qoder-composer-panel-num dsm-qoder-composer-panel-dedicated",
+									children: dedicatedHeader
+								}) : null,
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("th", {
+									scope: "col",
+									className: "dsm-qoder-composer-panel-num",
+									children: t("composer.credits")
+								})
+							] }) }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("tbody", { children: rows.map((row) => {
 								const current = row.current ?? row.id === selectedId;
-								const excluded = exclusionText(t, row.excludedBy, row.retryAtMs);
+								const excluded = exclusionText(t, row.excludedBy, row.retryAtMs, Date.now(), row.retrySource);
 								const mark = excluded ?? (current ? t("composer.currentPick") : void 0);
+								/** 这一行的专属积分读数（合计 + 悬停）；没有包时 `undefined`。 */
+								const rowDedicated = dedicatedOf(row.dedicated);
 								const dotColor = accountStateColor(accountStateTone({
 									...row.excludedBy === void 0 ? {} : { excludedBy: row.excludedBy },
 									...row.probeOutcome === void 0 ? {} : { probeOutcome: row.probeOutcome }
 								}));
 								return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("tr", {
 									className: current ? "dsm-qoder-composer-panel-row-current" : void 0,
-									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("th", {
-										scope: "row",
-										children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
-											type: "button",
-											className: "dsm-qoder-composer-panel-switch",
-											disabled: !canSwitch || switchingId !== void 0 || current,
-											"aria-label": t("composer.switchTo", { account: row.accountName }),
-											onClick: () => {
-												switchTo(row.id);
-											},
-											children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-												className: "dsm-qoder-composer-panel-dot",
-												style: { background: dotColor },
-												"aria-hidden": "true"
-											}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-												className: "dsm-qoder-composer-panel-who",
+									children: [
+										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("th", {
+											scope: "row",
+											children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+												type: "button",
+												className: "dsm-qoder-composer-panel-switch",
+												disabled: !canSwitch || switchingId !== void 0 || current,
+												"aria-label": t("composer.switchTo", { account: row.accountName }),
+												onClick: () => {
+													switchTo(row.id);
+												},
 												children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													className: "dsm-qoder-composer-panel-name",
-													children: row.accountName
-												}), mark === void 0 ? null : excluded === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													className: "dsm-qoder-composer-panel-pick",
-													children: mark
-												}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													className: "dsm-qoder-composer-panel-mark",
-													children: mark
+													className: "dsm-qoder-composer-panel-dot",
+													style: { background: dotColor },
+													"aria-hidden": "true"
+												}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+													className: "dsm-qoder-composer-panel-who",
+													children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+														className: "dsm-qoder-composer-panel-name",
+														title: row.accountName,
+														children: row.accountName
+													}), mark === void 0 ? null : excluded === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+														className: "dsm-qoder-composer-panel-pick",
+														children: mark
+													}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+														className: "dsm-qoder-composer-panel-mark",
+														title: mark,
+														children: mark
+													})]
 												})]
-											})]
+											})
+										}),
+										dedicatedShown ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("td", {
+											className: "dsm-qoder-composer-panel-num dsm-qoder-composer-panel-dedicated",
+											children: rowDedicated === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+												className: "dsm-qoder-composer-panel-none",
+												children: "—"
+											}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+												title: rowDedicated.title,
+												children: rowDedicated.text
+											})
+										}) : null,
+										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("td", {
+											className: "dsm-qoder-composer-panel-num",
+											children: row.credits === void 0 ? "—" : formatCredits(row.credits)
 										})
-									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("td", {
-										className: "dsm-qoder-composer-panel-num",
-										children: row.credits === void 0 ? "—" : formatCredits(row.credits)
-									})]
+									]
 								}, row.id);
 							}) })]
 						}),
@@ -5825,14 +7218,15 @@ window.__ModuleLoader__.load({
 								staleDisplay ? ` · ${t("composer.dataStale")}` : ""
 							] })
 						}),
-						testFailed ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-							className: "dsm-qoder-composer-panel-error",
-							role: "status",
-							children: t("composer.testFailed")
-						}) : failed || signedIn?.refreshError !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+						failed || signedIn?.refreshError !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 							className: "dsm-qoder-composer-panel-error",
 							role: "status",
 							children: t("composer.refreshFailed")
+						}) : null,
+						testFailed ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+							className: "dsm-qoder-composer-panel-error",
+							role: "status",
+							children: t("composer.refreshAccountsFailed")
 						}) : null
 					]
 				}), document.body)]
@@ -5891,7 +7285,7 @@ window.__ModuleLoader__.load({
 			return region;
 		}
 		function ComposerCreditsGate(props) {
-			const { t, position, settingsScope, useProjection } = props;
+			const { t, position, settingsScope, useProjection, openSettings } = props;
 			const [, setRevision] = (0, react.useState)(0);
 			(0, react.useEffect)(() => {
 				if (settingsScope?.getSnapshot === void 0) return void 0;
@@ -5906,13 +7300,134 @@ window.__ModuleLoader__.load({
 				t,
 				...provider === void 0 ? {} : { provider },
 				region,
-				...settingsScope === void 0 ? {} : { settingsScope }
+				...settingsScope === void 0 ? {} : { settingsScope },
+				...openSettings === void 0 ? {} : { openSettings }
 			});
 		}
 		function subscribeScope(scope, setRevision) {
 			return scope.subscribe === void 0 ? void 0 : scope.subscribe(() => {
 				setRevision((value) => value + 1);
 			});
+		}
+		//#endregion
+		//#region src/client/host-badge.tsx
+		/**
+		* 宿主那枚 `Tag` 的四档配色，逐条抄自 `Tag.module.css`（0.2.2-rc.1）。
+		*
+		* 两个最容易抄错的地方：`info` 用的是 `state-business-primary` 而**不是**
+		* `brand-primary`；`warning` 用的是 `state-warn-primary` 而**不是**
+		* `state-warn-secondary`。抄错了，同一行里两颗胶囊的颜色就对不上。
+		*
+		* 宿主那颗**没有描边**，所以这里也不加。
+		*/
+		const HOST_BADGE_TONES = {
+			neutral: {
+				color: "var(--dsw-alias-label-secondary)",
+				background: "var(--dsw-alias-bg-module-platform)"
+			},
+			info: {
+				color: "var(--dsw-alias-state-business-primary)",
+				background: "color-mix(in srgb, var(--dsw-alias-state-business-primary) 10%, transparent)"
+			},
+			success: {
+				color: "var(--dsw-alias-state-success-primary)",
+				background: "color-mix(in srgb, var(--dsw-alias-state-success-primary) 10%, transparent)"
+			},
+			warning: {
+				color: "var(--dsw-alias-state-warn-primary)",
+				background: "color-mix(in srgb, var(--dsw-alias-state-warn-primary) 12%, transparent)"
+			}
+		};
+		/** 认不出来的 tone 按 `neutral` 画：旧宿主与未来新增的 tone 都可能落到这一支。 */
+		function hostBadgePaint(tone) {
+			return HOST_BADGE_TONES[tone] ?? HOST_BADGE_TONES.neutral;
+		}
+		/**
+		* 胶囊上那一行字，取读者语言。
+		*
+		* 查找顺序与宿主的 `resolveText` 同规：当前语言 → 它的基语言（`de-DE` → `de`）
+		* → `en`（宿主契约里的必填兜底）。空串与缺席等价：这是本插件加的判断，比宿主
+		* 更严，目的只是不画一颗没有字的胶囊。
+		*
+		* @param text - 上游/别家写进 `badge.text` 的东西；读不懂就返回 `undefined`。
+		* @param language - 界面语言（见 `hostLanguage`）。
+		*/
+		function resolveHostBadgeText(text, language) {
+			if (typeof text === "string") return text.trim() === "" ? void 0 : text;
+			if (text === null || typeof text !== "object" || Array.isArray(text)) return void 0;
+			const table = text;
+			const read = (key) => {
+				const value = table[key];
+				return typeof value === "string" && value.trim() !== "" ? value : void 0;
+			};
+			const lower = language.toLowerCase();
+			const base = lower.split("-")[0] ?? "";
+			return read(lower) ?? (base === "" ? void 0 : read(base)) ?? read("en");
+		}
+		/**
+		* 这枚 `badge` 能不能画：能画就给出「格式化后的 badge + 那一行字」。
+		*
+		* 调用方要先知道「画不画」再决定**要不要那个分隔符**：`<Chip/>` 自己可能渲染成
+		* `null`，而外面那个空格会留下，于是名字后面挂一个看不见的空白。
+		*
+		* `tone` 认不出来时按 `neutral` 画（`hostBadgePaint` 的兜底），**不抛、不留白**：
+		* 旧宿主或未来新增的 tone 都可能落到这一支。
+		*/
+		function drawableHostBadge(badge, language) {
+			if (badge === null || typeof badge !== "object" || Array.isArray(badge)) return void 0;
+			const candidate = badge;
+			const label = resolveHostBadgeText(candidate.text, language);
+			if (label === void 0) return void 0;
+			const tone = typeof candidate.tone === "string" ? candidate.tone : "neutral";
+			return {
+				badge: {
+					text: candidate.text,
+					tone
+				},
+				label
+			};
+		}
+		/** The chip itself, geometrically the host's `Tag` (`padding:1px 8px`, `999px`, 11px). */
+		function HostBadgeChip(props) {
+			const paint = hostBadgePaint(props.badge.tone);
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+				className: "dsm-qoder-model-label-host-badge",
+				style: {
+					color: paint.color,
+					background: paint.background
+				},
+				children: props.label
+			});
+		}
+		/**
+		* 一行别家 provider 的标签：名字 + （有的话）该模型自带的胶囊。
+		*
+		* `placement === 'trigger'` 时胶囊在前，`menu` / `option` 时在后 —— 这是宿主
+		* fallback 的逐字顺序，也是**唯一**一件不能凭偏好决定的事。分隔符就是一个空格，
+		* 不用 flex `gap`：宿主 fallback 里写的就是文本空格，两者在窄行里的换行行为不同。
+		*
+		* 读不到胶囊（没有 / 形状读不懂 / 文案为空）时返回纯名字：那是槽位契约的下限，
+		* 也是宿主自己在没有 badge 时画的东西。`model.name` 一个字符都不改 —— 名字是稳定
+		* 标识，胶囊是会变的东西，把易变的塞进稳定标识会污染悬停、读屏、搜索排序。
+		*/
+		function ForeignModelLabel(props) {
+			const { model, placement, t } = props;
+			const name = model.name;
+			const drawable = drawableHostBadge(model.badge, hostLanguage(t));
+			if (drawable === void 0) return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: name });
+			const chip = /* @__PURE__ */ (0, react_jsx_runtime.jsx)(HostBadgeChip, {
+				badge: drawable.badge,
+				label: drawable.label
+			});
+			return placement === "trigger" ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", { children: [
+				chip,
+				" ",
+				name
+			] }) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", { children: [
+				name,
+				" ",
+				chip
+			] });
 		}
 		//#endregion
 		//#region src/client/QoderModelLabel.tsx
@@ -5940,10 +7455,61 @@ window.__ModuleLoader__.load({
 		*    provider 之间切换时 hook 数量一变，React 直接崩。`jsx(Other, …)` 让它跑在
 		*    自己的 fiber 里，两条路径的 hook 数量与顺序都恒定。
 		*
+		* ## 三处出口，一条底线
+		*
+		* 本组件占的是 single 槽，**所有** provider 的行都从这里出去：
+		*
+		* | 行 | 出口 |
+		* | --- | --- |
+		* | 本插件的 provider | 自己的标签（名字 + 活动徽标 + 免费标记），见下方 |
+		* | 别家 provider，账本里有可委托的组件 | `jsx(Other, ownerProps)`，把对方自己的 `t` 绑好递过去 |
+		* | 别家 provider，交不出去 | `ForeignModelLabel`：名字 + 该模型自带的 `model.badge` |
+		*
+		* 第三条那一格此前是裸名字。`docs/MODEL-LABEL-SPEC.md` §4 的结论是它必须复现
+		* 宿主 fallback 的「名字 + 可选胶囊」：我们占了槽，宿主那句 fallback 就再也不会
+		* 执行，只画名字等于把别家挂在目录里的胶囊抹掉。委托仍然是首选（它保住了别人的
+		* 完整装饰），只是退路不再是「什么都不画」。
+		*
+		* 底线是这一支**绝不抛、绝不发请求**：它一抛，宿主会把整个组件从那一格摘掉，
+		* 整片模型标签换成别家或裸名字。
+		*
 		* @module dsh-connect-qoder/client/QoderModelLabel
 		*/
-		/** The slot key（宿主 model-selection 声明的 single 槽，ownerProps 见 `QoderModelLabelProps`）. */
+		/** The slot key（宿主 model-selection 声明的槽，ownerProps 见 `QoderModelLabelProps`）. */
 		const QODER_MODEL_LABEL_SLOT = "conversation.input.model.label";
+		/**
+		* 本插件拥有的每一个 provider id。
+		*
+		* 导出是因为 keyed 宿主上「一条注册 = 一个 provider」：注册侧需要的清单必须与
+		* 组件判定「这行是不是我的」用的是同一份，否则两处字面量迟早漂移。由
+		* `QODER_COMPOSER_PROVIDERS` 推导而不是另写一遍——那正是本仓库已经维护的那张表。
+		*/
+		const QODER_MODEL_LABEL_PROVIDERS = Object.keys(QODER_COMPOSER_PROVIDERS);
+		/**
+		* 本插件在这个 single 槽上的注册优先级。
+		*
+		* **必须小于 -100**，那是 workbuddy 的 `MODEL_LABEL_PRIORITY`。宿主的 single 槽
+		* 只渲染一条注册，按 priority **升序取首条**（小者先）。所以「排在哪」就是
+		* 「能不能被看见」。
+		*
+		* 为什么非要排在它前面：workbuddy 是**终点型**组件 —— 它的文件头明确写着
+		* `does not read the slot ledger, does not look for another plugin's
+		* registration, and does not render another plugin's component`，它不会把座位
+		* 交还给别人。此前这里是 -1（注释误以为对方用的是默认的 0），于是 workbuddy
+		* 稳稳抢在前面，**qoder 的促销胶囊在模型选择器里一次都没显示过**（用户实拍：
+		* 卡片里有「错峰 4 折」，选择器里没有）。
+		*
+		* 取 **-101** 而不是一个大得多的负数：只争一格，把身后的位置留给将来任何正常
+		* 的插件。这条优先级只影响「这一行由谁画」，不会动到别人的 provider 行 ——
+		* 本组件会把非 qoder 的行委托回去（见 `createQoderModelLabel`）。
+		*
+		* keyed 宿主上这条数值的含义变了、数值不必变。宿主把槽声明成 `keyed` 后，每条
+		* 注册按 provider id 各占一格，priority 不再决定「谁可见」，只剩「同一格内谁先」
+		* （两个插件抢同一个 provider id：同值抛错、低者渲染）。于是与 workbuddy 的
+		* `-105`、trae 的 `-102` 之间不再有压制关系——**停战不是靠再往下压，是靠换
+		* 槽的基数**。`-101` 因此保留为「本插件自己那两格的排序」，既不下探也不改回。
+		*/
+		const QODER_MODEL_LABEL_PRIORITY = -101;
 		/** 一分钟：窗口边界的翻面与快照的保鲜共用它（workbuddy 同规）。 */
 		const TICK_MS = 6e4;
 		/**
@@ -6038,7 +7604,8 @@ window.__ModuleLoader__.load({
 		*
 		* - 宿主只渲染座位上的第一条注册。workbuddy 的标签（倍率后缀/忙图标）与 1017
 		*   参考实现都注册在同一槽的默认优先级；qoder 想给自己的模型加徽标就必须抢在前
-		*   面（priority 升序、小者渲染 ⇒ 取 -1），同时**把外来 provider 原样交还**，
+		*   面（priority 升序、小者渲染 ⇒ 取 -101，必须小于 workbuddy 的 -100，见
+		*   {@link QODER_MODEL_LABEL_PRIORITY}），同时**把外来 provider 原样交还**，
 		*   否则别人的标签在我们到场的那一刻集体消失（#12 报告本地实测踩过）。
 		* - 交还靠原始账本 `entries()`：`entriesOfSlot()` 对 single 槽去重后只剩第一条
 		*   （自己），拿不到别人。
@@ -6092,13 +7659,21 @@ window.__ModuleLoader__.load({
 				}, [region]);
 				if (region === void 0) {
 					const other = slots.entries(QODER_MODEL_LABEL_SLOT).filter((entry) => entry.component !== QoderModelLabel && typeof entry.component === "function")[0];
-					if (other === void 0 || slots.bindLocale === void 0) return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: model.name });
+					if (other === void 0 || slots.bindLocale === void 0) return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ForeignModelLabel, {
+						model,
+						placement,
+						t
+					});
 					const Other = other.component;
 					let otherT;
 					if (other.locale !== void 0 && other.locale !== "") try {
 						otherT = slots.bindLocale(other.locale);
 					} catch {
-						return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: model.name });
+						return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ForeignModelLabel, {
+							model,
+							placement,
+							t
+						});
 					}
 					return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Other, {
 						provider,
@@ -6112,49 +7687,135 @@ window.__ModuleLoader__.load({
 				const row = findUsageRow(snapshot?.models, model.id);
 				const language = hostLanguage(t);
 				const translate = t ?? ((key, params) => params === void 0 ? key : `${key} ${JSON.stringify(params)}`);
+				const promo = row?.promotion === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(QoderModelLabelPromoChip, {
+					promo: row.promotion,
+					language,
+					compact,
+					t: translate
+				});
+				const freeTag = row?.isFree !== true ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+					className: "dsm-qoder-model-meta-tag",
+					title: translate("row.modelFreeHint"),
+					children: translate("row.modelFree")
+				});
 				return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
 					className: compact ? "dsm-qoder-model-label dsm-qoder-model-label-compact" : "dsm-qoder-model-label",
 					children: [
 						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: model.name }),
-						row?.promotion === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(QoderModelLabelPromoChip, {
-							promo: row.promotion,
-							language,
-							compact,
-							t: translate
-						}),
-						row?.isFree !== true ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-							className: "dsm-qoder-model-meta-tag",
-							title: translate("row.modelFreeHint"),
-							children: translate("row.modelFree")
-						})
+						promo,
+						freeTag
 					]
 				});
 			};
 			return QoderModelLabel;
 		}
 		//#endregion
-		//#region src/version.ts
+		//#region src/client/model-label-seat.ts
 		/**
-		* The npm package **name** this build was produced from.
+		* 读一个槽**实际声明**的 kind；读不出来返回 `undefined`。
 		*
-		* Needed at runtime by the browser half: the plugin manager keys its
-		* configuration slots by package name — `plugins.bundle.config` uses the bare
-		* package name, `plugins.row.config` uses `<package name>#<row id>`. Those keys
-		* must match the *installed package*, not a hardcoded legacy alias, or the card
-		* renders nothing on the bundle's page (it shows the description and rows but no
-		* configuration body).
+		* `spec()` 是文档化的只读访问器（`SlotRegistry.spec`），0.1.7 与 0.2.2 都有。
+		* 也是唯一能知道 kind 的途径：声明写在宿主包里，插件自己的 `SlotMap` 增强只
+		* 说明本插件**希望**槽是什么，不代表运行中的宿主声明了什么。
 		*
-		* Injected at build time so it cannot drift from `package.json`; the fallback
-		* only applies outside a build (the unit tests inject the real value too — see
-		* `vitest.config.ts`).
+		* 任何异常——老宿主没有 `spec`、服务未就绪抛错、出现本构建不认识的 kind——
+		* 都返回 `undefined`，调用方落回单格形状。那是保守方向：每个已发布版本本来就是
+		* 这么注册的。
+		*
+		* @param slots - `slots` 服务（类型放宽：访问器是可选的）。
+		* @param key - 要检查的槽位 key。
+		* @returns 声明出来的 kind，或 `undefined`。
 		*/
-		const QODER_PACKAGE_NAME = "@dmh2002/dsh-connect-qoder";
+		function declaredSlotKind(slots, key) {
+			const face = slots;
+			if (face === void 0 || typeof face.spec !== "function") return void 0;
+			let spec;
+			try {
+				spec = face.spec(key);
+			} catch {
+				return;
+			}
+			const kind = spec?.kind;
+			if (kind === "single" || kind === "list" || kind === "keyed" || kind === "chain") return kind;
+		}
+		/**
+		* 本插件应该为模型标签槽注册的席位。
+		*
+		* `keyed` 下每个 provider id 一条：各自一格，各自只画属于那个 provider 的行；
+		* 本插件不负责的 provider 落到宿主的 fallback（目录名 + 该模型自带的 badge）。
+		*
+		* 其余情况——包括 `undefined`（宿主无法被检视）——都是历史上那一条。那不是降级：
+		* 那是 `single` 要求的形状，也是 inject 回调即将面对的未声明状态下的形状。
+		*
+		* keyed 但 provider 列表为空会一条都不注册（标签静默消失，三种失败里最坏的一种），
+		* 所以退回单条：形状不对但画得出东西，胜于形状正确但什么都不画。
+		*
+		* @param params - 槽位 key、声明的 kind、本插件的 provider ids、优先级。
+		* @returns 一个或多个 `register()` 选项，按注册顺序。
+		*/
+		function modelLabelSeats(params) {
+			const { name, kind, providerIds, priority } = params;
+			if (kind === "list" || kind === "chain") return [];
+			if (kind === "keyed" && providerIds.length > 0) return providerIds.map((id) => ({
+				name,
+				key: id,
+				priority
+			}));
+			return [{
+				name,
+				priority
+			}];
+		}
+		/**
+		* Claim every planned seat, atomically, and hand back ONE disposer.
+		*
+		* WHY ATOMIC. The seat list is 2-3 entries on a `keyed` host, and `register()`
+		* can throw on any ONE of them — a rival plugin claiming the same provider id at
+		* the same priority, or the declaration collapsing mid-loop. A plain `.map()`
+		* would then leave the earlier seats landed on the ledger with their disposers
+		* unreachable (they were only ever held by the array that the throw discarded),
+		* which is worse than failing outright: the component stays mounted, the caller
+		* believes registration failed, and nothing will ever release those cells. On a
+		* `single` host it also means the identity keeps a live entry that the next
+		* `inject` re-run cannot displace without a priority clash.
+		*
+		* So a partial failure is rolled back in reverse order before the error is
+		* rethrown, exactly as if it had never been attempted. The rethrow is important:
+		* each caller already has a catch that logs, and swallowing here would hide the
+		* refusal from the diagnostics that exist to explain it.
+		*
+		* A disposal that itself throws must not mask the original error, hence the
+		* inner catch — the registry treats a second dispose as a no-op, and a broken
+		* one must not turn one failure into a crash.
+		*
+		* @param seats - The plan from {@link modelLabelSeats}, in registration order.
+		* @param register - Claims one seat and returns its disposer.
+		* @returns One disposer that releases every seat, in reverse registration order.
+		*/
+		function registerModelLabelSeats(seats, register) {
+			const claimed = [];
+			try {
+				for (const seat of seats) claimed.push(register(seat));
+			} catch (error) {
+				for (const dispose of [...claimed].reverse()) try {
+					dispose();
+				} catch {}
+				throw error;
+			}
+			return () => {
+				for (const dispose of [...claimed].reverse()) try {
+					dispose();
+				} catch {}
+			};
+		}
 		const qoderLocales = {
 			zh: {
 				"row.title": `接入使用 Qoder（通义灵码）积分与模型（${QODER_PACKAGE_NAME}）`,
 				"row.desc": "在 DSH 中使用 Qoder（通义灵码 国内/国际）模型并随时查看剩余积分；国内版与国际版是两个独立供应商（qoder / qoder-global），各有自己的 PAT 与账号，可同时使用。",
 				"row.expand": "展开",
 				"row.collapse": "收起",
+				"section.label": "Qoder",
+				"section.title": "Qoder（通义灵码）账号、积分与模型",
 				"row.tabCn": "国内版",
 				"row.tabGlobal": "国际版",
 				"row.tabHint": "每个 tab 是一个独立供应商（qoder / qoder-global），各有自己的 PAT、账号、积分与模型。两边同时生效：不同会话可各选一边，一侧的改动不影响另一侧。",
@@ -6163,6 +7824,7 @@ window.__ModuleLoader__.load({
 				"row.tabOffNotice": "该供应商已关闭：它的模型不会提供给 DSH。PAT、账号、积分与模型设置均已保留——勾选上方复选框即可恢复。",
 				"row.panelAccounts": "账号",
 				"row.panelModels": "模型",
+				"row.panelCapabilities": "能力",
 				"row.panelDiag": "诊断",
 				"row.panelAria": "卡片分区",
 				"row.diagHint": "这张卡片实际读到了什么，方便整段贴进问题反馈。这里没有任何会改动设置的控件。",
@@ -6239,6 +7901,7 @@ window.__ModuleLoader__.load({
 				"row.campaignsEmpty": "当前没有活动。",
 				"row.campaignsLoading": "正在加载活动…",
 				"row.campaignsError": "活动信息暂不可用：{message}",
+				"row.campaignsNoCredential": "尚未配置凭据——请在账号池添加一个 PAT 后即可加载活动。",
 				"row.campaignUntitled": "未命名活动",
 				"row.campaignDetails": "查看详情",
 				"row.campaignClaimable": "可领取",
@@ -6272,6 +7935,7 @@ window.__ModuleLoader__.load({
 				"row.modelFree": "免费",
 				"row.modelFreeHint": "倍率为 0，不消耗积分",
 				"row.promoPending": "当前未生效，{start} 起生效",
+				"row.ratePromoHint": "活动价，基准价 x{base}",
 				"row.modelImage": "图片",
 				"row.modelImageText": "厂商文档标注该模型为纯文本，不接收图片输入",
 				"row.modelImageUnverified": "该模型的原生多模态能力未经核实；除非你确定它能读图，否则请保持关闭",
@@ -6322,7 +7986,7 @@ window.__ModuleLoader__.load({
 				"row.poolTargetPreferred": "你指定的模型：{model}",
 				"row.poolTargetCurrentPreferred": "当前：{model}（你指定）。",
 				"row.poolTargetCurrentFree": "当前：{model}（自动挑选的免费模型）。",
-				"row.poolTargetNone": "本区域暂时没有倍率为 0 的免费模型。",
+				"row.poolTargetNone": "本区域没有可用来测试的倍率为 0 的免费模型。",
 				"row.poolRank": "第 {rank} 位",
 				"row.poolRankAuto": "自动排序",
 				"row.poolRankHint": "这个顺序是你手动排的。请求会优先发给排在前面且可用的账号。",
@@ -6332,7 +7996,7 @@ window.__ModuleLoader__.load({
 				"row.poolMoveUp": "提高优先级",
 				"row.poolMoveDown": "降低优先级",
 				"row.poolMoveAria": "{accountName} 的优先级顺序",
-				"row.poolTargetNoneHint": "本区域的倍率要等模型目录刷新后才会出现。为了不让你在不知情的情况下花掉积分，在免费模型出现之前测试会保持关闭——请先在「模型」区刷新模型目录，或自己指定一个目标模型。",
+				"row.poolTargetNoneHint": "这有两种原因，且都不是账号的问题：要么本区域的倍率还没刷出来（去「模型」区刷新一次目录），要么本区域此刻确实一个倍率为 0 的模型都没有。「已启用模型」在这里不影响任何事 —— 勾选只决定 DSH 的选择器里列哪些，不决定能测哪些。为了不让你在不知情的情况下花掉积分，在免费模型可用之前测试会保持关闭；你也可以自己指定一个目标模型。",
 				"row.poolTargetStale": "你保存的目标模型已不在目录中：{model}",
 				"row.poolTargetStaleHint": "本区域的模型目录已变化，不再包含这个模型，因此测试被停用。请改选一个目标模型，或切回自动。",
 				"row.poolTargetStaleClear": "切回自动",
@@ -6351,16 +8015,15 @@ window.__ModuleLoader__.load({
 				"row.poolCheckinDueHint": "下一窗已经开了，这个账号现在可以再签。「已签到」说的是上一窗，所以这里不再重复它。",
 				"row.poolNeverTested": "未测试",
 				"row.poolTestedAt": "测试于 {at}",
-				"row.poolCreditSoon": "{count} 积分 3 天内过期",
-				"row.poolCreditNearest": "最近积分包 {at} 过期",
 				"row.poolExcludedRateLimited": "被限流",
 				"row.poolExcludedOutOfCredit": "用量已达上限",
 				"row.poolExcludedRejected": "被拒绝",
 				"row.poolExcludedQueued": "上游排队中",
 				"row.poolExcludedUnusable": "不可用",
-				"row.poolRetryAt": "{at} 之后可再用",
 				"row.poolRetryUnknown": "上游未给出何时恢复",
+				"row.poolRetryFallback": "每 30 分钟自动重试一次",
 				"row.unlockSuffix": "{when}解禁",
+				"row.unlockSuffixWindow": "{when}解禁（按今日额度窗口推算）",
 				"row.remainingImminent": "即将恢复",
 				"row.remainingMinutes": "约 {count} 分钟后",
 				"row.remainingHours": "约 {count} 小时后",
@@ -6374,12 +8037,16 @@ window.__ModuleLoader__.load({
 				"row.poolProbeSourceUnknown": "来源未知",
 				"row.poolProbeOtherModel": "针对 {model} 测得",
 				"row.poolProbeOtherModelHint": "这条结论是针对另一个模型的，对当前选中的模型不作数。Qoder 按模型限流，同一个账号可能在一个模型上正常、在另一个上被限。",
-				"row.poolSettingsTitle": "更多设置",
-				"row.poolSettingsHint": "下面是偏好设置：点保存才生效（与「模型管理」一致）。测试结果由插件自动写入，不受这个保存按钮影响。",
 				"row.poolEnabled": "启用账号池",
 				"row.poolEnabledHint": "开启：由账号池为每次请求挑号，失败就换下一个。关闭：你选的账号服务每一次请求，失败如实报错。",
 				"row.poolModeAuto": "自动挑号",
 				"row.poolModeManual": "手动选号",
+				"row.poolAutoCheckin": "每天自动签到",
+				"row.poolAutoCheckinHint": "开启：后台为池成员每天领一次签到，先读活动状态，今天已领过的不会再领。关闭：只有点按钮才签到。错过一窗就是白丢一份。",
+				"row.poolAutoCheckinToday": "今日：已签 {done} / {total}",
+				"row.poolAutoCheckinDone": "今日：{total} 个全部已签",
+				"row.poolAutoCheckinPending": "待重试 {count} 个",
+				"row.poolAutoCheckinFailed": "上次尝试失败：{message}",
 				"row.poolManualAccountLabel": "使用哪个账号",
 				"row.poolManualAccountNone": "当前没有生效的账号",
 				"row.poolTargetLabel": "测试用模型（全池统一）",
@@ -6404,6 +8071,7 @@ window.__ModuleLoader__.load({
 				"row.poolLogTestDone": "测试完成，已重新计算候选账号",
 				"row.poolLogTestRowMalformed": "{accountName}：Host 未返回该账号的结果",
 				"row.poolLogBatchFailed": "批量操作失败 —— 没有执行：{message}",
+				"row.poolLogTestNoneRan": "没有测任何账号：本池勾选的账号当前都没有可用的 PAT。",
 				"row.poolMembersTitle": "本池包含的账号",
 				"row.poolMembersHint": "只有勾选的账号参与轮换、签到与测试。",
 				"row.poolSelectAll": "全选",
@@ -6448,6 +8116,8 @@ window.__ModuleLoader__.load({
 				"row.showCreditsGlobal": "在对话框显示 QD AI 积分",
 				"row.showCreditsCnHint": "在对话输入框工具栏显示国内版（QD CN）剩余额度，仅当本会话使用 CN 模型时出现。点击可看各账号余额并手动刷新（每 5 分钟也会自动刷新）。",
 				"row.showCreditsGlobalHint": "在对话输入框工具栏显示国际版（QD AI）剩余额度，仅当本会话使用国际版模型时出现。点击可看各账号余额并手动刷新（每 5 分钟也会自动刷新）。",
+				"row.showCampaigns": "显示活动",
+				"row.showCampaignsHint": "在这个区域显示上游下发的活动（每日签到额度与限时活动公告），位置在 tab 栏之上。只读——签到仍在账号池里操作。关掉之后这一页直接从 tab 栏开始，其余功能不受影响。",
 				"row.showCreditsCnDesc": "在输入框工具栏显示可点击读数（选中国内版模型时出现）：「QD CN · 余额」。读数位置在下一行。",
 				"row.showCreditsGlobalDesc": "在输入框工具栏显示可点击读数（选中全球版模型时出现）：「QD AI · 套餐」。读数位置在下一行。",
 				"row.creditPositionLabel": "显示位置",
@@ -6455,6 +8125,16 @@ window.__ModuleLoader__.load({
 				"row.creditPositionComposer": "输入框工具栏",
 				"row.creditPositionStats": "输入框下方",
 				"row.creditPositionHint": "积分读数放在哪里。「输入框工具栏」位置更近，但那一行是共享的 list 插槽——若另一个插件也把东西停在那里、读数消失，就选「输入框下方」（会话 token 统计旁边那行常驻栏）。",
+				"row.sidebarPanelLabel": "在侧边栏显示 Qoder",
+				"row.sidebarPanelHint": "在 DSH 侧边栏加一个 Qoder 行，点开就是这一页的整屏版。默认关闭：这一行占的是所有插件共用的全局侧边栏座位，而「设置 → Qoder」本来就能看到同样的内容。点一下即生效，不用保存；页面开着时关掉它，会直接回到对话。",
+				"row.sidebarPanelFailed": "侧边栏开关没能保存：{message}",
+				"row.pollMinutesLabel": "自动刷新上游",
+				"row.pollMinutesHint": "设置页与输入框积分读数多久向上游重读一次（分钟）。两个区域、两个表面共用同一条节奏——它们问的是同一个路由，几乎同时到达的读会被合流成一次上游请求。改完立即生效，不用保存。",
+				"row.pollMinutesAria": "上游自动刷新间隔",
+				"row.pollMinutesOption": "每 {minutes} 分钟",
+				"row.pollMinutesFailed": "刷新间隔没能保存：{message}",
+				"nav.panel": "Qoder",
+				"nav.back": "返回会话",
 				"row.quotaExhaustedTitle": "上游报额度耗尽",
 				"row.quotaExhaustedDetail": "最近一次 {time}（业务码 {code}）。逐账号明细在账号池表格里（池开着时）；池关着时这里是唯一能看到它的地方。",
 				"composer.pointsCn": "QD CN",
@@ -6462,14 +8142,20 @@ window.__ModuleLoader__.load({
 				"composer.panelTitleCn": "QD CN 积分",
 				"composer.panelTitleGlobal": "QD AI 积分",
 				"composer.account": "账号",
+				"composer.dedicated": "SOTA",
+				"composer.dedicatedHint": "专属积分，选中与之绑定的模型时优先抵扣。不计入右边的「积分」列：不选那只模型时这笔钱一分都动不了。",
+				"composer.dedicatedExpires": "{time} 到期",
+				"composer.dedicatedMultiple": "共 {count} 个专属包，各自余额见下",
 				"composer.credits": "积分",
 				"composer.switchTo": "切换到 {account}",
 				"composer.noAccounts": "该区域暂无账号",
 				"composer.signedOut": "未登录",
-				"composer.testAll": "一键测试",
-				"composer.testing": "正在测试…",
-				"composer.testAllHint": "对每个池成员各发一次试问，测完圆点与原因就是这一轮的结论",
-				"composer.testFailed": "一键测试失败",
+				"composer.openSettings": "设置",
+				"composer.openSettingsHint": "打开「设置 → Qoder」（账号池、模型目录、诊断）",
+				"composer.refresh": "刷新",
+				"composer.refreshing": "正在刷新…",
+				"composer.refreshHint": "刷新本区所有账号的状态——逐个探测每个账号（会消耗少量积分，最长约一分钟）",
+				"composer.refreshAccountsFailed": "账号状态刷新失败",
 				"composer.refreshFailed": "积分刷新失败",
 				"composer.lastRefresh": "最近刷新",
 				"composer.dataStale": "未更新",
@@ -6483,6 +8169,8 @@ window.__ModuleLoader__.load({
 				"row.desc": "Use Qoder (Lingma CN / global) models in DSH and see your remaining credits; the CN and international sides are two independent providers (qoder / qoder-global), each with its own PAT and accounts — use both at the same time.",
 				"row.expand": "Expand",
 				"row.collapse": "Collapse",
+				"section.label": "Qoder",
+				"section.title": "Qoder (Lingma) accounts, credits & models",
 				"row.tabCn": "CN",
 				"row.tabGlobal": "Global",
 				"row.tabHint": "Each tab is a separate provider (qoder / qoder-global) with its own PAT, accounts, credits, and models. Both sides are live at once: different sessions can pick from either side, and changes on one tab never touch the other.",
@@ -6491,6 +8179,7 @@ window.__ModuleLoader__.load({
 				"row.tabOffNotice": "This provider is switched off: none of its models are offered to DSH. Your PAT, accounts, credits, and model settings are kept — check the box above the tab to bring it back.",
 				"row.panelAccounts": "Accounts",
 				"row.panelModels": "Models",
+				"row.panelCapabilities": "Capabilities",
 				"row.panelDiag": "Diagnostics",
 				"row.panelAria": "Card sections",
 				"row.diagHint": "What this card actually read, so a report can quote it. Nothing here changes a setting.",
@@ -6572,6 +8261,7 @@ window.__ModuleLoader__.load({
 				"row.campaignsEmpty": "No active campaigns right now.",
 				"row.campaignsLoading": "Loading campaigns…",
 				"row.campaignsError": "Campaigns unavailable: {message}",
+				"row.campaignsNoCredential": "No credential configured — add a PAT in the account pool to load campaigns.",
 				"row.campaignUntitled": "Untitled campaign",
 				"row.campaignDetails": "View details",
 				"row.campaignClaimable": "Claimable",
@@ -6605,6 +8295,7 @@ window.__ModuleLoader__.load({
 				"row.modelFree": "Free",
 				"row.modelFreeHint": "Zero multiplier — calls with this model consume no credits",
 				"row.promoPending": "Not active yet — starts at {start}",
+				"row.ratePromoHint": "Promotional rate — base rate is x{base}",
 				"row.modelImage": "Image",
 				"row.modelImageText": "This model is documented as text-only — it does not accept image input",
 				"row.modelImageUnverified": "Native multimodal support is not verified for this model; leave it off unless you know it accepts images",
@@ -6655,7 +8346,7 @@ window.__ModuleLoader__.load({
 				"row.poolTargetPreferred": "Your chosen model: {model}",
 				"row.poolTargetCurrentPreferred": "Current: {model} (your choice).",
 				"row.poolTargetCurrentFree": "Current: {model} (auto-picked free model).",
-				"row.poolTargetNone": "This region has no zero-multiplier model yet.",
+				"row.poolTargetNone": "No zero-multiplier model to test with in this region.",
 				"row.poolRank": "Priority #{rank}",
 				"row.poolRankAuto": "Auto-ranked",
 				"row.poolRankHint": "You set this order. Requests go to the highest available account first.",
@@ -6665,7 +8356,7 @@ window.__ModuleLoader__.load({
 				"row.poolMoveUp": "Higher priority",
 				"row.poolMoveDown": "Lower priority",
 				"row.poolMoveAria": "Priority order for {accountName}",
-				"row.poolTargetNoneHint": "The region's catalog only reveals its multipliers after a model refresh. Rather than quietly spending credits on a paid model, testing stays off until a free one appears — refresh the models from the Models section, or pick a target model yourself.",
+				"row.poolTargetNoneHint": "Two things cause this, and neither is the account: either the catalog has not revealed its multipliers yet (refresh the models in the Models section), or this region genuinely lists no multiplier-0 model right now. Your enabled models do not matter here — ticking a model only decides what the DSH picker lists, not what may be tested. Rather than quietly spending credits on a paid model, testing stays off until a free one is available; you can also pin a target model yourself.",
 				"row.poolTargetStale": "The target model you saved is no longer offered: {model}",
 				"row.poolTargetStaleHint": "The region's catalog changed and no longer lists this model, so testing is off rather than running against a model the upstream may not accept. Pick another target, or switch back to automatic.",
 				"row.poolTargetStaleClear": "Switch back to automatic",
@@ -6684,16 +8375,15 @@ window.__ModuleLoader__.load({
 				"row.poolCheckinDueHint": "The next window has opened, so this account can claim again now. \"Checked in\" referred to the previous window, so it is not repeated here.",
 				"row.poolNeverTested": "Untested",
 				"row.poolTestedAt": "Tested {at}",
-				"row.poolCreditSoon": "{count} expiring within 3 days",
-				"row.poolCreditNearest": "Nearest package expires {at}",
 				"row.poolExcludedRateLimited": "Rate limited",
 				"row.poolExcludedOutOfCredit": "Usage limit reached",
 				"row.poolExcludedRejected": "Rejected",
 				"row.poolExcludedQueued": "Queued upstream",
 				"row.poolExcludedUnusable": "Unusable",
-				"row.poolRetryAt": "Back after {at}",
 				"row.poolRetryUnknown": "The upstream gave no time for when this frees up",
+				"row.poolRetryFallback": "Retrying automatically about every 30 min",
 				"row.unlockSuffix": "unblocks {when}",
+				"row.unlockSuffixWindow": "unblocks {when} (daily quota window)",
 				"row.remainingImminent": "any moment now",
 				"row.remainingMinutes": "in about {count} min",
 				"row.remainingHours": "in about {count} h",
@@ -6707,12 +8397,16 @@ window.__ModuleLoader__.load({
 				"row.poolProbeSourceUnknown": "source unknown",
 				"row.poolProbeOtherModel": "measured on {model}",
 				"row.poolProbeOtherModelHint": "This result is about a different model — it says nothing about the currently selected one. Qoder rate-limits per model, so the same account can be fine on one and throttled on another.",
-				"row.poolSettingsTitle": "More settings",
-				"row.poolSettingsHint": "These are preferences: they take effect when you save (same as the model list). Test results are written automatically and are not affected by this button.",
 				"row.poolEnabled": "Enable the account pool",
 				"row.poolEnabledHint": "On: the pool picks the account for every request and moves to the next one when it fails. Off: the account you select serves every request, and a failure is reported as it is.",
 				"row.poolModeAuto": "picking automatically",
 				"row.poolModeManual": "you pick",
+				"row.poolAutoCheckin": "Check in automatically each day",
+				"row.poolAutoCheckinHint": "On: claims the daily check-in for pool members once a day, in the background — it reads the campaign first, so an account already claimed today is never re-claimed. Off: only the button claims. A missed window is a missed reward.",
+				"row.poolAutoCheckinToday": "Today: {done} of {total} checked in",
+				"row.poolAutoCheckinDone": "Today: all {total} checked in",
+				"row.poolAutoCheckinPending": "{count} still to retry",
+				"row.poolAutoCheckinFailed": "Last attempt failed: {message}",
 				"row.poolManualAccountLabel": "Which account to use",
 				"row.poolManualAccountNone": "No account in effect",
 				"row.poolTargetLabel": "Test model (whole pool)",
@@ -6737,6 +8431,7 @@ window.__ModuleLoader__.load({
 				"row.poolLogTestDone": "Test finished; the pool was re-ranked",
 				"row.poolLogTestRowMalformed": "{accountName}: the host returned no result for this account",
 				"row.poolLogBatchFailed": "Batch failed — nothing ran: {message}",
+				"row.poolLogTestNoneRan": "Nothing was tested: no checked account in this pool has a usable PAT right now.",
 				"row.poolMembersTitle": "Accounts in this pool",
 				"row.poolMembersHint": "Only checked accounts rotate, get checked in, and get tested.",
 				"row.poolSelectAll": "Select all",
@@ -6781,6 +8476,8 @@ window.__ModuleLoader__.load({
 				"row.showCreditsGlobal": "Show QD AI credits in the composer",
 				"row.showCreditsCnHint": "Show the CN (QD CN) credit balance in the composer toolbar, but only while this session uses a CN model. Click it for per-account balances and a manual refresh (refreshes by itself every 5 minutes).",
 				"row.showCreditsGlobalHint": "Show the international (QD AI) credit balance in the composer toolbar, but only while this session uses a global model. Click it for per-account balances and a manual refresh (refreshes by itself every 5 minutes).",
+				"row.showCampaigns": "Show campaigns",
+				"row.showCampaignsHint": "Show this region's campaign feed (the daily check-in offer and any limited-time banners the upstream is sending) above the tabs. Read-only — claiming stays in the account pool. Turn it off and the page goes straight to accounts; nothing else changes.",
 				"row.showCreditsCnDesc": "A clickable readout in the composer toolbar (shown only while this session uses a CN model): \"QD CN · balance\". Where it sits is the next line.",
 				"row.showCreditsGlobalDesc": "A clickable readout in the composer toolbar (shown only while this session uses a global model): \"QD AI · plan\". Where it sits is the next line.",
 				"row.creditPositionLabel": "Position",
@@ -6788,6 +8485,16 @@ window.__ModuleLoader__.load({
 				"row.creditPositionComposer": "In the composer toolbar",
 				"row.creditPositionStats": "Below the composer",
 				"row.creditPositionHint": "Where the credit readout sits. \"In the composer toolbar\" is the closer spot, but that row is a shared list slot — if another plugin parks something there and the readout disappears, choose \"Below the composer\" (the ambient row next to the session token counts).",
+				"row.sidebarPanelLabel": "Show Qoder in the sidebar",
+				"row.sidebarPanelHint": "Adds a Qoder row to the DSH sidebar that opens this page as a full-screen panel. Off by default: the row takes a global sidebar slot shared by every installed plugin, and Settings → Qoder already reaches the same content. Takes effect on the click — no Save needed — and switching it off while the page is open returns you to the conversation.",
+				"row.sidebarPanelFailed": "Could not change the sidebar setting: {message}",
+				"row.pollMinutesLabel": "Auto-refresh upstream",
+				"row.pollMinutesHint": "How often the settings page and the composer credit readout re-read usage from upstream, in minutes. One global rhythm for both regions and both surfaces — they ask the same route and near-simultaneous reads are coalesced into one upstream call. Takes effect immediately; no Save needed.",
+				"row.pollMinutesAria": "Upstream auto-refresh interval",
+				"row.pollMinutesOption": "Every {minutes} min",
+				"row.pollMinutesFailed": "Could not change the refresh interval: {message}",
+				"nav.panel": "Qoder",
+				"nav.back": "Back to conversation",
 				"row.quotaExhaustedTitle": "Upstream reported quota exhausted",
 				"row.quotaExhaustedDetail": "Last seen at {time} (business code {code}). Per-account detail lives in the pool table when the pool is on; this notice is the only surface when it is off.",
 				"composer.pointsCn": "QD CN",
@@ -6795,14 +8502,20 @@ window.__ModuleLoader__.load({
 				"composer.panelTitleCn": "QD CN credits",
 				"composer.panelTitleGlobal": "QD AI credits",
 				"composer.account": "Account",
+				"composer.dedicated": "SOTA",
+				"composer.dedicatedHint": "Exclusive credits, used first when you pick the model they are tied to. Not counted in the credits column: they cannot be spent on any other model.",
+				"composer.dedicatedExpires": "Expires {time}",
+				"composer.dedicatedMultiple": "{count} exclusive packages (see each balance below)",
 				"composer.credits": "Credits",
 				"composer.switchTo": "Switch to {account}",
 				"composer.noAccounts": "No account in this region",
 				"composer.signedOut": "Not signed in",
-				"composer.testAll": "Test all",
-				"composer.testing": "Testing…",
-				"composer.testAllHint": "Probe every pool member once; the dots and reasons become what this run measured",
-				"composer.testFailed": "Could not run the test",
+				"composer.openSettings": "Settings",
+				"composer.openSettingsHint": "Open Settings → Qoder (account pool, model catalog, diagnostics)",
+				"composer.refresh": "Refresh",
+				"composer.refreshing": "Refreshing…",
+				"composer.refreshHint": "Refresh the status of every account in this region — probes each one, one at a time (spends a small amount of credits, takes up to a minute)",
+				"composer.refreshAccountsFailed": "Could not refresh the account status",
 				"composer.refreshFailed": "Could not refresh credits",
 				"composer.lastRefresh": "Last refreshed",
 				"composer.dataStale": "not updated",
@@ -6813,56 +8526,228 @@ window.__ModuleLoader__.load({
 			}
 		};
 		//#endregion
-		//#region src/client/slot-keys.ts
+		//#region src/client/settings-jump.ts
 		/**
-		* The plugin manager's configuration-slot keys for this plugin's card.
+		* 通往本插件**设置页分区**（设置 → Qoder）的路。两条，好的一条在前。
 		*
-		* The Plugin-configuration page declares three slots, and the page owner keys
-		* them by **package identity** — not by this plugin's own settings namespace:
+		* ## 两条路
 		*
-		* - `plugins.bundle.config` — keyed by the bundle's **package name**; renders on
-		*   the bundle's page between its description and its rows.
-		* - `plugins.row.config` — keyed by **`<package name>#<row id>`**; gives that row
-		*   its Configure control.
+		* 1. **外壳自己的 store 座位** —— 一次调用，精确，不依赖时序：
+		*    `slots.entries('sidebar.settings')[0].store.create().actions.openSection(id)`。
+		* 2. **驱动真实 chrome** —— 点侧边栏的设置触发器，等面板挂上，再按导航标签点
+		*    本插件那一行。
 		*
-		* Getting these wrong is silent and looks like "the plugin is fine but its
-		* settings vanished": the plugin still lists as running, with its description
-		* and its component rows, but the configuration body renders nothing. That is
-		* exactly what happened when the package was renamed to the scoped
-		* `@dmh2002/dsh-connect-qoder` while these keys stayed hardcoded to the old
-		* unscoped name.
+		* 第 1 条正是这颗按钮该做的事（「点一下，设置直接落在本插件这一页」），且在本插件
+		* 支持的宿主线上都在。第 2 条保留给外壳还没有座位的老线：那里它仍能把用户送到本
+		* 插件页，删掉等于拿可用的兜底换一个空。第 1 条在有座位的地方**严格更好**：
+		* `openSection(id)` 一次同时设 `activeId` 与 `open`，不存在「先停在别的分区再跳」
+		* 的重试窗口，也不依赖导航行的本地化文案。
 		*
-		* So the package name is **injected at build time** (`QODER_PACKAGE_NAME`, see
-		* `tsdown.config.ts`) rather than written here twice, and the row id is the
-		* Host's Loader entry id — which is what the settings namespace is derived from
-		* (`settingsNamespaceOf`), deliberately left unscoped so saved config keeps
-		* resolving.
+		* ## 为什么座位是合法的公开面（读过的，不是照抄兄弟项目）
 		*
-		* @module dsh-connect-qoder/client/slot-keys
+		* 从随包发布的宿主里逐条读出来（0.2.2-rc.1，`ui-settings-general` 的 client bundle）：
+		*
+		*     ctx.remoteAccess.whenAccess('settings/describe', () => ctx.slots.inject('sidebar.settings', () => {
+		*       const shellHandle = createSettingsShellStore()
+		*       const shellInstance = shellHandle.create()
+		*       const shellStore = { ...shellHandle, create: () => shellInstance }
+		*       …
+		*       ctx.slots.register({ name: 'sidebar.settings', locale: NS, store: shellStore, … })
+		*     }))
+		*
+		* 以及 store 本身：
+		*
+		*     defineStore({
+		*       init: () => ({ open: false, activeId: void 0 }),
+		*       actions: {
+		*         open:        (d) => { d.open = true },
+		*         close:       (d) => { d.open = false; d.activeId = void 0 },
+		*         select:      (d, id) => { d.activeId = id },
+		*         openSection: (d, id) => { d.activeId = id; d.open = true },
+		*       },
+		*     })
+		*
+		* 三件事都承重：
+		*
+		*  - `create: () => shellInstance` 把座位**钉在**外壳唯一的活动实例上。裸句柄每次
+		*    `create()` 另造一份，`openSection` 推动的就是一个没人渲染的副本。
+		*  - `store` 是注册的**声明字段**（契约里写的是「Declared store seat; instance
+		*    resolution and lifecycle live with the host machinery」），`slots.entries(key)`
+		*    是公开服务方法（宿主自己的 client 测试就是这么读这块座位的）。
+		*  - **只有 `openSection` 能回答这个需求。** 公开契约里 `settings.section` 的注册方
+		*    只拿到 `close`；`settings.launcher` 拿到的是不带 id 的 `openSettings`；
+		*    `openSection(id)` 只发给 `settings.onboarding` 的步骤。为了拿它去注册一个假的
+		*    首启步骤，比读一块外壳自己发布的座位侵入得多。
+		*
+		* ## 为什么每次**按下**才探测，而不是 `apply` 时探测一次
+		*
+		* 座位属于**另一个 bundle**，它的 apply 顺序不归我们假设。在 `apply` 里探一次，
+		* 在侧边栏后加载的宿主上会永远拿到 `undefined`，那颗按钮整个会话都是死的。
+		* `entries()` 对未声明的槽位返回 `[]`，所以每次按下现探是无状态且永远当前的。
+		*
+		* ## 第 2 条路（驱动 chrome）为什么留着
+		*
+		* 本插件声明的宿主范围跨到了可能早于该座位的 shell 线。座位缺席时旧路仍把用户送到
+		* 本插件页，所以不能删。它现在是**第二选择**，这意味着它已知的弱点（导航行按本地化
+		* 标签匹配，我们没出过的语种匹配不上）再也不会影响有座位的宿主。
+		*
+		*   1. 点外壳的设置触发器（`aria-haspopup="dialog"` + `aria-expanded`）—— 除非面板
+		*      已经开着，那时再点会把它关掉，跳转变成「消失」；
+		*   2. 等面板挂上（它按需渲染到 body）；
+		*   3. 按**标签**找到本插件那一行并点它。
+		*
+		* ## 为什么它从不抛异常
+		*
+		* 每一步都从渲染路径被调用（积分浮层里的一个点击处理器）。这里抛出去毁的是整块读数，
+		* 而不是一颗按钮 —— 所以每一级各自吞掉自己的失败，外壳形状不同时整次跳转降级成
+		* 静默 no-op。
+		*
+		* @module dsh-connect-qoder/client/settings-jump
 		*/
 		/**
-		* Build the two configuration-slot keys for a bundle.
+		* 设置面板的容器选择器。
 		*
-		* Pure on purpose: the caller passes identity in, so a test can pin the exact
-		* format without importing the card (and its React tree).
+		* `data-shortcut-modal="settings"` 是外壳自己写的属性（快捷键路由靠它判断
+		* 「当前弹出的模态是不是设置」），比任何类名都稳 —— 类名是 CSS Modules 的哈希。
 		*/
-		function qoderCardSlotKeys(packageName, rowId) {
-			return {
-				bundle: packageName,
-				row: `${packageName}#${rowId}`
-			};
+		const SETTINGS_PANEL_SELECTOR = "[data-shortcut-modal=\"settings\"]";
+		/** 侧边栏那颗设置触发器：对话框语义 + 展开状态。 */
+		const TRIGGER_SELECTOR = "button[aria-haspopup=\"dialog\"][aria-expanded]";
+		/** 外壳发布设置状态句柄的那个槽位。 */
+		const SETTINGS_SLOT = "sidebar.settings";
+		/**
+		* 面板挂载 + 导航行渲染的等待预算。
+		*
+		* 面板是点击后**同步**挂到 body 的，但导航行的 `label` 要等 locale 快照，
+		* 所以在同一帧里查一次往往差一点点。四次、每次 70ms：足够覆盖一次布局，
+		* 又短到用户感知不到「点了没反应」。
+		*
+		* 只有第 2 条路（驱动 chrome）用到它：第 1 条路一次调用就落地。
+		*/
+		const RETRY_DELAYS_MS = [
+			0,
+			70,
+			70,
+			120
+		];
+		function defaultSchedule(run, ms) {
+			try {
+				window.setTimeout(run, ms);
+			} catch {
+				run();
+			}
 		}
-		/** The keys this build registers its card under. */
-		const QODER_CARD_SLOT_KEYS = qoderCardSlotKeys(QODER_PACKAGE_NAME, QODER_SETTINGS_NS);
+		function buttonsIn(scope) {
+			return Array.from(scope.querySelectorAll("button"));
+		}
+		/** 找到标签等于本插件行的那颗导航按钮。 */
+		function findSectionRow(scope, label) {
+			const want = label.trim();
+			if (want === "") return void 0;
+			return buttonsIn(scope).find((button) => (button.textContent ?? "").trim() === want);
+		}
+		/**
+		* 通过外壳的 store 座位打开设置并选中本插件分区。
+		*
+		* @returns `'opened'` = 对话框已经停在正确的分区上（完事）；`'shell'` = 对话框
+		*   已打开但没预选（第 2 条路还能去点那一行）；`undefined` = 座位缺席或不可用。
+		*/
+		function openThroughStoreSeat(get, sectionId) {
+			let slots;
+			try {
+				slots = get("slots");
+			} catch {
+				return;
+			}
+			if (slots === void 0 || typeof slots.entries !== "function") return void 0;
+			let seat;
+			try {
+				seat = slots.entries(SETTINGS_SLOT)[0]?.store;
+			} catch {
+				return;
+			}
+			if (seat === null || typeof seat !== "object") return void 0;
+			const handle = seat;
+			if (typeof handle.create !== "function") return void 0;
+			try {
+				const instance = handle.create();
+				const openSection = instance?.actions?.openSection;
+				if (typeof openSection === "function") {
+					openSection(sectionId);
+					return "opened";
+				}
+				const open = instance?.actions?.open;
+				if (typeof open === "function") {
+					open();
+					return "shell";
+				}
+			} catch {}
+		}
+		/**
+		* 打开设置面板并选中本插件的分区。
+		*
+		* @returns 是否**采取了**某条路（`false` = 一条都走不了，外壳不可识别且
+		*   `onGiveUp` 已经跑过）。
+		*/
+		function openQoderSettingsSection(options) {
+			const { doc = document, label } = options;
+			const schedule = options.schedule ?? defaultSchedule;
+			const sectionId = options.sectionId ?? "dsh-connect-qoder";
+			if (options.get !== void 0) {
+				let seatResult;
+				try {
+					seatResult = openThroughStoreSeat(options.get, sectionId);
+				} catch {
+					seatResult = void 0;
+				}
+				if (seatResult === "opened") return true;
+			}
+			try {
+				if (doc.querySelector(SETTINGS_PANEL_SELECTOR) === null) {
+					const collapsed = Array.from(doc.querySelectorAll(TRIGGER_SELECTOR)).find((button) => button.getAttribute("aria-expanded") !== "true");
+					if (collapsed === void 0) {
+						try {
+							options.onGiveUp?.();
+						} catch {}
+						return false;
+					}
+					collapsed.click();
+				}
+				let clicked = false;
+				let remaining = RETRY_DELAYS_MS.length;
+				for (const delay of RETRY_DELAYS_MS) schedule(() => {
+					if (clicked) return;
+					remaining -= 1;
+					try {
+						const row = findSectionRow(doc.querySelector(SETTINGS_PANEL_SELECTOR) ?? doc, label());
+						if (row !== void 0) {
+							clicked = true;
+							row.click();
+							return;
+						}
+					} catch {}
+					if (remaining === 0) try {
+						options.onGiveUp?.();
+					} catch {}
+				}, delay);
+				return true;
+			} catch {
+				return false;
+			}
+		}
 		//#endregion
 		//#region src/client/index.tsx
 		/**
-		* Browser half: Qoder model management inside Plugin configuration.
+		* Browser half: Qoder accounts, credits and model management, rendered as a
+		* **Settings page** (`settings.section`).
 		*
-		* 注册形态沿用 dsh-connect-workbuddy 的 `client/index.tsx`：`slots` /
-		* `locale` 两项注入、`LocaleNamespaceMap` 模块增强、`plugins.bundle.config`
-		* 与 `plugins.row.config` 槽位 + `key` / `priority` 写法；apply 体包
-		* try/catch 以便槽位 API 变更时降级为 console.error 而不触发红色横幅。
+		* 注册形态沿用 dsh-connect-workbuddy 的 `client/index.tsx`：`slots` / `locale`
+		* 两项注入、`LocaleNamespaceMap` 模块增强、apply 体包 try/catch 以便槽位 API
+		* 变更时降级为 console.error 而不触发红色横幅。
+		*
+		* 1.18.0 起配置入口不再挂在插件市场详情页的卡片上
+		* （`plugins.bundle.config` / `plugins.row.config` 两处注册已删除），而是设置面板
+		* 左侧导航里的独立一页；同一份正文另有一个 opt-in 的侧边栏整屏入口。
 		*
 		* @module dsh-connect-qoder/client
 		*/
@@ -6877,21 +8762,80 @@ window.__ModuleLoader__.load({
 				ctx.effect(() => ctx.locale.register(namespace, qoderLocales), "dsh-connect-qoder: settings copy");
 				const t = ctx.locale.bind(namespace);
 				const softGet = (name) => ctx.get(name);
+				/**
+				* 打开本插件的设置页（「设置 → Qoder」）。
+				*
+				* 由 `settings-jump.ts` 在 DOM 里自己找路（点侧边栏的设置触发器 → 在面板里
+				* 按导航标签找本插件那一行 → 点它），不依赖任何宿主服务到货 —— 所以它在
+				* `apply` 里就有一个确定的值，积分面板那颗按钮因此**总是**渲染。
+				*
+				* 唯一的外部依赖是 `pluginNavigation.openBundle(<npm 包名>)`，而它只在跳转
+				* 找不到导航行时被当作退路：那时把用户送回插件市场本插件那一页，比一颗点了
+				* 没反应的按钮好。它是软探测（`ctx.get`），缺席时退路静默不做任何事 ——
+				* 绝不能把它写进 `inject: ['slots','locale']`，那会让整个客户端插件在没装
+				* Plugins 页的 profile 上不激活（读数、模型徽标一起消失）。
+				*/
+				let openPluginSettings;
 				let settingsScope;
 				const forms = softGet("configForms");
-				const registerCard = (slotName, key) => {
+				/**
+				* 设置页分区（`settings.section`）—— 本插件**唯一**的配置入口。
+				*
+				* 从 1.18.0 起，配置界面不再挂在插件市场详情页的卡片里
+				* （`plugins.bundle.config` / `plugins.row.config` 两处注册已删除），而是
+				* 注册成设置面板左侧导航里的独立一页，与「账号与余额 / 通用设置 / 模型 /
+				* 插件」并列。理由是那张卡片一直兼任两件事：它是插件列表里的一行（谁装的、
+				* 在跑什么），同时又是一整页配置（PAT、账号池、模型目录、诊断）。把入口
+				* 挪进设置之后，插件列表只回答「装了什么」。
+				*
+				* **没有能力探测**：`settings.section` 是 0.2.1-rc.5 才引入的槽位，而本插件
+				* 的 peer 下限更低，但 `ctx.slots.inject()` 本身就是探测 —— 宿主没声明这个
+				* 槽位时它只等待、不抛错、也不执行回调，插件其余部分完全不受影响。反过来
+				* 写一层 `typeof ctx.slots.specOf === 'function'` 的探测会让失败的探测静默
+				* 关掉整页（兄弟项目 dsh-subagent-default-model 2.1.16/2.1.17 就是这么丢了
+				* 整个设置页的）。**探测失败必须往「能用」的方向失败。**
+				*
+				* 图标与页面在**同一个** `inject` 回调里注册、disposer 成对返回：外壳给导航
+				* 行取图标用的是 `renderSlot('settings.section.icon', …, { only: row.id })`，
+				* id 必须与页面完全一致才会命中，否则静默回落到默认齿轮。
+				*/
+				const registerSection = () => {
 					try {
-						return ctx.slots.inject(slotName, () => ctx.slots.register({
-							name: slotName,
-							key,
-							priority: 30,
-							inject: () => settingsScope === void 0 ? { t } : {
-								t,
-								settingsScope
+						return ctx.slots.inject("settings.section", () => {
+							const disposers = [];
+							disposers.push(ctx.slots.register({
+								name: "settings.section",
+								id: QODER_SETTINGS_NS,
+								order: 30,
+								label: () => t("section.label"),
+								locale: namespace,
+								inject: () => settingsScope === void 0 ? {
+									t,
+									surface: "section"
+								} : {
+									t,
+									settingsScope,
+									surface: "section"
+								}
+							}, QoderCard));
+							try {
+								const iconDisposer = ctx.slots.inject("settings.section.icon", () => ctx.slots.register({
+									name: "settings.section.icon",
+									id: QODER_SETTINGS_NS,
+									locale: namespace
+								}, QoderSectionIcon));
+								if (typeof iconDisposer === "function") disposers.push(iconDisposer);
+							} catch (error) {
+								console.error("[dsh-connect-qoder] settings.section.icon failed to register (page still renders):", error);
 							}
-						}, QoderCard));
+							return () => {
+								for (const dispose of disposers) try {
+									dispose();
+								} catch {}
+							};
+						});
 					} catch (error) {
-						console.error(`[dsh-connect-qoder] card slot "${slotName}" failed to register (host provider unaffected):`, error);
+						console.error("[dsh-connect-qoder] settings.section failed to register (host provider unaffected):", error);
 						return;
 					}
 				};
@@ -6925,14 +8869,12 @@ window.__ModuleLoader__.load({
 							id: "dsh-connect-qoder-composer-credits",
 							order: 4,
 							locale: namespace,
-							inject: () => settingsScope === void 0 ? {
-								t,
-								position: "composer"
-							} : {
+							inject: () => ({
 								t,
 								position: "composer",
-								settingsScope
-							}
+								...settingsScope === void 0 ? {} : { settingsScope },
+								...openPluginSettings === void 0 ? {} : { openSettings: openPluginSettings }
+							})
 						}, ComposerCreditsGate));
 					} catch (error) {
 						console.error("[dsh-connect-qoder] composer credits slot failed to register (host provider unaffected):", error);
@@ -6964,14 +8906,12 @@ window.__ModuleLoader__.load({
 							id: "dsh-connect-qoder-stats-credits",
 							order: 10,
 							locale: namespace,
-							inject: () => settingsScope === void 0 ? {
-								t,
-								position: "stats"
-							} : {
+							inject: () => ({
 								t,
 								position: "stats",
-								settingsScope
-							}
+								...settingsScope === void 0 ? {} : { settingsScope },
+								...openPluginSettings === void 0 ? {} : { openSettings: openPluginSettings }
+							})
 						}, ComposerCreditsGate));
 					} catch (error) {
 						console.error("[dsh-connect-qoder] stats credits slot failed to register (host provider unaffected):", error);
@@ -6986,30 +8926,176 @@ window.__ModuleLoader__.load({
 				* 旧注册永远不被重新求值（issue #55：空 Plugins 页且无报错）。
 				*/
 				const registerModelLabel = () => {
+					/** 失败路径：eager 与 deferred 两种调用共用一处（所以声明在 try 之外）。 */
+					const refuse = (error) => {
+						console.error("[dsh-connect-qoder] model label slot failed to register (host provider unaffected):", error);
+					};
 					try {
 						const label = createQoderModelLabel({
 							entries: (key) => ctx.slots.entries(key),
 							bindLocale: (ns) => ctx.locale.bind(ns)
 						});
-						return ctx.slots.inject(QODER_MODEL_LABEL_SLOT, () => ctx.slots.register({
-							name: QODER_MODEL_LABEL_SLOT,
-							priority: -1,
-							locale: namespace
-						}, label));
+						return ctx.slots.inject(QODER_MODEL_LABEL_SLOT, () => {
+							const registry = ctx.slots;
+							const seats = modelLabelSeats({
+								name: QODER_MODEL_LABEL_SLOT,
+								kind: declaredSlotKind(ctx.slots, QODER_MODEL_LABEL_SLOT),
+								providerIds: QODER_MODEL_LABEL_PROVIDERS,
+								priority: QODER_MODEL_LABEL_PRIORITY
+							});
+							try {
+								return registerModelLabelSeats(seats, (seat) => registry.register({
+									...seat,
+									locale: namespace
+								}, label));
+							} catch (error) {
+								refuse(error);
+								return () => {};
+							}
+						});
 					} catch (error) {
-						console.error("[dsh-connect-qoder] model label slot failed to register (host provider unaffected):", error);
-						return;
+						return refuse(error);
 					}
 				};
 				const registerAllSlots = () => [
-					registerCard("plugins.bundle.config", QODER_CARD_SLOT_KEYS.bundle),
-					registerCard("plugins.row.config", QODER_CARD_SLOT_KEYS.row),
+					registerSection(),
 					registerComposerCredits(),
 					registerStatsCredits(),
 					registerModelLabel()
 				].filter((disposer) => disposer !== void 0);
 				/** 当前绑定下已注册的槽位 disposer。 */
 				let liveDisposers = [];
+				/**
+				* 设置面板左侧导航那一格的图标（`settings.section.icon`）。
+				*
+				* 外壳以 `{ size, active }` 渲染它，尺寸由外壳给（不是硬编码 16），选中态
+				* 由外壳围着画、我们只把未选中时的不透明度降一档。`inline: true` 的槽位把
+				* cell 包在 `<span>` 里，所以用 `<img>` + `display:block` 精确占位，不破坏
+				* 导航行的基线。
+				*/
+				function QoderSectionIcon(props) {
+					const edge = typeof props.size === "number" && props.size > 0 ? props.size : 16;
+					return (0, react.createElement)("img", {
+						className: "dsm-qoder-section-icon",
+						src: QODER_PLUGIN_ICON,
+						alt: "",
+						width: edge,
+						height: edge,
+						style: {
+							width: `${edge}px`,
+							height: `${edge}px`,
+							display: "block",
+							borderRadius: "3px",
+							objectFit: "contain",
+							opacity: props.active === false ? .75 : 1
+						},
+						"aria-hidden": "true"
+					});
+				}
+				/**
+				* 侧边栏那一行的图标（`sidebar.panellist` 的组件位置）。
+				*
+				* 侧边栏以 `{ size, active }` 在一个 `currentColor` 主题的图标格里渲染它，
+				* 所以品牌标画成一个小 `<img>`：PNG 自己的颜色读起来就是插件的身份，选中
+				* 状态由宿主围着它画。
+				*
+				* 参考：dsh-connect-workbuddy 的 `WorkBuddyPanelIcon`（PR #188，MIT，
+				* Copyright (c) 2026 LaoDing）。
+				*/
+				function QoderPanelIcon(props) {
+					const edge = typeof props.size === "number" && props.size > 0 ? props.size : 16;
+					return (0, react.createElement)("img", {
+						className: "dsm-qoder-panel-icon",
+						src: QODER_PLUGIN_ICON,
+						alt: "",
+						width: edge,
+						height: edge,
+						"aria-hidden": "true"
+					});
+				}
+				/**
+				* DSH 侧边栏里的 Qoder 面板：一个 `sidebar.panellist` 行 + 一个 `main` 整页。
+				*
+				* 形态照宿主自己的 Plugins 行（`ui-plugin-manager`）：`id` 与 `main` 的
+				* `key` 必须**同值**——侧边栏按钮点下去是「选中 id 等于自己的中央面板」，
+				* 两者对不上就只是一个点了没反应的按钮。
+				*
+				* **OPT-IN**（`Config.sidebarPanel`，默认 false）。注册它不等于显示它：
+				* `ui-sidebar` 那一行是拿插槽的**注册元数据**渲染的（`usePanels` →
+				* `PanelRow`，标签取 `options.label`、图标取 `renderSlot(...)`），所以一个
+				* 返回 `null` 的组件留下的是一个空白但**仍可点击**的按钮，而不是没有按钮。
+				* 因此行只能在开关打开时注册——由 {@link syncPanelRegistration} 负责。
+				* 见 `panel-switch.ts` 里那条 store 为什么必须在入口而不在组件。
+				*
+				* 返回对话复用宿主的 layout 服务：`selectPanel(null)` 把中央那一列交回会话。
+				* 它是软探测的，所以一台不声明 `layout` 的宿主只是少一个返回按钮，不会整页
+				* 卡死（与卡片对缺失 settings 表单的降级同规）。
+				*/
+				const registerPanel = () => {
+					const PANEL_ID = QODER_SIDEBAR_PANEL_ID;
+					const disposers = [];
+					const backToConversation = () => {
+						const layout = softGet("layout");
+						if (layout !== void 0 && typeof layout.selectPanel === "function") layout.selectPanel(null);
+					};
+					try {
+						disposers.push(ctx.slots.inject("sidebar.panellist", () => ctx.slots.register({
+							name: "sidebar.panellist",
+							id: PANEL_ID,
+							order: 1,
+							label: () => t("nav.panel"),
+							locale: namespace
+						}, QoderPanelIcon)));
+					} catch (error) {
+						console.error("[dsh-connect-qoder] sidebar panel row failed to register (host provider unaffected):", error);
+					}
+					try {
+						disposers.push(ctx.slots.inject("main", () => ctx.slots.register({
+							name: "main",
+							key: PANEL_ID,
+							locale: namespace,
+							inject: () => settingsScope === void 0 ? {
+								t,
+								surface: "page",
+								backToConversation
+							} : {
+								t,
+								settingsScope,
+								surface: "page",
+								backToConversation
+							}
+						}, QoderCard)));
+					} catch (error) {
+						console.error("[dsh-connect-qoder] sidebar panel page failed to register (host provider unaffected):", error);
+					}
+					return disposers;
+				};
+				/**
+				* 已在册的面板注册，**与 {@link liveDisposers} 分开**。
+				*
+				* 这是本插件唯一会随页面存活期来去的槽位（因为那个 opt-in 开关），单独持有
+				* 它的意义是：翻开关不会把卡片、composer 读数等五个座位一起拆掉重建——那会
+				* 让「插件」页为了一件与它无关的改动闪一下。
+				*/
+				let panelDisposers = [];
+				/**
+				* 让面板注册与 opt-in 开关保持一致。
+				*
+				* **先 dispose 再 register**，理由与 {@link rebindSlots} 相同：keyed 槽位的
+				* 同一个 `key` / `id` 不能重复注册，那次抛错会被只打日志的 try/catch 吞掉，
+				* 结果是「一个注册都没有」。
+				*
+				* 重新注册（而不是只注销）是 settings 作用域换绑之后也必须做的：渲染器按
+				* entry 身份缓存 `inject` 的结果，作用域到货之前创建的 entry 会永远拿不到它。
+				*/
+				const syncPanelRegistration = () => {
+					for (const dispose of panelDisposers) try {
+						dispose();
+					} catch {}
+					panelDisposers = [];
+					if (!sidebarPanelWanted()) return;
+					panelDisposers = registerPanel();
+				};
 				/**
 				* 用当前 `settingsScope` 重建全部槽位注册。先 dispose 旧的，再注册新的——
 				* 顺序不能反（同 key 同优先级的 keyed 槽位重复注册会抛 "already has an entry"）。
@@ -7021,8 +9107,9 @@ window.__ModuleLoader__.load({
 					liveDisposers = [];
 					liveDisposers = registerAllSlots();
 					try {
-						console.info(`[dsh-connect-qoder] registered ${String(liveDisposers.length)} slots (settings form: ${settingsScope === void 0 ? "none — card is read-only" : "bound"})`);
+						console.info(`[dsh-connect-qoder] registered ${String(liveDisposers.length)} slots (settings form: ${settingsScope === void 0 ? "none — card is read-only" : "bound"}, sidebar panel: ${sidebarPanelWanted() ? "on" : "off"})`);
 					} catch {}
+					syncPanelRegistration();
 				};
 				/**
 				* 把 `settingsScope` 绑到宿主**真正在服务的**命名空间，并在该答案变化时重注册。
@@ -7069,7 +9156,84 @@ window.__ModuleLoader__.load({
 					}), "dsh-connect-qoder: settings namespace binding");
 					rebindSlots();
 				};
+				/**
+				* 「设置」按钮的目的地：**设置 → Qoder** 那一页。
+				*
+				* 1.18.0 之前这里等的是 `pluginNavigation.openBundle(包名)`（打开插件市场里
+				* 本插件那一页），因为配置卡片就渲染在那儿。卡片搬进设置之后那个落点已经
+				* 没有配置可看，所以改成驱动真实 chrome：`settings-jump.ts` 点开设置面板、
+				* 再点本插件的导航行。
+				*
+				* 1.20.0 起先走**外壳自己的 store 座位**：设置外壳把状态句柄发布在
+				* `sidebar.settings` 的 `store` 上，`create().actions.openSection(id)` 一次
+				* 调用同时设 `activeId` 与 `open` —— 没有重试窗口，也不依赖导航行的文案。
+				* 驱动 chrome 降为第二条路（老外壳没有座位时仍能到本插件页）。
+				* 依据读自 0.2.2-rc.1 的 `ui-settings-general`，逐条记在 `settings-jump.ts`。
+				*
+				* **为什么还要留一条 `pluginNavigation` 的退路**：跳转靠导航行的**标签**定位，
+				* 而标签是本地化字符串。万一宿主换了外壳（标签被截断、面板换了容器属性），
+				* 那次跳转会落空；此时退回 `openBundle(包名)` 至少把用户送到插件市场那一页
+				* ——比一颗彻底死掉的按钮好，也不会误导（那一页现在只说「已安装」，不再承诺
+				* 有配置）。
+				*
+				* `openPluginSettings` 因此**总是**有值：不再取决于某个宿主服务是否到货。
+				* 一颗「服务不到就不渲染」的按钮，在跳转这件事上已经没有必要 —— 跳转本身
+				* 在 DOM 里自己找路。
+				*
+				* ⚠️ **必须在 `bindSettingsScope()` 之前赋值**（1.18.0 的第一个发布候选就把
+				* 这颗按钮弄丢过）：`bindSettingsScope()` 会立刻 `registerAllSlots()` 跑一次
+				* 首次注册，而 `inject` 闭包在**那一刻**读的就是 `openPluginSettings`。写在
+				* 它后面，首次注册拿到的就是 `undefined` —— 积分面板据此不渲染那颗齿轮，
+				* 之后也没有任何东西会再去纠正它。
+				*
+				* 也不能指望「之后再重绑一次」来救：渲染器对 `inject()` 的结果做了
+				* `useMemo`（依赖是 `[actions, definition, scopeBinding]`），注册对象不变就
+				* 不会重算 —— 只有**换掉 entry 身份**（重建注册）才会。那意味着每次改设置
+				* 都要拆了重挂一遍 composer 读数，代价远大于「先赋值再注册」。
+				*/
+				openPluginSettings = () => {
+					openQoderSettingsSection({
+						label: () => t("section.label"),
+						get: softGet,
+						onGiveUp: () => {
+							const navigation = softGet("pluginNavigation");
+							if (navigation !== void 0 && typeof navigation.openBundle === "function") try {
+								navigation.openBundle(QODER_PACKAGE_NAME);
+							} catch {}
+						}
+					});
+				};
 				bindSettingsScope();
+				/**
+				* 跟随 opt-in 开关，并用 Host 的答案做**种子**。
+				*
+				* 种子是一次状态读取，而不是读 settings 作用域：这个命名空间的浏览器镜像
+				* 在受影响的 0.1.7 部署上被记录为陈旧，而这里一个陈旧的 `false` 意味着那一
+				* 行永远不会出现——之后也没有任何事件去纠正它，因为 `whileServed` 只在命名
+				* 空间边缘触发、不在值变化时触发。Host 自己的答案才是权威
+				* （usage 文档上的 `sidebarPanelEnabled`），与本插件其它 Host 承载开关一致。
+				*
+				* 读取失败**不是**要展示的错误：OFF 是一个合法答案，而且事实上就是默认值，
+				* 所以一个连不上状态路由的插件只是没有那一行——用户在这里也无事可做。
+				*
+				* **订阅**才是让开关生效的东西：卡片在写入被验证之后调用
+				* `setSidebarPanelWanted`，于是那一行出现或消失都不需要刷新。`ui-layout`
+				* 会丢掉 `main` key 已不存在的 `activePanelId`，所以页面开着时关掉它，中央
+				* 那一列自己回到对话。
+				*/
+				ctx.effect(() => subscribeSidebarPanelWanted(() => {
+					syncPanelRegistration();
+				}), "dsh-connect-qoder: sidebar panel opt-in");
+				try {
+					if (sidebarPanelEnabledOf(settingsScope?.getSnapshot().value) === true) setSidebarPanelWanted(true);
+				} catch {}
+				if (!sidebarPanelWanted()) (async () => {
+					try {
+						const response = await fetch(withQoderRegion(QODER_USAGE_PATH, "cn"), { headers: { accept: "application/json" } });
+						if (!response.ok) return;
+						if ((await response.json()).sidebarPanelEnabled === true) setSidebarPanelWanted(true);
+					} catch {}
+				})();
 			} catch (error) {
 				console.error("[dsh-connect-qoder] client apply failed:", error);
 			}

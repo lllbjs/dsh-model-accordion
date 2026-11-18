@@ -88,8 +88,8 @@ touch selection logic keep working.
 ## Self-contained connectors + unified settings hub
 
 **Since 0.8.0 this is a real physical merge.** The full code of all four
-connectors — WorkBuddy (5.17.0), Trae (4.6.12), Qoder
-(`@dmh2002/dsh-connect-qoder` 1.16.4) and OpenCode
+connectors — WorkBuddy (5.24.15), Trae (4.18.5), Qoder
+(`@dmh2002/dsh-connect-qoder` 1.26.4) and OpenCode
 (`@opencode2dsh/dsh-plugin` 0.3.14) — is vendored inside this package under
 `vendored/`. With the standalone bundles stopped and these four hosts served by
 `dsh-model-accordion`, **models, sign-in, saved config and settings keep working
@@ -121,7 +121,7 @@ How it is wired:
   `lastCatalog` / `enabledModelIds` keep applying to the new vendored entries by id.
 - The hosts' bare imports (schemastery, pi-ai, dsh-llm, undici, …) resolve from
   the workspace realpath through a small `node_modules/` shim that `install.sh`
-  builds: schemastery 3.18.4 + cosmokit come from the copy vendored with
+  builds: schemastery 3.19.0 + cosmokit come from the copy vendored with
   workbuddy (opencode's `Config` needs `.volatile()`; the global tree only has
   3.18.2 without it), and the other seven deps come from DSH's own
   `~/.dsh/profiles/node_modules` (global-backed, survives `pnpm remove`).
@@ -454,7 +454,7 @@ install.sh                           link the package + build the node_modules s
 - No build step: the shipped `lib/client.js` is the browser bundle; the four
   vendored packages are verbatim copies of their published artifacts.
 - Runtime deps are resolved by the `install.sh` shim into DSH's own
-  `~/.dsh/profiles/node_modules` and workbuddy's bundled schemastery 3.18.4 —
+  `~/.dsh/profiles/node_modules` and workbuddy's bundled schemastery 3.19.0 —
   no `pnpm install` of this repository is needed.
 
 ---

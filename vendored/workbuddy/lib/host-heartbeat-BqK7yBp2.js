@@ -1,7 +1,7 @@
 import { lstat, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { createDecipheriv, createHash, randomBytes, randomUUID } from "node:crypto";
 import { homedir, tmpdir } from "node:os";
-import { dirname, join, posix, resolve, win32 } from "node:path";
+import { dirname, join, posix, resolve, sep, win32 } from "node:path";
 import { execFile, execFileSync, spawn } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -1003,14 +1003,56 @@ function clearAtRestKeyCache() {
 * `Everyone` but `BUILTIN\Administrators` does not). The `*S-1-5-…` form makes
 * every argument locale-independent, so the same argv works on any UI language.
 *
-* WHY `OWNER RIGHTS` (S-1-3-4) RATHER THAN THE CURRENT USER. Resolving the
-* current user's SID costs a child process (`whoami`) on every hardening round,
-* and the answer is already implied: the process that creates a file becomes its
-* owner, so `OWNER RIGHTS` grants exactly the account that will read it back.
-* `SYSTEM` and `Administrators` are kept so backup/AV/service software that
-* legitimately expects to reach user files is not locked out — removing them
-* would make the vault unmanageable on a machine where the user's own session is
-* not the one repairing it.
+* WHY `OWNER RIGHTS` (S-1-3-4) RATHER THAN THE CURRENT USER — AND WHERE THAT
+* ASSUMPTION BREAKS. Resolving the current user's SID costs a child process
+* (`whoami`) on every hardening round, and the answer is usually already
+* implied: the process that creates a file becomes its owner, so `OWNER RIGHTS`
+* grants exactly the account that will read it back. `SYSTEM` and
+* `Administrators` are kept so backup/AV/service software that legitimately
+* expects to reach user files is not locked out — removing them would make the
+* vault unmanageable on a machine where the user's own session is not the one
+* repairing it.
+*
+* THE BREAK. "The creator is the owner" only holds when the creating process
+* runs with the user's own (possibly elevated) token. When a directory was
+* created by a process whose token derives from the Administrators group — an
+* elevated DSH started from a RunLevel=Highest scheduled task, an installer,
+* a recovery console — the directory owner is `BUILTIN\Administrators`, and
+* `OWNER RIGHTS` then grants Administrators, not the user. Because
+* {@link applyAcl} also drops inherited ACEs (`/inheritance:r`), a non-admin
+* user is left with NO access at all to their own vault: stat/readdir/write
+* all fail with EPERM, and recovery requires an explicit `takeown`. Reproduced
+* as a controlled experiment (same command, only the owner differs):
+* owner=user → writable; owner=Administrators → locked. Reported in issue
+* #199 (forensic: fork branch `forensic/acl-lockout-20261102`).
+*
+* THE FIX. The grant names the account that will read the vault — the current
+* user — EXPLICITLY, and never relies on `OWNER RIGHTS`. {@link resolveUserSid}
+* reads that SID once per process (memoized) via `whoami.exe`, which measured
+* 22–26 ms on the reported host against PowerShell's 133 ms;
+* {@link hardenDirectory} then issues the same single `icacls` call the 5.x
+* design used, with `*<userSid>:(OI)(CI)(F)` in place of `*S-1-3-4`. Because
+* the granted principal no longer depends on who owns the object, a vault
+* created by an elevated process (owner = Administrators) stays readable by
+* its user.
+*
+* WHY NOT COMPARE THE OWNER FIRST. The alternative — read each directory's
+* owner and keep `OWNER RIGHTS` when it matches the user — needs a PowerShell
+* `Get-Acl` (~133 ms) on the credential-write path, and it does not buy
+* anything: the granted principal is always the user, so the comparison only
+* decides which spelling of the same grant to emit. That extra child process
+* is also what broke the 1 s polling budget of
+* `tests/issue12-region-hiding.spec.ts` while this fix was being developed
+* (measured: the owner lookup plus the user lookup pushed a first vault write
+* past the budget, the startup refresh lost the race, and the global region
+* kept advertising its fallback models). One memoized `whoami` for the whole
+* process replaces a per-directory `Get-Acl`.
+*
+* OWNER RIGHTS IS STILL ACCEPTED ON READ. {@link ALLOWED_SIDS} keeps
+* `S-1-3-4` so a vault hardened by 5.x — where the user usually IS the owner
+* and the ACE therefore was correct — still reads as `protected` instead of
+* being reported as a widening that never happened. It is simply no longer
+* ever GRANTED.
 *
 * WHAT THIS IS AND IS NOT. This is the issue's suggestion #2 (explicit ACLs
 * after writing), which it calls "the smallest change". It is NOT DPAPI
@@ -1035,6 +1077,12 @@ function clearAtRestKeyCache() {
 *
 * Deliberately a SID rather than an account name: it needs no lookup, it works
 * on every UI language, and `icacls` accepts it in the `*S-…` form.
+*
+* Since issue #199 it is READ-ONLY here: 5.x granted it, which locks a user out
+* of a directory owned by somebody else, so {@link directoryGrants} and
+* {@link fileGrants} no longer use it — but {@link ALLOWED_SIDS} still accepts
+* it, so a vault hardened by 5.x (where the user normally IS the owner) still
+* inspects as `protected`.
 */
 const OWNER_RIGHTS_SID = "S-1-3-4";
 /** Well-known SID for `NT AUTHORITY\SYSTEM`. */
@@ -1057,12 +1105,19 @@ const ALLOWED_SIDS = /* @__PURE__ */ new Set([
 * Grant specs for a DIRECTORY: `(OI)` object-inherit and `(CI)` container-inherit
 * make the ACE apply to files and subdirectories created later, which is the
 * whole mechanism this module relies on.
+*
+* `userSid` is deliberately a PARAMETER rather than a constant: it is the only
+* principal whose identity is not a well-known SID, and making it explicit at
+* the call site is what keeps a future edit from quietly falling back to
+* `OWNER RIGHTS` (the issue #199 lockout).
 */
-const DIRECTORY_GRANTS = [
-	`*${OWNER_RIGHTS_SID}:(OI)(CI)(F)`,
-	`*${SYSTEM_SID}:(OI)(CI)(F)`,
-	`*${ADMINISTRATORS_SID}:(OI)(CI)(F)`
-];
+function directoryGrants(userSid) {
+	return [
+		`*${userSid}:(OI)(CI)(F)`,
+		`*${SYSTEM_SID}:(OI)(CI)(F)`,
+		`*${ADMINISTRATORS_SID}:(OI)(CI)(F)`
+	];
+}
 /** How long one `icacls` (or PowerShell) child may take before it is abandoned. */
 const ACL_COMMAND_TIMEOUT_MS = 1e4;
 /** Paths already hardened by THIS process, so repeat writes cost nothing. */
@@ -1153,6 +1208,11 @@ async function applyAcl(path, grants) {
 */
 async function protectCredentialDirectory(directory) {
 	if (!isWindows()) return { state: "not-windows" };
+	const refusal = harnessHomeRefusal(directory);
+	if (refusal !== void 0) return {
+		state: "skipped",
+		reason: refusal
+	};
 	if (protectedDirectories.has(directory)) return { state: "protected" };
 	const pending = inflightProtection.get(directory);
 	if (pending !== void 0) return pending;
@@ -1164,11 +1224,104 @@ async function protectCredentialDirectory(directory) {
 		inflightProtection.delete(directory);
 	}
 }
+/**
+* Why `directory` must NOT be hardened, or `undefined` when it may be
+* (issue #208).
+*
+* THE DEFECT THIS CLOSES. Hardening drops inherited ACEs (`/inheritance:r`).
+* Applied to `<DSH home>` itself that also drops what every OTHER directory
+* under it inherits — `<DSH home>/attachments`, sessions, profile config —
+* and a child whose DACL came purely from that inheritance becomes
+* unreadable even to its owner. The reporter measured exactly that: after
+* installing the plugin, sending an image failed with `EPERM: operation not
+* permitted, scandir '<DSH home>/attachments'` while text messages were
+* unaffected, and `icacls <DSH home>` itself printed "Access is denied". The
+* UI showed the host's generic `prompt rejected (session/agent-busy)`, so the
+* symptom pointed at sessions rather than at the DACL.
+*
+* HOW THIS PLUGIN COULD REACH IT. `writeVaultEntry` hardens `dirname(dir)`.
+* For a region-scoped store that is `<DSH home>/workbuddy-vault` (correct), but
+* the UNREGIONED store — which `doctor` builds via `makeAnyStore()` — keeps its
+* vault AT `<DSH home>/workbuddy-vault` itself, so `dirname` resolves to
+* `<DSH home>`. Reproduced here with a stubbed `icacls`: the argv target was
+* the Harness home, and the three SIDs the reporter found on `<DSH home>` are
+* exactly `directoryGrants()`'s.
+*
+* WHY REFUSE RATHER THAN SPECIAL-CASE THE CALLER. A guard at THIS layer also
+* covers `<DSH home>/.dsh`-style ancestors, a future call site computing the
+* root one level too high (the reporter's own third question), and a
+* `WORKBUDDY_*` variable pointing the vault at `$HOME`. The blast radius of
+* getting it wrong is the whole harness home, so the check belongs where the
+* destructive operation is, not where its arguments are assembled.
+*
+* Ancestors are refused too, not just equality: hardening the PARENT of the
+* harness home strips the inheritance the home itself relies on, which breaks
+* it just as thoroughly and is even harder to recognise afterwards.
+*/
+function harnessHomeRefusal(directory) {
+	let home;
+	try {
+		home = resolve(resolveDshHome());
+	} catch {
+		return "the Harness home could not be resolved, so this directory cannot be proven safe to harden";
+	}
+	const target = resolve(directory);
+	if (target.toLowerCase() === home.toLowerCase()) return `refusing to harden the Harness home itself (${home}); /inheritance:r there would strip the ACEs every other directory under it inherits`;
+	if (`${home}${sep}`.toLowerCase().startsWith(`${target}${sep}`.toLowerCase())) return `refusing to harden ${target}, which contains the Harness home (${home}); dropping inherited ACEs on an ancestor breaks the whole home tree`;
+}
+/**
+* The current user's SID, resolved once per process.
+*
+* Node's `os.userInfo()` does NOT expose a SID on Windows (its typings have no
+* `sid`, and the runtime object carries none — measured), so the SID has to
+* come from outside the process.
+*
+* `whoami.exe` rather than PowerShell: measured on the machine that reported
+* issue #199, `whoami /user /fo csv /nh` takes 22–26 ms while a
+* `powershell -Command` round trip takes 133 ms — and since this shape pays the
+* cost on the credential-write path, which the startup roster refresh is
+* racing, that 5× difference is the difference between fitting the poll budget
+* and blowing it.
+*
+* The absolute path is deliberate: a bare `whoami` resolves through `PATH`,
+* where Git for Windows ships an MSYS `whoami` that does not understand
+* `/user` at all. `/fo csv /nh` gives one quoted line
+* (`"desktop\user","S-1-5-21-…"`), which is parsed rather than the default
+* formatted block, again for locale independence.
+*
+* Memoized for the process on SUCCESS only: an unresolvable SID is a real
+* failure and must be retried by the next write, not cached as broken forever.
+*/
+let cachedUserSid;
+async function resolveUserSid() {
+	if (cachedUserSid === void 0) {
+		const line = (await runCommand(join(process.env.SystemRoot ?? "C:\\Windows", "System32", "whoami.exe"), [
+			"/user",
+			"/fo",
+			"csv",
+			"/nh"
+		])).split(/\r?\n/u).map((entry) => entry.trim()).find((entry) => /S-1-5-[\d-]+/u.test(entry));
+		if (line === void 0) throw new Error("whoami returned no resolvable user SID");
+		const match = /"(S-1-5-[\d-]+)"/u.exec(line) ?? /S-1-5-[\d-]+/u.exec(line);
+		if (match === null) throw new Error("whoami output has no parseable SID field");
+		cachedUserSid = match[1] ?? match[0];
+	}
+	return cachedUserSid;
+}
 /** The work behind {@link protectCredentialDirectory}: one `icacls` call. */
 async function hardenDirectory(directory) {
 	try {
 		await mkdir(directory, { recursive: true });
-		await applyAcl(directory, DIRECTORY_GRANTS);
+		let grants;
+		try {
+			grants = directoryGrants(await resolveUserSid());
+		} catch (error) {
+			return {
+				state: "failed",
+				reason: `user SID lookup failed: ${error instanceof Error ? error.message : String(error)}`
+			};
+		}
+		await applyAcl(directory, grants);
 		protectedDirectories.add(directory);
 		return { state: "protected" };
 	} catch (error) {
@@ -1224,7 +1377,32 @@ async function inspectCredentialDirectory(directory) {
 		state: "unverified",
 		reason: "Get-Acl returned no principals"
 	};
-	const weak = entries.filter((sid) => !ALLOWED_SIDS.has(sid));
+	/**
+	* The current user is an ALLOWED principal, not a widening.
+	*
+	* This is the read side of the issue #199 fix: 5.x granted `OWNER RIGHTS`,
+	* whose SID (S-1-3-4) can be compared against {@link ALLOWED_SIDS} without
+	* knowing who runs the process, but the fix grants the user's REAL SID — so
+	* the allowlist has to learn it, or a correctly hardened directory reports as
+	* `exposed` naming the user themselves. Measured on a real host before this
+	* was wired up: `weak: ["S-1-5-21-…-1001"]` on a freshly hardened vault.
+	*
+	* An unresolvable user SID is reported as `unverified` rather than guessed:
+	* without it the read cannot tell "the user" from "some other account", and
+	* both wrong answers (allowing everyone / accusing the user) are worse than
+	* saying the measurement did not happen.
+	*/
+	let userSid;
+	try {
+		userSid = await resolveUserSid();
+	} catch (error) {
+		return {
+			directory,
+			state: "unverified",
+			reason: `user SID lookup failed: ${error instanceof Error ? error.message : String(error)}`
+		};
+	}
+	const weak = entries.filter((sid) => sid !== userSid && !ALLOWED_SIDS.has(sid));
 	return {
 		directory,
 		state: weak.length === 0 ? "protected" : "exposed",
@@ -1566,7 +1744,6 @@ const NATIVE_MODALITY_BY_MODEL_ID = {
 	"glm-5.2": "text",
 	"glm-5.3": "text",
 	"hy3": "text",
-	"hy4-preview": "text",
 	"deepseek-v4.1-flash": "multimodal",
 	"glm-5.3-flash": "multimodal",
 	"glm-5v-turbo": "multimodal",
@@ -1574,6 +1751,8 @@ const NATIVE_MODALITY_BY_MODEL_ID = {
 	"kimi-k2.7": "multimodal",
 	"kimi-k3-1": "multimodal",
 	"minimax-m3": "multimodal",
+	"hy4free": "multimodal",
+	"hy4std": "multimodal",
 	"minimax-m3.1-flash": "multimodal",
 	"space-bunny": "multimodal"
 };
@@ -1812,8 +1991,80 @@ function queueNoticeText(report) {
 const IMAGE_TAG_TEXT_TO_IMAGE = "text-to-image";
 /** 产品配置里「图生图 / 改图」模型的标签。 */
 const IMAGE_TAG_IMAGE_TO_IMAGE = "image-to-image";
-/** 官方 CLI 的默认尺寸。 */
-const DEFAULT_IMAGE_SIZE = "1024x1024";
+/** 实测通过的宽档（目录里的 `hunyuan-image-alpha` 等默认档）。 */
+const IMAGE_SIZE_LIMITS_WIDE = {
+	minEdge: 512,
+	maxEdge: 2560,
+	maxPixels: 4194304
+};
+/**
+* `hunyuan-image-v3.0` 的窄档：边长 2048、总像素 1024² 顶格。
+*
+* 实测边界见 {@link WorkBuddyImageSizeLimits} 的表：`1024x1024`（1,048,576）
+* 通过、`1024x1025` 被拒，所以上限就是这个数，不多一位。
+*/
+const IMAGE_SIZE_LIMITS_V3 = {
+	minEdge: 512,
+	maxEdge: 2048,
+	maxPixels: 1048576
+};
+/**
+* 按模型 id 给出它的尺寸范围。
+*
+* 判据只看 id 前缀：`hunyuan-image-v3.0` 与它的改图位（若有）同族同限。这不是
+* 「猜模型能力」——两条是实测过的边界，其余一律回落到实测过的宽档。
+*/
+function imageSizeLimitsOf(modelId) {
+	return modelId.startsWith("hunyuan-image-v3") ? IMAGE_SIZE_LIMITS_V3 : IMAGE_SIZE_LIMITS_WIDE;
+}
+/**
+* 无水印模型：`hunyuan-image-v3.0`（issue #241）。
+*
+* 2026-11-12 实测：同一个提示词、同一个账号，`hunyuan-image-alpha` 的产物右下角
+* 固定带「AI生成 WORKBUDD>」水印，而 `hunyuan-image-v3.0` **完全没有**——它不是
+* 参数开关，是产物落盘路径的差别：带水印的产物落在 COS 的 `aigc-processed/`
+* 前缀下，v3.0 的不落。所以「关水印」这件事在上游只有一个等价做法：换模型。
+*
+* 代价如实体现在两处：单价 6 → 11.1 积分/张，尺寸上限降到
+* {@link IMAGE_SIZE_LIMITS_V3}。因此它是**用户选的**，不是默认——
+* 见 `preferredImageModels`。
+*/
+const IMAGE_MODEL_NO_WATERMARK = "hunyuan-image-v3.0";
+/** 这个模型 id 是不是那条「不带水印」的模型。 */
+function isWatermarkFreeImageModel(modelId) {
+	return modelId === IMAGE_MODEL_NO_WATERMARK;
+}
+/**
+* 「不带水印」这条可选项的目录条目。
+*
+* 它**不在** `/v3/config` 的媒体目录里——目录只发 `hunyuan-image-alpha` /
+* `hunyuan-image-alpha-edit` 两条。但它是官方 CLI 自己写死的文生图兜底模型
+* （`resolveModel` 里 `s ? "hunyuan-image-v3.0" : "hunyuan-image-v2.0-general-edit"`），
+* 实测也真的能出图，所以把它补成一条与目录条目同形的候选，让「选模型」这一层
+* 不必为它开第二条分支。
+*
+* `tags` 只给 `text-to-image`：它在 `/v2/images/edits` 上是**静默忽略输入图**的
+* （2026-11-12 实测：蓝底黑十字的输入图 + 「只加一颗星」，出来是灰底一颗星、
+* 输入图完全没进画布，照样扣 11.31 积分）。所以它绝不能出现在改图那一组里。
+*/
+const IMAGE_MODEL_NO_WATERMARK_ENTRY = {
+	id: IMAGE_MODEL_NO_WATERMARK,
+	name: "Hunyuan Image v3.0（无水印）",
+	tags: [IMAGE_TAG_TEXT_TO_IMAGE]
+};
+/**
+* 某个 tag 组里**可选的全部**模型：目录给的，加上本插件自己补的。
+*
+* 只往 `text-to-image` 组里补 `hunyuan-image-v3.0`，其他组原样返回。目录要是哪天
+* 自己下发了这个 id，就以目录的那条为准（不重复、不覆盖上游的名字）。
+*/
+function imageModelChoices(models, tag) {
+	const group = models.filter((model) => model.tags.includes(tag));
+	if (group.length === 0) return group;
+	if (tag !== "text-to-image") return group;
+	if (group.some((model) => model.id === "hunyuan-image-v3.0")) return group;
+	return [...group, IMAGE_MODEL_NO_WATERMARK_ENTRY];
+}
 /** 生图路由。 */
 const IMAGE_GENERATIONS_PATH = "/v2/images/generations";
 /** 改图路由：官方 CLI 的 `ImageService.editImage` 打的就是这条（2026-10-25 国际区实测 200）。 */
@@ -2339,8 +2590,39 @@ function parseVideoTask(payload) {
 	}
 	return {
 		status,
-		videos: []
+		videos: [],
+		detail: describeUnknownTaskFields(data)
 	};
+}
+/**
+* `data` 里除已知键以外的内容，序列化成一行短文本。
+*
+* 已知键：`status`（状态机自己用）、`data`（成品 URL 列表）、`usage`（扣费）。
+* 其余全部带上——那正是"上游说了原因但我们没读"的地方（issue #187）。
+*
+* 深层结构做 JSON 序列化并截断到 400 字符：一轮报错不该因为上游回了一棵大树而
+* 变成几 KB。空对象返回 `undefined`，好让调用方不拼一个空的「（上游未给出原因）」。
+*/
+function describeUnknownTaskFields(data) {
+	const known = /* @__PURE__ */ new Set([
+		"status",
+		"data",
+		"usage"
+	]);
+	const extra = {};
+	for (const [key, value] of Object.entries(data)) {
+		if (known.has(key)) continue;
+		if (value === void 0 || value === null || value === "") continue;
+		extra[key] = value;
+	}
+	if (Object.keys(extra).length === 0) return void 0;
+	let text;
+	try {
+		text = JSON.stringify(extra);
+	} catch {
+		return "（上游返回了无法序列化的额外字段）";
+	}
+	return text.length > 400 ? `${text.slice(0, 400)}…` : text;
 }
 /** 把一次非 2xx 的提交/轮询响应翻成带 `code` 的错误，好让上层决定怎么提示。 */
 function describeVideoFailure(status, bodyText, phase = "submit") {
@@ -2767,6 +3049,156 @@ function attachPromos(models, promos) {
 		};
 	});
 }
+/**
+* Minutes since local midnight in `timeZone` at `nowMs`.
+*
+* `Intl` does the zone maths, because the upstream's windows are written in
+* the zone IT names (Asia/Shanghai for the CN feed) and the user's own clock
+* is not necessarily in that zone. An unusable zone falls back to UTC rather
+* than throwing: a badge that cannot be placed is a missing badge, not a
+* broken card.
+*/
+function zonedMinutes(nowMs, timeZone) {
+	const zone = timeZone ?? "UTC";
+	try {
+		const parts = new Intl.DateTimeFormat("en-US", {
+			timeZone: zone,
+			hour: "2-digit",
+			minute: "2-digit",
+			hourCycle: "h23"
+		}).formatToParts(new Date(nowMs));
+		const hour = Number(parts.find((part) => part.type === "hour")?.value ?? "0");
+		const minute = Number(parts.find((part) => part.type === "minute")?.value ?? "0");
+		if (!Number.isFinite(hour) || !Number.isFinite(minute)) return 0;
+		return hour * 60 + minute;
+	} catch {
+		return 0;
+	}
+}
+/** Whether `nowMinutes` falls inside one of the daily windows. */
+function withinDailyWindows(windows, nowMinutes) {
+	return windows.some((window) => {
+		const start = minutesOfClock(window.start);
+		const end = minutesOfClock(window.end);
+		if (start === void 0 || end === void 0) return false;
+		if (start === end) return true;
+		if (end > start) return nowMinutes >= start && nowMinutes < end;
+		return nowMinutes >= start || nowMinutes < end;
+	});
+}
+/**
+* Whether the promotion's ABSOLUTE window holds now.
+*
+* The absolute window (`validFrom` / `validUntil`) is the promotion's own
+* lifetime. It gates the badge on its own: a promotion whose lifetime has
+* ended must not keep advertising itself, whatever its daily hours say.
+*/
+function promoWithinAbsoluteWindow(promo, nowMs) {
+	const schedule = promo.schedule;
+	if (schedule === void 0) return true;
+	if (schedule.validFrom !== void 0 && nowMs < schedule.validFrom) return false;
+	if (schedule.validUntil !== void 0 && nowMs >= schedule.validUntil) return false;
+	return true;
+}
+/**
+* Whether the promotion's DAILY window holds now.
+*
+* The daily window is the discount's own hours — it is what makes a
+* promotion a "night discount" — and a promotion without one is running
+* whenever its absolute window holds.
+*
+* A schedule whose `daily` was published but could not be evaluated
+* ({@link WorkBuddyPromoSchedule.dailyUnusable}) is NOT running: the upstream
+* did say the campaign has hours, we just cannot read them, and assuming
+* "always" is the one guess that overstates the offer.
+*/
+function promoWithinDailyWindow(promo, nowMs) {
+	const schedule = promo.schedule;
+	if (schedule === void 0) return true;
+	if (schedule.dailyUnusable === true) return false;
+	if (schedule.daily === void 0 || schedule.daily.length === 0) return true;
+	return withinDailyWindows(schedule.daily, zonedMinutes(nowMs, schedule.timezone));
+}
+/**
+* Whether the promotion is running right now: its absolute window AND its
+* daily hours both hold.
+*/
+function promoActiveAt(promo, nowMs) {
+	return promoWithinAbsoluteWindow(promo, nowMs) && promoWithinDailyWindow(promo, nowMs);
+}
+/**
+* Whether the promotion carries ANY temporal statement of its own.
+*
+* A tier badge ("Pro Only") has no `schedule` at all: it describes the model
+* unconditionally, so `promoActiveAt` is trivially true for it. That is
+* correct on its own, but it made such a badge eligible for step 1, where it
+* could shadow a lower-priority campaign whose window really is open.
+* "Running" should mean "this entry says it runs now", and an entry with no
+* schedule never does — it only ever "stands". Entries WITH a schedule (a
+* lifetime, hours, or both) are the ones that can be running.
+*/
+function hasSchedule(promo) {
+	return promo.schedule !== void 0;
+}
+function selectPromoBadge(promos, nowMs) {
+	if (promos === void 0 || promos.length === 0) return void 0;
+	const sorted = [...promos].sort((a, b) => b.priority - a.priority || (a.source === b.source ? 0 : a.source === "promotion" ? -1 : 1));
+	const running = sorted.find((promo) => hasSchedule(promo) && promoActiveAt(promo, nowMs));
+	if (running !== void 0) return running;
+	return sorted.find((promo) => promo.badge.display !== "activeOnly" && promoWithinAbsoluteWindow(promo, nowMs) && promo.schedule?.dailyUnusable !== true);
+}
+/**
+* The chip's colour, when the upstream published a usable one.
+*
+* Only a hex colour is accepted: the value reaches an inline style, and the
+* upstream's feed publishes hex (`#009273`, `#FF0000`). Anything else is
+* refused rather than passed through, and the card falls back to its own
+* brand colour.
+*/
+function promoBadgeColor(promo) {
+	const color = promo.badge.color;
+	if (color === void 0) return void 0;
+	return /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(color) ? color : void 0;
+}
+/**
+* The host's own badge tone for a promotion, for the 0.2.2+ `model.badge` field.
+*
+* WHY A TONE AND NOT A COLOUR. From 0.2.2 the host's model directory accepts a
+* per-model `badge` (`LlmModelBadge = { text, tone }`) and draws it itself, in
+* the same place and shape as the picker's own labels. `tone` is one of four
+* semantic slots (`neutral | info | success | warning`), NOT an arbitrary
+* colour: the shell paints it from theme tokens so it stays legible in every
+* theme, which an upstream hex value cannot guarantee.
+*
+* The upstream's hex colour is therefore mapped onto the CLOSEST tone rather
+* than passed through. Green — the value every CN promotion here uses for "free
+* for now" — reads as `success`; blues as `info`; amber/red as `warning`;
+* anything else stays `neutral` rather than inventing a meaning.
+*
+* WHY IT LIVES IN THIS MODULE, not in `client/promo-badge.ts` beside the other
+* chip helpers. The consumer that needs it is `src/adapter.ts` — the HOST half,
+* which fills `LlmModelInfo.badge` and cannot import from `src/client/` (that
+* directory is a separate build, and the host bundle never reaches it). This
+* module is the one place both halves already share, and it stays DOM-free so
+* the host can load it. `client/promo-badge.ts` re-exports it for the card.
+*
+* @param promo - The resolved promotion.
+* @returns The host tone to stamp on `model.badge`.
+*/
+function promoBadgeTone(promo) {
+	const color = promoBadgeColor(promo);
+	if (color === void 0) return "neutral";
+	const hex = color.replace("#", "");
+	if (hex.length !== 6) return "neutral";
+	const r = Number.parseInt(hex.slice(0, 2), 16);
+	const g = Number.parseInt(hex.slice(2, 4), 16);
+	const b = Number.parseInt(hex.slice(4, 6), 16);
+	if (!Number.isFinite(r) || !Number.isFinite(g) || !Number.isFinite(b)) return "neutral";
+	if (g > r + 24 && g > b + 24) return "success";
+	if (b > r + 24 && b > g + 8) return "info";
+	if (r > b + 24) return "warning";
+	return "neutral";
+}
 //#endregion
 //#region src/busy.ts
 /** The upstream's enum, in the order its own bundle declares it. */
@@ -2981,6 +3413,49 @@ const CLIENT_UA = "CLI/2.63.2 CodeBuddy/2.63.2";
 */
 const PRODUCT_UA = "WorkBuddy/5.8.3 WorkBuddy/5.8.3 CLI/2.161.0";
 /**
+* The GLOBAL gateway's app channel: `WorkBuddy/<version>` with no CLI segment.
+*
+* This exists because the paragraph above is only true for the CN gateway.
+* Measured on the global gateway on 2026-11-06, same token, same URL, only
+* this header differing, each shape read 3–30 times with identical results:
+*
+*   | User-Agent                                     | global `/v3/config` answer                       |
+*   | ---                                            | ---                                              |
+*   | `WorkBuddy/5.8.3`                               | 23 models, 1 agent (`cli` roster of 21),         |
+*   |                                                | `hy-image-3.5` + `kling-video-v3`,                |
+*   |                                                | `max-model` / `hy4free` / `hy4std` present       |
+*   | `WorkBuddy/5.8.3 WorkBuddy/5.8.3 CLI/2.161.0`  | 39 models, 14 agents, NO `cli` roster,           |
+*   |                                                | `hy-image-3.5` GONE,                             |
+*   |                                                | `max-model` / `hy4free` / `hy4std` GONE          |
+*   | `CLI/2.63.2 CodeBuddy/2.63.2`                  | 28 models, 16 agents (`cli` roster of 26),       |
+*   |                                                | `deepseek-v4.1-flash` at `x0.00`                 |
+*
+* So on the global gateway a trailing `CLI/…` segment selects a THIRD
+* document — the poorest of the three — while on the CN gateway that same
+* composite string is the richest one (62 models + 8 promos). The two
+* gateways genuinely disagree, which is why {@link PRODUCT_UA} must NOT be
+* "fixed" globally: doing so collapses CN from 61 models + a 17-row `cli`
+* roster down to 39 models with no roster at all (measured, same token).
+*/
+const APP_CHANNEL_UA = "WorkBuddy/5.8.3";
+/**
+* The CLI channel's product identity, used to read the SECOND global document.
+*
+* Deliberately not a reference to {@link CLIENT_UA} even though the strings are
+* equal today: that constant is a CHAT contract pinned to the versions the
+* conversation-identity triple was verified against, while this one only
+* selects a catalog. A future chat-contract bump must not silently move the
+* discovery channel with it.
+*
+* Why read it at all: the plugin CHATS as the CLI agent, and the global CLI
+* document publishes eight chat models the app document does not mention —
+* `fast-model`, `balanced-model`, `primary-model`, `deepseek-v4.1-flash`,
+* `hy4-preview`, `gpt-5.5`, `gpt-5.4`, `glm-5.2`. Reading only the app
+* document hid the CLI's own `x0.00` DeepSeek row while that row answered
+* HTTP 200 over the plugin's own chat channel. See {@link mergeModelRosters}.
+*/
+const CATALOG_CLI_UA = "CLI/2.63.2 CodeBuddy/2.63.2";
+/**
 * The app version inside {@link PRODUCT_UA}, for headers that need it alone.
 *
 * Derived from the UA instead of repeated as a literal: the `X-IDE-Version`
@@ -2998,16 +3473,30 @@ const ERROR_BODY_LIMIT = 4096;
 * tokens, so prompt processing legitimately takes a while before the first byte
 * comes back. It exists only to stop a connection that will NEVER answer — the
 * pool's batch is serial, so one hung member would otherwise block all the rest
-* with nothing in the UI to say which one it was. Ten seconds is comfortably
-* above a working gateway's first byte and far below a user's patience; the
-* budget covers the response only, never the one-line body that follows.
+* with nothing in the UI to say which one it was; the budget covers the response
+* only, never the one-line body that follows.
+*
+* THIRTY SECONDS, NOT TEN. The old 10 s was chosen as "comfortably above a
+* working gateway's first byte", and on a fast path it is — but measured on a
+* real 25k-token probe body over ordinary Chinese broadband, the first byte
+* alone took 3.47 s / 3.57 s / 6.97 s on three consecutive attempts. A 10 s
+* ceiling therefore left under 3 s of margin on the worst run, and any jitter
+* blew through it.
+*
+* The cost of tripping it was never just a failed test: `status: 0` carries no
+* `retryAtMs`, so the pool fell back to {@link POOL_UNKNOWN_COOLDOWN_MS} (30
+* minutes) and benched healthy accounts, answering "池中已无可用账号" and a 502 to
+* every request until the cooldown lapsed. The two failure directions are not
+* symmetric — waiting an extra 20 s on a genuinely dead endpoint costs one
+* stalled batch member, while firing early costs half an hour of the whole pool
+* — so this ceiling is deliberately generous.
 *
 * It also does not cover THIS MACHINE's identity work. Since P3 the header build
 * may spawn the device-token subprocess (budget 20 s), and starting the clock
 * before that would turn a healthy gateway into "unreachable" on a cold start —
 * see the note in `probeChat` for why that matters to the pool.
 */
-const PROBE_TIMEOUT_MS = 1e4;
+const PROBE_TIMEOUT_MS = 3e4;
 /**
 * 生图请求的超时。
 *
@@ -3021,8 +3510,15 @@ const IMAGE_TIMEOUT_MS = 18e4;
 const VIDEO_TIMEOUT_MS = 6e5;
 /** 轮询之间的间隔（官方 CLI pollTask 用 5s）。 */
 const VIDEO_POLL_INTERVAL_MS = 5e3;
-/** 单个轮询轮次的上限（与 VIDEO_TIMEOUT_MS 对应，防死循环）。 */
-const VIDEO_POLL_TIMEOUT_MS = 6e5;
+/**
+* 轮询循环自身上限（防死循环）。
+*
+* 比 {@link VIDEO_TIMEOUT_MS} 短 60s：工具层给的是一个更短的 signal
+* （`VIDEO_TOOL_TIMEOUT_MS`），两者叠在一起时**这个检查要先生效**，才能带着
+* task id 抛出 `POLL_TIMEOUT`。曾经的 600s 与宿主工具上限相等，先在宿主那边
+* 掐断，于是用户只看到 `tool call timed out after 600000ms`（issue #187）。
+*/
+const VIDEO_POLL_TIMEOUT_MS = 54e4;
 /** 单条视频下载超时（官方 CLI 用 120s）。 */
 const VIDEO_DOWNLOAD_TIMEOUT_MS = 12e4;
 /**
@@ -3408,6 +3904,63 @@ const CONTEXT_TOO_LONG_CODE = /"code"\s*:\s*11115(?!\d)|code\s+11115(?!\d)/u;
 function isContextTooLongBody(body) {
 	return CONTEXT_TOO_LONG_CODE.test(body);
 }
+/** The tool-schema refusal (issue #253). */
+const TOOL_SCHEMA_REJECT_CODE = 11129;
+/**
+* Whether this body is the upstream refusing a TOOL DEFINITION (issue #253).
+*
+* `11129` arrives as `{"code":11129,"msg":"invalid function call parameters"}`
+* with `extError.code: "invalid_function_parameters"`. Its `param` field is an
+* EMPTY STRING — the upstream knows the definition is wrong but never says
+* which tool or which keyword — so the plugin is the only party that can turn
+* this into an actionable sentence.
+*
+* Read by CODE rather than by the wording, for the reason every other code
+* reader in this module does it: the same `msg` is short and generic enough that
+* a request id or a prompt could contain the phrase, while `11129` has so far
+* only ever meant this. Recognising it changes ADVICE ONLY — the kind stays
+* `client`, which already means "refused on parameters, no account can help" and
+* already skips failover. Giving it a kind of its own would move it out of that
+* bucket and silently change retry behaviour, which is a much larger claim than
+* the evidence supports.
+*/
+function isToolSchemaRejectBody(body) {
+	return statesBusinessCode(body, TOOL_SCHEMA_REJECT_CODE);
+}
+/**
+* Which schema keywords the rewrite in {@link normalizeToolSchemas} can fix,
+* for the reply's advice (issue #253).
+*
+* Deliberately a FIXED LIST rather than a parse of the offending body: the
+* upstream never names the keyword, and the plugin has already rewritten every
+* one of these on the way out. If a request still gets `11129` after that
+* rewrite, the cause is a keyword this build does not know — so the advice has
+* to say "something else", not repeat the shapes it already handled.
+*
+* KEPT IN STEP WITH THE REWRITE, by hand. It listed only the four draft-4
+* shapes for a while AFTER the type repair had landed, so a reader who hit a
+* surviving `11129` was told the plugin had tried four things when it had tried
+* the whole class — the exact "confident, wrong, and unhelpful" reply that this
+* function exists to replace. When `normalizeMetaSchemaTypes` learns a new
+* family, this string has to learn it too.
+*/
+const TOOL_SCHEMA_REWRITTEN_KEYWORDS = "元组式 `items`、布尔 `exclusiveMinimum`/`exclusiveMaximum`、`required` 非数组或含重复项、外部 `$ref`，以及关键字的值类型写错（如 `title: 1`、`minimum: \"0\"`、`allOf: {}`、`type: []`、`enum`/`examples` 写成标量），以及 `pattern` 里的 UTF-16 代理区转义 `\\uD800`–`\\uDFFF`";
+/**
+* One actionable sentence for a `11129` refusal, naming what was already fixed
+* and what the user can still do.
+*
+* WHY THE PLUGIN MUST SPEAK HERE. The upstream's own advice is "请新建任务，或换
+* 个模型" — and issue #253's reporter spent a day on account swaps, re-logins and
+* a reinstall because nothing in that sentence points at a TOOL DEFINITION. The
+* plugin rewrites the four known shapes automatically, so a surviving `11129`
+* means either (a) the offending definition is one of a further shape this build
+* does not know, or (b) a tool supplied by a third-party bundle/MCP server is
+* sending something the gateway will not take. Both are actionable, and neither
+* is "switch accounts".
+*/
+function toolSchemaRejectAdvice() {
+	return `这次是工具定义被拒，与账号、积分、额度、网络都无关，换账号或重试都不会改变结果。插件已自动改写过这些上游不接受的写法：${TOOL_SCHEMA_REWRITTEN_KEYWORDS}；仍被拒说明还有别的写法。最快的验证是关掉提供该工具的能力（例如浏览器自动化、某个 MCP server 或第三方插件）后重发同一句话——能通过就说明是那个工具的定义有问题，把它的参数结构贴到 issue 里即可定位`;
+}
 /**
 * An English clause the HOST's overflow detector recognises, for issue #101.
 *
@@ -3419,6 +3972,59 @@ function isContextTooLongBody(body) {
 * its comments avoiding.
 */
 const CONTEXT_OVERFLOW_MARKER = "prompt is too long (upstream code 11115)";
+/**
+* The marker for a request refused because its BODY BYTES exceed a local limit
+* (issue #258).
+*
+* Deliberately the SAME English head pi-ai's `OVERFLOW_PATTERNS` already
+* matches (`prompt is too long`), with a parenthetical naming the real cause.
+* The host's rescue ladder keys on that phrase and on nothing else, so a
+* refusal it must recover from has to carry it — see the #101 comment in
+* `src/shim.ts` for how the 11115 case arrived at the same shape.
+*
+* The parenthetical is NOT the bili code. Naming another plugin's identifier
+* here would be plugin-specific code in this plugin's body — the line
+* `docs/DESIGN.md` §零 draws — and the code would keep describing a dependency
+* that may be gone tomorrow. What this string states is the fact that matters:
+* the request was too large to send.
+*/
+const BODY_OVERSIZE_MARKER = "prompt is too long (request body exceeded the local byte limit)";
+/**
+* Whether this text reports a body-size refusal rather than a token overflow
+* (issue #258).
+*
+* A local proxy/gateway in front of the provider may refuse a request whose
+* serialized body exceeds some byte ceiling it enforces. Measured shapes, from
+* a real report:
+*
+*   bili_gate_oversize_refusal_unattributed_bytes
+*   (8,401,132 B > 8,388,608 B)
+*   "unattributed oversized model request refused locally with a 422"
+*
+* MATCHED BY MEANING, NOT BY NAME. That is the crux of the design decision
+* here: matching a plugin's identifier would be the "special-case another
+* plugin" this project forbids, while matching "a request body was too large"
+* is the same kind of reader as every other measured-wording matcher in this
+* module. A refusal that only says `oversize`/`too large` in BYTES is the class;
+* which component produced it is not this plugin's business, and a future
+* component with different wording that still says so is covered for free.
+*
+* What is deliberately NOT matched: `too_many_tokens`, `context length
+* exceeded`, `11115` and friends. Those are TOKEN overflow, which the host
+* already recovers from on its own; treating them here would make two
+* authorities compete over the same failure.
+*/
+function isBodyOversizeRefusal(text) {
+	if (text === "") return false;
+	const lower = text.toLowerCase();
+	if (/[\d,]{4,}\s*b\s*>\s*[\d,]{4,}\s*b/u.test(lower)) return true;
+	if (lower.includes("request-body limit") || lower.includes("request body limit")) return true;
+	const oversize = lower.includes("oversize");
+	const localByte = lower.includes("byte limit");
+	const localRefusal = lower.includes("refused locally");
+	if (localByte) return true;
+	return oversize && localRefusal;
+}
 /**
 * Wording that identifies the CHANNEL half of `11128` (the other halves being
 * `conversation id missing` and `first message is not system prompt`).
@@ -3750,11 +4356,27 @@ function globalBase(domain) {
 	if (lowered === "codebuddy.ai" || lowered.endsWith(".codebuddy.ai")) return "https://www.codebuddy.ai";
 	return GLOBAL_BASE;
 }
-function chatBase(credential) {
-	return regionOf(credential.domain) === "global" ? globalBase(credential.domain) : CN_CHAT_BASE;
+/**
+* The CN gateway base for this process, resolved ONCE at construction.
+*
+* Empty means "no override", and then the constant is used — the pre-#220
+* behaviour, byte for byte. A non-empty value has already passed
+* `resolveCnGateway`'s allowlist, so this is a validated host and not whatever
+* happened to be in the settings file.
+*
+* Deliberately injected rather than read from config at each call site: the CN
+* base feeds a Bearer token, so "which host" must be decided in exactly one
+* place that can be pointed at and audited, not re-derived by ten request
+* builders. The class also swaps it when the setting changes (the mount
+* reconstructs the client on a volatile update).
+*/
+function chatBase(credential, cnBase) {
+	if (regionOf(credential.domain) === "global") return globalBase(credential.domain);
+	return cnBase === void 0 || cnBase === "" ? CN_CHAT_BASE : cnBase;
 }
-function billingBase(credential) {
-	return regionOf(credential.domain) === "global" ? globalBase(credential.domain) : CN_BILLING_BASE;
+function billingBase(credential, cnBase) {
+	if (regionOf(credential.domain) === "global") return globalBase(credential.domain);
+	return cnBase === void 0 || cnBase === "" ? CN_BILLING_BASE : cnBase;
 }
 function originReferer(credential) {
 	return regionOf(credential.domain) === "global" ? globalBase(credential.domain) : CN_BILLING_BASE;
@@ -3823,12 +4445,20 @@ function commonHeaders(credential, identity = {}) {
 * extras is satisfied by the triple without it. Hence exactly three.
 *
 * VALUES. The gateway does not verify where these ids come from — any well-formed
-* UUID passes — so nothing here is a secret and nothing is persisted. They are
-* still freshly generated per request, as the official client generates
-* its own per call: reusing one value across requests would forge a
-* conversation identity the plugin does not actually have, and the first thing
-* that would break is the upstream's own correlation of a session it is being
-* told about twice under one id.
+* UUID passes — so nothing here is a secret and nothing is persisted.
+*
+* DEFAULT (since 5.24.15): `X-Conversation-ID` is pinned to a v4-SHAPED value
+* derived from the request's stable prefix — a prefix-derived AFFINITY KEY, not a
+* host session id (see {@link deriveStableConversationId}). Only `X-Conversation-ID`
+* is pinned: the request, message and root ids stay fresh per request. This was
+* promoted from an opt-in A/B mode after #275's frozen single-variable experiment
+* plus the maintainer's independent replication (87.1pp [81.9, 92.0],
+* BENEFIT_SUPPORTED); before 5.24.15 every id was freshly generated per request.
+* Setting `stableConversationId: false` restores that original shape, which is
+* also what the per-request tests below pin. No claim is made about how the
+* upstream keys or partitions any cache — cache-key partitioning vs routing
+* affinity are indistinguishable from the client side. See
+* docs/STABLE-KEY-SEMANTICS.md.
 *
 * APPLIED TO BOTH REGIONS on purpose. The CN gateway tolerates their absence
 * today, so this is harmless there — and a header that is only ever sent on one
@@ -3836,15 +4466,17 @@ function commonHeaders(credential, identity = {}) {
 * from the CN side. One code path, both regions.
 *
 * @returns the three headers (four when the usage identity is on, which adds
-* `X-Request-ID`), every value distinct.
+* `X-Request-ID`). By default every value is distinct and fresh; in the opt-in
+* stable mode only `X-Conversation-ID` is pinned to a prefix-derived affinity
+* key for requests sharing that prefix (see {@link deriveStableConversationId}).
 */
-function conversationHeaders(shape, identity = {}) {
+function conversationHeaders(shape, identity = {}, stableConversationId) {
 	const officialIds = shape === "chat" && identity.usageIdentity === true;
 	const id = officialIds ? uuidv7 : randomUUID;
 	const messageId = id();
 	const conversationRequestId = id();
 	return {
-		"X-Conversation-ID": id(),
+		"X-Conversation-ID": stableConversationId ?? id(),
 		"X-Conversation-Request-ID": conversationRequestId,
 		...profileOf(identity) === "balanced" ? { "X-Root-Request-ID": conversationRequestId } : {},
 		"X-Conversation-Message-ID": messageId,
@@ -3867,8 +4499,10 @@ function conversationHeaders(shape, identity = {}) {
 * Only the FORMAT is aligned, never the value's meaning: the timestamp prefix
 * is the moment this request was generated, which is exactly what a v7 id is
 * for. It is NOT a claim that these ids correlate with an official session —
-* the plugin still generates a fresh identity per request (see
-* {@link conversationHeaders}).
+* by default the plugin still generates a fresh identity per request (see
+* {@link conversationHeaders}); the opt-in stable mode pins only
+* `X-Conversation-ID` to a prefix-derived affinity key built with
+* {@link deriveStableConversationId}, never to a host session id.
 */
 function uuidv7(nowMs = Date.now()) {
 	const bytes = randomBytes(16);
@@ -3876,6 +4510,146 @@ function uuidv7(nowMs = Date.now()) {
 	bytes[6] = bytes[6] & 15 | 112;
 	bytes[8] = bytes[8] & 63 | 128;
 	return bytes.toString("hex");
+}
+/**
+* Format the first 32 hex chars of a digest as a hyphenated, v4-SHAPED value:
+* the version nibble and variant bits are overwritten so the string matches the
+* RFC-4122 v4 layout. This is a shape claim only — the bytes come from a SHA-256
+* digest, so this is NOT a random UUIDv4 and NOT an official session id.
+*/
+function formatAsUuidV4(hex) {
+	const chars = hex.slice(0, 32).split("");
+	chars[12] = "4";
+	chars[16] = [
+		"8",
+		"9",
+		"a",
+		"b"
+	][Number.parseInt(chars[16], 16) % 4];
+	return `${chars.slice(0, 8).join("")}-${chars.slice(8, 12).join("")}-${chars.slice(12, 16).join("")}-${chars.slice(16, 20).join("")}-${chars.slice(20, 32).join("")}`;
+}
+/** Version tag for the affinity-key encoding, so a future scheme change is explicit. */
+const STABLE_KEY_SCHEME = "dsh-stable-conversation-id/v1";
+/** Canonical keys meaning "no usable content" — these must fall back to a fresh id. */
+const EMPTY_CANONICAL_KEYS = /* @__PURE__ */ new Set([
+	"null",
+	"\"\"",
+	"[]",
+	"{}"
+]);
+/**
+* A deterministic deep value for hashing: object keys sorted, array order kept,
+* `undefined` (which JSON.stringify would otherwise drop) normalized to `null`.
+* Returns a FRESH structure, so callers may mutate it without touching the body.
+*/
+function canonicalize(value) {
+	if (Array.isArray(value)) return value.map(canonicalize);
+	if (typeof value === "object" && value !== null) {
+		const record = value;
+		const sorted = {};
+		for (const key of Object.keys(record).sort()) sorted[key] = canonicalize(record[key]);
+		return sorted;
+	}
+	return value === void 0 ? null : value;
+}
+/**
+* Complete, canonical encoding of one message's `content` for the affinity key.
+* Unlike {@link textOfContent} (prefix matching only, which drops non-text parts)
+* this keeps EVERY part, so a pure-image first user and two bodies differing only
+* in their image bytes are distinguished rather than silently ignored. The
+* leading ACP tag on the first text part is stripped, since it carries a
+* per-request message number. Operates on a clone from {@link canonicalize}, so
+* the request body is never mutated.
+*/
+function canonicalContentKey(content, stripAcp) {
+	const canonical = canonicalize(content);
+	const value = stripAcp ? stripLeadingAcpTag(canonical).value : canonical;
+	return JSON.stringify(value);
+}
+/**
+* Derive a request-prefix AFFINITY KEY and return it in `X-Conversation-ID` shape.
+*
+* ROUTE A (`stableConversationId`, default on since 5.24.15). This is a
+* prefix-derived affinity key, not a host session id: the value hashes the model
+* id, the first `system` message's FULL content and the FIRST REAL `user`
+* message's FULL content (skipping the harness's injected context blocks via
+* {@link injectedPrefixPattern}). Appended history, tool calls and assistant
+* replies are deliberately NOT part of the key — they grow every turn.
+*
+* Known limits, documented in `docs/STABLE-KEY-SEMANTICS.md`: two independent
+* sessions with an identical prefix SHARE this key; compression, first-message
+* edits, model switches or session forks may change the key; the value only
+* claims a v4-shaped layout, never equality with a native `sessionId`. No claim
+* is made about the upstream's internal mechanism — cache-key partitioning vs
+* routing affinity are indistinguishable from the client side.
+*
+* Encoding: the prefix fields are fed to SHA-256 as a JSON array, so an embedded
+* U+0000 cannot make two distinct tuples collide; each message's FULL content is
+* canonicalized (object keys sorted, non-text parts kept), so a pure-image first
+* user and two bodies differing only in image bytes are handled explicitly. A
+* body that is not parseable chat JSON, or lacks a usable model / system / first
+* real user, yields `undefined` and the caller falls back to the fresh per-request
+* id. No secret, account or machine value is read here.
+*/
+function deriveStableConversationId(bodyJson) {
+	let parsed;
+	try {
+		parsed = JSON.parse(bodyJson);
+	} catch {
+		return;
+	}
+	if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return void 0;
+	const body = parsed;
+	const model = typeof body["model"] === "string" ? body["model"] : "";
+	const messages = body["messages"];
+	if (model === "" || !Array.isArray(messages)) return void 0;
+	let systemKey;
+	let firstRealUserKey;
+	const injected = injectedPrefixPattern();
+	for (const value of messages) {
+		if (typeof value !== "object" || value === null || Array.isArray(value)) continue;
+		const message = value;
+		const role = message["role"];
+		if (role === "system" && systemKey === void 0) systemKey = canonicalContentKey(message["content"], false);
+		if (role === "user" && firstRealUserKey === void 0 && !isInjectedUserMessage(message, injected)) firstRealUserKey = canonicalContentKey(message["content"], true);
+	}
+	if (systemKey === void 0 || EMPTY_CANONICAL_KEYS.has(systemKey)) return void 0;
+	if (firstRealUserKey === void 0 || EMPTY_CANONICAL_KEYS.has(firstRealUserKey)) return void 0;
+	const tuple = JSON.stringify([
+		STABLE_KEY_SCHEME,
+		model,
+		systemKey,
+		firstRealUserKey
+	]);
+	return formatAsUuidV4(createHash("sha256").update(tuple).digest("hex"));
+}
+/**
+* Route B: version tag for mapping a HOST session id onto a v4-shaped
+* conversation id. Deliberately different from {@link STABLE_KEY_SCHEME} so a
+* session-derived id can never equal a prefix-derived (route A) id — the two
+* routes must not silently share an upstream affinity bucket.
+*/
+const SESSION_CONVERSATION_KEY_SCHEME = "dsh-session-conversation-id/v1";
+/**
+* Map a host session id to a v4-SHAPED `X-Conversation-ID` (route B).
+*
+* The REAL session id never leaves this process: only this digest is put on the
+* wire. The digest is domain-separated from route A and from any other hash use,
+* so the same text cannot collide with a prefix-derived affinity key. The input
+* is trimmed and length-capped (a defensive bound on a loopback-only header):
+* an empty or over-long value yields `undefined`, which makes the caller fall
+* back to the ordinary per-request id rather than send anything derived from
+* malformed input.
+*
+* This is a stable, deterministic LOCAL mapping, NOT the host session id itself
+* and NOT a claim that the upstream keys any cache by session. It makes no
+* assertion about upstream internal mechanism (cache-key partitioning vs routing
+* affinity are indistinguishable from here). See `docs/ROUTE-B-SESSION-ID.md`.
+*/
+function conversationIdFromSessionId(sessionId) {
+	const trimmed = sessionId.trim();
+	if (trimmed === "" || trimmed.length > 256) return void 0;
+	return formatAsUuidV4(createHash("sha256").update(SESSION_CONVERSATION_KEY_SCHEME).update("\0").update(trimmed).digest("hex"));
 }
 /**
 * 没有显式配置时用的档位。
@@ -3988,7 +4762,7 @@ async function resolveWireIdentity(identity) {
 	};
 }
 /** Chat request headers, including the X-No-* conventions the official CLI uses. */
-function chatHeaders(credential, identity = {}) {
+function chatHeaders(credential, identity = {}, stableConversationId) {
 	return {
 		...commonHeaders(credential, identity),
 		"Content-Type": "application/json",
@@ -3997,7 +4771,7 @@ function chatHeaders(credential, identity = {}) {
 		...credential.domain === "" ? { "X-No-Department-Info": "1" } : { "X-Domain": credential.domain },
 		...attributionHeaders(identity),
 		...deviceHeaders(credential, identity),
-		...conversationHeaders("chat", identity)
+		...conversationHeaders("chat", identity, stableConversationId)
 	};
 }
 /**
@@ -5084,6 +5858,7 @@ function prepareChatBody(source, options) {
 	rewriteChannelFingerprintPhrasesInBody(obj);
 	neutralizeChannelFingerprints(obj);
 	normalizeToolChoice(obj);
+	normalizeToolSchemas(obj);
 	dropRefusedReasoning(obj);
 	return JSON.stringify(obj);
 }
@@ -5230,6 +6005,465 @@ function normalizeToolChoice(obj) {
 		return;
 	}
 	delete obj["tool_choice"];
+}
+/**
+* Rewrite JSON Schema spellings the CN gateway REFUSES inside `tools[].function.parameters`
+* (issue #253, business code 11129 / 11133).
+*
+* WHY THIS EXISTS. The host builds tool schemas with zod and ships whatever the
+* library emits; `prepareChatBody` forwarded `tools` untouched. Four shapes
+* measured on 2026-11-14 as refused by the upstream, each with the same body
+* answering 200 once rewritten:
+*
+* | shape | refused as | rewritten to |
+* | --- | --- | --- |
+* | `items` as a TUPLE ARRAY (draft-4 tuple form) | 11129 (DeepSeek) / 11133 (GLM, Kimi, MiMo) | `prefixItems: [...]` + `items: {}` |
+* | `exclusiveMinimum` / `exclusiveMaximum` as a BOOLEAN (draft-4) | 11129 | the numeric form, derived from the sibling `minimum` / `maximum` |
+* | `required` as a STRING instead of an array | 11129 | one-element array |
+* | `required` containing DUPLICATES | 11129 | de-duplicated |
+* | an EXTERNAL `$ref` (`https://…`, `//host/…`) | 11129 | the reference object removed |
+* | a `pattern` with a `\uD800`–`\uDFFF` surrogate escape (issue #274) | 11129 | the offending `pattern` dropped |
+*
+* WHAT IS DELIBERATELY NOT TOUCHED.
+*
+* - **Internal `$ref` (`#/…`) stays.** Measured: the recursive
+*   `$defs`/`additionalProperties` schema of `stagehand_extract` — the shape
+*   issue #253 originally blamed — answers 200 on every model tested, as does
+*   the host's whole 75-tool catalog sent at once. Only the EXTERNAL form is
+*   refused. Rewriting internal references would be a large, riskier change
+*   bought with no measured evidence.
+* - **The boolean `exclusiveMinimum` rewrite is only made when it is safe.** A
+*   draft-4 boolean means "minimum is exclusive"; with no sibling bound there is
+*   nothing to derive, so the key is dropped rather than guessed. Silently
+*   turning `exclusiveMinimum: true` into `exclusiveMinimum: 0` would INVENT a
+*   constraint — a wrong schema that the upstream accepts is worse than a
+*   request that fails loudly.
+* - **Nothing outside `tools` / `functions` is examined.** `tool_choice`,
+*   messages, and every other body byte keep their existing treatment; a
+*   session-title body or a plain conversation cannot be changed by this.
+*
+* Order matters only in that this runs AFTER {@link normalizeToolChoice}: a
+* suppressed `tools` (from `tool_choice: 'none'`) is already gone, and
+* normalizing an array that is about to be deleted would be wasted work.
+*/
+function normalizeToolSchemas(obj) {
+	normalizeToolArray(obj["tools"]);
+	normalizeToolArray(obj["functions"]);
+}
+/** Walk the entries of a `tools` / `functions` array, rewriting each schema. */
+function normalizeToolArray(value) {
+	if (!Array.isArray(value)) return;
+	for (const entry of value) {
+		if (typeof entry !== "object" || entry === null || Array.isArray(entry)) continue;
+		const tool = entry;
+		const fn = tool["function"];
+		if (typeof fn === "object" && fn !== null && !Array.isArray(fn)) normalizeSchemaNode(fn["parameters"]);
+		if (tool["function"] === void 0) normalizeSchemaNode(tool["parameters"]);
+	}
+}
+/**
+* Recursively rewrite ONE schema node in place.
+*
+* Recursion is required, not decorative: every one of the measured refusals can
+* appear at any depth (a tuple `items` inside `properties.a.items`, a bad
+* `required` inside a nested object). The walk is depth-limited because the
+* input is arbitrary JSON from a third party — a malformed or pathological
+* document must not be able to hang a request.
+*/
+function normalizeSchemaNode(node, depth = 0) {
+	if (typeof node !== "object" || node === null || Array.isArray(node)) return;
+	if (depth > MAX_SCHEMA_DEPTH) return;
+	const schema = node;
+	normalizeItems(schema);
+	normalizeExclusiveBound(schema, "exclusiveMinimum", "minimum");
+	normalizeExclusiveBound(schema, "exclusiveMaximum", "maximum");
+	normalizeRequired(schema);
+	dropExternalRef(schema);
+	normalizeMetaSchemaTypes(schema);
+	normalizePatternSurrogates(schema);
+	for (const key of SCHEMA_CHILD_MAPS) {
+		const child = schema[key];
+		if (typeof child !== "object" || child === null || Array.isArray(child)) continue;
+		for (const nested of Object.values(child)) normalizeSchemaNode(nested, depth + 1);
+	}
+	for (const key of SCHEMA_CHILD_LISTS) {
+		const list = schema[key];
+		if (!Array.isArray(list)) continue;
+		for (const nested of list) normalizeSchemaNode(nested, depth + 1);
+	}
+	for (const key of SCHEMA_CHILD_DEPENDENCIES) {
+		const child = schema[key];
+		if (typeof child !== "object" || child === null || Array.isArray(child)) continue;
+		for (const nested of Object.values(child)) normalizeSchemaNode(nested, depth + 1);
+	}
+	for (const key of SCHEMA_CHILD_SINGLE) normalizeSchemaNode(schema[key], depth + 1);
+}
+/**
+* Bound the recursion.
+*
+* The host's own schemas nest a handful of levels. 64 is far past anything real
+* and still terminates on a hostile document; the value is a guard against a
+* hang, not a format rule.
+*/
+const MAX_SCHEMA_DEPTH = 64;
+/** Keywords whose value is a MAP of schemas (each value walked). */
+const SCHEMA_CHILD_MAPS = [
+	"properties",
+	"patternProperties",
+	"dependentSchemas",
+	"$defs",
+	"definitions"
+];
+/** Keywords whose value is a LIST of schemas (each entry walked). */
+const SCHEMA_CHILD_LISTS = [
+	"allOf",
+	"anyOf",
+	"oneOf",
+	"prefixItems"
+];
+/** Keywords whose value is a SINGLE schema (walked directly). */
+const SCHEMA_CHILD_SINGLE = [
+	"items",
+	"additionalItems",
+	"additionalProperties",
+	"not",
+	"contains",
+	"if",
+	"then",
+	"else",
+	"propertyNames"
+];
+/**
+* Keywords whose value is a MAP whose values may be schemas, where only SOME of
+* those values are schemas at all (issue #253, second report).
+*
+* `dependencies` is draft-4's spelling of two different 2020-12 keywords: an
+* ARRAY value is `dependentRequired`, an OBJECT value is `dependentSchemas`.
+* Its object values are therefore descended into like `dependentSchemas`, so a
+* draft-4 leftover nested inside one is still rewritten.
+*
+* Measured raw: `dependencies` itself is ACCEPTED by the upstream, so nothing
+* here is a refusal fix — it is traversal, so that the rewrites this module owns
+* reach inside the keyword instead of stopping at it.
+*/
+const SCHEMA_CHILD_DEPENDENCIES = ["dependencies"];
+/**
+* Repair keyword values whose TYPE the upstream will not take (issue #253).
+*
+* THE SECOND REPORT ON #253 WAS A DIFFERENT BUG. The first round migrated
+* draft-4 SPELLINGS (tuple `items`, boolean exclusive bounds, string `required`,
+* external `$ref`). The reporter then supplied three more draft-4 spellings
+* (`type` arrays, `dependencies`, `additionalItems`) and a patch — but all three
+* were measured ACCEPTED, raw, on `deepseek-v4.1-flash`, so migrating them fixes
+* nothing. What was actually rejected, measured one keyword at a time against a
+* raw body, is a class of TYPE errors in the definition itself: 36 of them, in
+* every position. `title: 1`, `minimum: "0"`, `examples: "x"`, `pattern: 123`,
+* `allOf: {}`, `additionalProperties: "x"`, `uniqueItems: "true"` — each answers
+* `11129`, and each answers 200 once the value has the type the keyword takes.
+*
+* WHY REPAIR RATHER THAN REPORT. The upstream's own sentence names no keyword
+* and no tool, and the definition often comes from a third-party bundle or MCP
+* server the user did not write. Dropping the offending value is what keeps the
+* tool USABLE: every keyword here is an annotation or a constraint, never
+* structure — no `properties` map, no `required` list, no schema-valued keyword
+* is touched — so removing a malformed one cannot change which arguments the
+* tool accepts. It only stops the definition from being refused outright.
+*
+* THE ALTERNATIVE WAS CONSIDERED AND REJECTED: dropping the whole TOOL. It is
+* simpler, but it silently removes a capability the user installed, and the
+* model then invents calls to a tool that no longer exists.
+*
+* Only values that are WRONG are touched. A schema already carrying correct
+* types leaves this function byte-identical, which keeps the prompt prefix
+* stable for caching.
+*/
+function normalizeMetaSchemaTypes(schema) {
+	for (const key of SCHEMA_STRING_KEYWORDS) {
+		const value = schema[key];
+		if (value !== void 0 && typeof value !== "string") delete schema[key];
+	}
+	for (const key of SCHEMA_NUMBER_KEYWORDS) {
+		const value = schema[key];
+		if (value !== void 0 && (typeof value !== "number" || !Number.isFinite(value))) delete schema[key];
+	}
+	for (const key of SCHEMA_BOOLEAN_KEYWORDS) {
+		const value = schema[key];
+		if (value !== void 0 && typeof value !== "boolean") delete schema[key];
+	}
+	for (const key of SCHEMA_LIST_KEYWORDS) {
+		const value = schema[key];
+		if (value === void 0) continue;
+		if (!Array.isArray(value) || value.length === 0) delete schema[key];
+	}
+	for (const key of SCHEMA_STRING_LIST_KEYWORDS) {
+		const value = schema[key];
+		if (value !== void 0 && !Array.isArray(value)) delete schema[key];
+	}
+	for (const key of SCHEMA_CHILD_SINGLE) {
+		const value = schema[key];
+		if (value === void 0) continue;
+		if (typeof value === "boolean") continue;
+		if (typeof value !== "object" || value === null || Array.isArray(value)) delete schema[key];
+	}
+	normalizeTypeKeyword(schema);
+}
+/**
+* Drop a `pattern` whose regex contains a UTF-16 SURROGATE escape (issue #274).
+*
+* THE REPORT. A user enabled the REA MCP server and every message answered
+* `400 / 11129` on `deepseek-v4.1-flash`; turning the server off made the same
+* sentence pass. The reporter pasted all 260 tool schemas — and, as with the
+* second #253 report, their value was the METHOD: the definitions were clean of
+* every rewrite this module already owns (fed through `prepareChatBody`, all 260
+* came out BYTE-IDENTICAL), so the refusal had to be a shape nobody had looked
+* for. The one construct no other tool shared was a regex escape for the
+* surrogate code-unit range:
+*
+*   "allOf": [{ "pattern": "^[^\\uD800-\\uDFFF]*$" }]
+*
+* MEASURED, one body at a time on the real CN gateway, `deepseek-v4.1-flash`:
+*
+*   - the two tools carrying that escape (`close_binary`, `binary_session`)
+*     answer 11129 alone; the other three exposed tools answer 200;
+*   - removing ONLY that `allOf` member makes the tool pass (removing the NUL
+*     and slash members instead does not) — it is this escape, not `allOf`
+*     or the regex class around it;
+*   - the boundary is exact: `\uD7FF` and `\uE000` answer 200, every escape in
+*     `\uD800`–`\uDFFF` answers 11129 (upper/lower/mixed hex digits alike);
+*   - the rejection is SPECIFIC TO `pattern`: the same literal in `description`,
+*     `title`, `const`, `enum`, `default` and `format` all answer 200;
+*   - other escapes are fine — `\u0000`–`\uFFFF`, `\x00`, `\d`, an ASCII hex
+*     range, even a literal emoji (a real surrogate pair in the JSON) all pass.
+*     It is specifically the `\uXXXX` SPELLING of a surrogate code unit that
+*     the upstream's schema parser cannot take.
+*
+* WHY DROP THE PATTERN, NOT THE TOOL OR THE ESCAPE. The pattern is an ANNOTATION
+* constraint — REA used it to reject lone surrogates in a filesystem path. The
+* MCP server still validates complete canonical inputs on its side, so removing
+* the display copy cannot let an invalid path through. Rewriting `\uD800` into
+* an equivalent character class would be a guess about the upstream parser the
+* evidence does not support; dropping one member's constraint keeps the tool
+* callable and matches the "repair, never silently remove a capability" rule
+* from {@link normalizeMetaSchemaTypes}. The member left `{}` is harmless:
+* `allOf: [{}]` was measured at 200, and an `allOf` emptied entirely is already
+* dropped by `normalizeMetaSchemaTypes` (an absent constraint means what an
+* empty one says). So the drop is all that is needed — no pruning pass, no
+* change to the schema's structure.
+*
+* A correct schema — no surrogate escape — leaves this function byte-identical,
+* so the prompt prefix stays stable for caching.
+*/
+function normalizePatternSurrogates(schema) {
+	const pattern = schema["pattern"];
+	if (typeof pattern !== "string" || !SURROGATE_ESCAPE_RE.test(pattern)) return;
+	delete schema["pattern"];
+}
+/**
+* A `\u` escape whose four hex digits name a UTF-16 surrogate code unit
+* (D800–DFFF). Case-insensitive on the hex digits: `\ud800` and `\uDaFf` are
+* refused just like the uppercase spelling (measured).
+*/
+const SURROGATE_ESCAPE_RE = /\\u[dD][89aAbBfF][0-9a-fA-F]{2}/u;
+/**
+* Repair `type`, keeping every member the upstream would have taken (issue #253).
+*
+* Measured: `type: ["string","null"]` is ACCEPTED as sent, and so is
+* `dependencies`; only an unknown member (`type: "thing"`) or an empty array is
+* refused. So this keeps valid members instead of rewriting the array into
+* `oneOf`, which would be a much larger change to a schema the upstream already
+* understands.
+*/
+function normalizeTypeKeyword(schema) {
+	const type = schema["type"];
+	if (type === void 0) return;
+	const valid = (entry) => typeof entry === "string" && JSON_SCHEMA_TYPES.has(entry);
+	if (typeof type === "string") {
+		if (!valid(type)) delete schema["type"];
+		return;
+	}
+	if (!Array.isArray(type)) {
+		delete schema["type"];
+		return;
+	}
+	const kept = type.filter(valid);
+	if (kept.length === 0) {
+		delete schema["type"];
+		return;
+	}
+	if (kept.length === type.length) return;
+	schema["type"] = kept.length === 1 ? kept[0] : kept;
+}
+/** The `type` values JSON Schema defines. */
+const JSON_SCHEMA_TYPES = /* @__PURE__ */ new Set([
+	"array",
+	"boolean",
+	"integer",
+	"null",
+	"number",
+	"object",
+	"string"
+]);
+/** Keywords whose value must be a string. */
+const SCHEMA_STRING_KEYWORDS = [
+	"title",
+	"description",
+	"pattern",
+	"format",
+	"$comment",
+	"contentMediaType",
+	"contentEncoding",
+	"$id",
+	"$schema",
+	"$anchor",
+	"$dynamicAnchor",
+	"$dynamicRef"
+];
+/** Keywords whose value must be a number. */
+const SCHEMA_NUMBER_KEYWORDS = [
+	"minimum",
+	"maximum",
+	"exclusiveMinimum",
+	"exclusiveMaximum",
+	"multipleOf",
+	"minLength",
+	"maxLength",
+	"minItems",
+	"maxItems",
+	"minProperties",
+	"maxProperties",
+	"minContains",
+	"maxContains"
+];
+/** Keywords whose value must be a boolean. */
+const SCHEMA_BOOLEAN_KEYWORDS = [
+	"uniqueItems",
+	"readOnly",
+	"writeOnly",
+	"deprecated"
+];
+/**
+* Keywords whose value must be a NON-EMPTY array of schemas.
+*
+* Measured: an empty `allOf` / `anyOf` / `oneOf` / `prefixItems` is refused
+* (`11129`), while an empty `required` / `enum` / `examples` is ACCEPTED. Only
+* these four are repaired, so a legal empty `required: []` keeps its bytes —
+* which also keeps 5.24.2's "empty required string becomes `[]`" behaviour
+* intact instead of turning it into an absent keyword.
+*/
+const SCHEMA_LIST_KEYWORDS = [
+	"allOf",
+	"anyOf",
+	"oneOf",
+	"prefixItems"
+];
+/**
+* Keywords whose value must be an array, where an EMPTY array is legal.
+*
+* `enum` and `examples` are accepted empty and NOT accepted as a scalar;
+* `required` is accepted empty. Split from {@link SCHEMA_LIST_KEYWORDS} because
+* that one also drops empties, which is wrong for these.
+*/
+const SCHEMA_STRING_LIST_KEYWORDS = [
+	"required",
+	"enum",
+	"examples"
+];
+/**
+* Convert draft-4's tuple `items` into the 2020-12 spelling.
+*
+* A tuple `items` is a LIST; the modern spec splits it into `prefixItems` (the
+* per-position schemas, same order) plus `items` (the schema for everything
+* past the end). An explicit additionalItems boolean or schema remains the
+* tail constraint, including an empty tuple. An unspecified tail remains open.
+*
+* Measured: `prefixItems` + `items: {}` answers 200 on `deepseek-v4.1-flash`,
+* `deepseek-v4-pro`, `glm-5.3`, `kimi-k3.1-pro` and `mimo-v2.6-pro` — the five
+* strictest models in the catalog — and on every model that accepted the tuple
+* form already.
+*/
+function normalizeItems(schema) {
+	const items = schema["items"];
+	if (!Array.isArray(items)) return;
+	if (items.length === 0) {
+		const userPrefix = schema["prefixItems"];
+		if (Array.isArray(userPrefix) && userPrefix.length > 0) schema["prefixItems"] = userPrefix;
+		else delete schema["prefixItems"];
+	} else if (schema["prefixItems"] === void 0) schema["prefixItems"] = items;
+	const tail = schema["additionalItems"];
+	schema["items"] = typeof tail === "boolean" || typeof tail === "object" && tail !== null && !Array.isArray(tail) ? tail : {};
+	delete schema["additionalItems"];
+}
+/**
+* Rewrite a draft-4 BOOLEAN exclusive bound into the numeric form.
+*
+* Draft-4: `{minimum: 0, exclusiveMinimum: true}` means "greater than 0".
+* 2020-12: `{exclusiveMinimum: 0}` means the same. The value is therefore
+* DERIVED from the sibling bound — and when that sibling is absent or not a
+* finite number there is nothing to derive, so the key is dropped.
+*
+* Dropping is the safe direction: it WEAKENS a constraint the upstream already
+* could not read, and every request that fails today fails on the shape, not on
+* the constraint. Inventing `0` would attach a bound the caller never wrote.
+*/
+function normalizeExclusiveBound(schema, exclusiveKey, boundKey) {
+	if (schema[exclusiveKey] !== true) {
+		if (schema[exclusiveKey] === false) delete schema[exclusiveKey];
+		return;
+	}
+	const bound = schema[boundKey];
+	if (typeof bound === "number" && Number.isFinite(bound)) {
+		schema[exclusiveKey] = bound;
+		delete schema[boundKey];
+		return;
+	}
+	delete schema[exclusiveKey];
+}
+/**
+* Force `required` into the de-duplicated string array the upstream accepts.
+*
+* A non-array `required` is not JSON Schema at all, so there is no "faithful"
+* conversion for it: a string is read as one property name, and anything else
+* (a number, `null`) carries no names and is dropped. Duplicates are removed
+* because the upstream refuses them (measured) and they never meant anything:
+* `required` is a set.
+*/
+function normalizeRequired(schema) {
+	const required = schema["required"];
+	if (required === void 0) return;
+	if (typeof required === "string") {
+		schema["required"] = required === "" ? [] : [required];
+		return;
+	}
+	if (!Array.isArray(required)) {
+		delete schema["required"];
+		return;
+	}
+	const names = [];
+	for (const entry of required) {
+		if (typeof entry !== "string" || names.includes(entry)) continue;
+		names.push(entry);
+	}
+	if (names.length === required.length) return;
+	schema["required"] = names;
+}
+/**
+* Remove an EXTERNAL `$ref`, which the upstream refuses, while leaving internal
+* ones alone.
+*
+* `#/…` is a reference into the same document and is accepted (measured on the
+* recursive `$defs` shape of `stagehand_extract`, and on the host's whole
+* catalog). Anything with a URI part is not resolvable by the upstream at all,
+* so the pointer is deleted in place: the object degrades to "any value", which
+* accepts more than the original said rather than rejecting a valid call.
+*
+* A sibling `description` / `title` / `default` is kept — deleting the whole
+* object would throw away author documentation along with the reference.
+*/
+function dropExternalRef(schema) {
+	const ref = schema["$ref"];
+	if (typeof ref !== "string" || ref === "") return;
+	if (ref.startsWith("#")) return;
+	delete schema["$ref"];
 }
 /**
 * What a PREPARED request body declares, as the input to DSML recovery.
@@ -5553,6 +6787,72 @@ function selectCliModels(rawModels, agents, keepIds = []) {
 	return resolved;
 }
 /**
+* Merge two rosters by model id, keeping the PRIMARY entry for every id both
+* documents publish.
+*
+* Exists because the global `/v3/config` answers a different roster per client
+* channel and NEITHER channel is a superset of the other — measured on a real
+* global account 2026-11-06:
+*
+*   - desktop-only: `max-model`, `hy4free`, `hy4std`
+*   - CLI-only:     `fast-model`, `balanced-model`, `primary-model`,
+*                   `deepseek-v4.1-flash`, `hy4-preview`, `gpt-5.5`, `gpt-5.4`,
+*                   `glm-5.2`
+*   - common (20):  `deepseek-v4.1-flash-sg` is priced differently per channel
+*                   (desktop `x0.11`, CLI `x0.03`); the other 18 agree.
+*
+* The caller passes the CLI roster as PRIMARY because the plugin chats as the
+* CLI agent, so the CLI document is the one whose prices are actually settled
+* when a request is made. Rows only the app document carries are appended, so
+* the desktop-only `hy4free`/`hy4std` keep working — both answer HTTP 200 over
+* the CLI chat channel.
+*
+* `max-model` is appended too even though the provider rejects it for personal
+* accounts (`11133`): that veto belongs to the upstream at request time, and
+* hiding a row the user can see in the app is the defect this merge fixes.
+*/
+function mergeModelRosters(primary, secondary) {
+	const byId = /* @__PURE__ */ new Map();
+	for (const model of primary) byId.set(model.id, model);
+	const merged = [...primary];
+	for (const model of secondary) {
+		const existing = byId.get(model.id);
+		if (existing === void 0) {
+			byId.set(model.id, model);
+			merged.push(model);
+			continue;
+		}
+		/**
+		* THE ID COLLIDED — and a plain id-dedup here silently deleted badges.
+		*
+		* `attachPromos` hangs a promotion on the MODEL OBJECT, so for a row both
+		* documents publish, "which one survived" decides "does this row have a
+		* badge". The two global documents are read through DIFFERENT client
+		* channels: the app channel publishes `modelPromotions` / `modelTiers`, the
+		* CLI channel publishes NEITHER (see the `fetchModels` docblock — reading
+		* `/v3/config` as the CLI channel is the documented cause of an
+		* entirely badge-less card). The caller passes the CLI roster as PRIMARY
+		* because its PRICES are the settled ones, so keeping the primary row —
+		* correct for prices — was also throwing away every badge the app document
+		* carried for those 20 shared ids.
+		*
+		* So: keep the primary's fields (prices stay the CLI's) and graft on the
+		* secondary's promotions when the primary has none. Merging is not
+		* "pick a winner for the whole row"; these two facts are independent.
+		*/
+		if ((existing.promos === void 0 || existing.promos.length === 0) && model.promos !== void 0 && model.promos.length > 0) {
+			const index = merged.indexOf(existing);
+			const grafted = {
+				...existing,
+				promos: model.promos
+			};
+			if (index !== -1) merged[index] = grafted;
+			byId.set(model.id, grafted);
+		}
+	}
+	return merged;
+}
+/**
 * The roster plus the promotion badges the SAME document carries.
 *
 * `data.modelPromotions` and `data.modelTiers` sit beside `data.models` in
@@ -5650,8 +6950,17 @@ var WorkBuddyUpstreamClient = class {
 	deviceProfiles;
 	/** 真实值档的 token 源（本机安装的桌面端 SDK）；未接线时为 undefined。 */
 	realDevice;
+	/**
+	* CN 网关 base（issue #220）。空 = 用内置常量，即 #220 之前的行为逐字节不变。
+	*
+	* 只影响 CN 区域：国际版仍然跟随凭据自己的域（`workbuddy.ai` /
+	* `codebuddy.ai`），因为国际 token 跨品牌互不通用，那里没有"换一个同构主机"
+	* 这回事。返回值必须已由 `resolveCnGateway` 的允许清单校验过，这个类不重新校验。
+	*/
+	cnBaseOf;
 	constructor(onFallback, identity = {}, options = {}) {
 		this.onFallback = onFallback;
+		this.cnBaseOf = options.cnBase === void 0 ? () => "" : options.cnBase;
 		this.baseIdentity = resolveWireIdentity(identity);
 		this.deviceProfiles = options.deviceProfiles;
 		this.realDevice = options.realDevice;
@@ -5714,11 +7023,12 @@ var WorkBuddyUpstreamClient = class {
 		};
 	}
 	/** POST the chat endpoint; a successful answer is the raw SSE response. */
-	async chatStream(credential, bodyJson, signal) {
+	async chatStream(credential, bodyJson, signal, sessionConversationId) {
 		let response;
 		try {
+			const identity = await this.wireIdentity(credential);
 			const headers = {
-				...chatHeaders(credential, await this.wireIdentity(credential)),
+				...chatHeaders(credential, identity, sessionConversationId !== void 0 && sessionConversationId !== "" ? sessionConversationId : identity.stableConversationId === true ? deriveStableConversationId(bodyJson) : void 0),
 				"Authorization": `Bearer ${credential.accessToken}`
 			};
 			if (signal?.aborted === true) return {
@@ -5727,7 +7037,7 @@ var WorkBuddyUpstreamClient = class {
 				kind: "server",
 				message: "cancelled before send"
 			};
-			response = await fetch(`${chatBase(credential)}/v2/chat/completions`, {
+			response = await fetch(`${chatBase(credential, this.cnBaseOf())}/v2/chat/completions`, {
 				method: "POST",
 				headers,
 				body: bodyJson,
@@ -5805,7 +7115,7 @@ var WorkBuddyUpstreamClient = class {
 			ceiling.abort(/* @__PURE__ */ new Error(`no response within ${PROBE_TIMEOUT_MS}ms`));
 		}, PROBE_TIMEOUT_MS);
 		try {
-			response = await fetch(`${chatBase(credential)}/v2/chat/completions`, {
+			response = await fetch(`${chatBase(credential, this.cnBaseOf())}/v2/chat/completions`, {
 				method: "POST",
 				headers,
 				body: bodyJson,
@@ -5838,7 +7148,7 @@ var WorkBuddyUpstreamClient = class {
 	}
 	/** POST the token-refresh endpoint; the caller merges the outcome. */
 	async refreshToken(credential) {
-		const response = await fetch(`${chatBase(credential)}/v2/plugin/auth/token/refresh`, {
+		const response = await fetch(`${chatBase(credential, this.cnBaseOf())}/v2/plugin/auth/token/refresh`, {
 			method: "POST",
 			headers: refreshHeaders(credential),
 			signal: AbortSignal.timeout(JSON_TIMEOUT_MS)
@@ -5885,26 +7195,62 @@ var WorkBuddyUpstreamClient = class {
 	async fetchModels(credential, signal, keepModelIds = []) {
 		const timeout = signal ?? AbortSignal.timeout(JSON_TIMEOUT_MS);
 		if (regionOf(credential.domain) === "global") {
-			const response = await fetch(`${globalBase(credential.domain)}${GLOBAL_CONFIG_PATH}`, {
-				headers: {
-					"Authorization": `Bearer ${credential.accessToken}`,
-					"Accept": "application/json",
-					...credential.uid === "" ? {} : { "X-User-Id": credential.uid },
-					...credential.domain === "" ? {} : { "X-Domain": credential.domain },
-					"X-Product": "SaaS",
-					"X-Requested-With": "XMLHttpRequest",
-					"Connection": "close",
-					"User-Agent": PRODUCT_UA
-				},
-				signal: timeout
-			});
-			const envelope = await readEnvelope(response);
-			if (!response.ok || envelope.code !== 0) throw envelopeError(response.status, envelope);
-			const data = typeof envelope.data === "object" && envelope.data !== null ? envelope.data : {};
-			return withPromos(selectCliModels(data["models"], data["agents"], keepModelIds), data);
+			/**
+			* Read the global product configuration ONCE per client channel, then
+			* merge. Both reads are the same endpoint and differ ONLY in
+			* `User-Agent`, which is the header that selects the channel; both are
+			* read-only GETs that spend no credits.
+			*
+			* Neither document is a superset of the other (see
+			* {@link mergeModelRosters}), so reading one of them is what left the
+			* CLI's own free `deepseek-v4.1-flash` row invisible while it was
+			* perfectly usable through this plugin's chat path.
+			*/
+			const readChannel = async (userAgent) => {
+				const response = await fetch(`${globalBase(credential.domain)}${GLOBAL_CONFIG_PATH}`, {
+					headers: {
+						"Authorization": `Bearer ${credential.accessToken}`,
+						"Accept": "application/json",
+						...credential.uid === "" ? {} : { "X-User-Id": credential.uid },
+						...credential.domain === "" ? {} : { "X-Domain": credential.domain },
+						"X-Product": "SaaS",
+						"X-Requested-With": "XMLHttpRequest",
+						"Connection": "close",
+						"User-Agent": userAgent
+					},
+					signal: timeout
+				});
+				const envelope = await readEnvelope(response);
+				if (!response.ok || envelope.code !== 0) throw envelopeError(response.status, envelope);
+				const data = typeof envelope.data === "object" && envelope.data !== null ? envelope.data : {};
+				return withPromos(selectCliModels(data["models"], data["agents"], keepModelIds), data);
+			};
+			/**
+			* Fail-soft in ONE direction only. If the CLI read fails the app document
+			* alone is still a usable roster, so fall back to it rather than
+			* disarming the provider. If the APP read fails the CLI roster is already
+			* a complete answer and is returned as-is — reported through
+			* `onFallback` rather than swallowed, because the desktop-only rows then
+			* disappear from the picker and that is worth a log line.
+			*/
+			let cliRoster;
+			try {
+				cliRoster = await readChannel(CATALOG_CLI_UA);
+			} catch (error) {
+				this.onFallback?.(`global CLI catalog ${GLOBAL_CONFIG_PATH} failed; using the app document only: ` + (error instanceof Error ? error.message : String(error)));
+				return await readChannel(APP_CHANNEL_UA);
+			}
+			let appRoster;
+			try {
+				appRoster = await readChannel(APP_CHANNEL_UA);
+			} catch (error) {
+				this.onFallback?.(`global app catalog ${GLOBAL_CONFIG_PATH} failed; using the CLI document only: ` + (error instanceof Error ? error.message : String(error)));
+				return cliRoster;
+			}
+			return mergeModelRosters(cliRoster, appRoster);
 		}
 		const readCatalog = async (path) => {
-			const response = await fetch(`${chatBase(credential)}${path}`, {
+			const response = await fetch(`${chatBase(credential, this.cnBaseOf())}${path}`, {
 				headers: {
 					"Authorization": `Bearer ${credential.accessToken}`,
 					"Accept": "application/json",
@@ -5940,7 +7286,7 @@ var WorkBuddyUpstreamClient = class {
 	async fetchModelBusy(credential, modelIds, signal) {
 		const levels = /* @__PURE__ */ new Map();
 		for (const batch of batchModelIds(modelIds)) {
-			const response = await fetch(`${chatBase(credential)}${MODEL_BUSY_PATH}`, {
+			const response = await fetch(`${chatBase(credential, this.cnBaseOf())}${MODEL_BUSY_PATH}`, {
 				method: "POST",
 				headers: {
 					...legacyCommonHeaders(credential),
@@ -5981,14 +7327,26 @@ var WorkBuddyUpstreamClient = class {
 	* `/v3`，聊天目录会降级而这里不能变成一个原始异常。
 	*/
 	async fetchMediaModels(credential, signal) {
+		/**
+		* The media roster is read from the APP document, so it must use that
+		* document's own channel per region.
+		*
+		* This was a single constant, and the global read silently lost
+		* `hy-image-3.5` as a result: on the global gateway {@link PRODUCT_UA}
+		* answers the 39-model third document, which carries `kling-video-v3` but
+		* NOT the image model — so the image tool reported "this gateway publishes
+		* no image model" for an account whose app offers one. CN keeps
+		* {@link PRODUCT_UA} untouched; there it is the correct app channel.
+		*/
+		const mediaChannelUA = regionOf(credential.domain) === "global" ? APP_CHANNEL_UA : PRODUCT_UA;
 		const readMedia = async (path) => {
-			const response = await fetch(`${chatBase(credential)}${path}`, {
+			const response = await fetch(`${chatBase(credential, this.cnBaseOf())}${path}`, {
 				headers: {
 					"Authorization": `Bearer ${credential.accessToken}`,
 					"Accept": "application/json",
 					"Origin": originReferer(credential),
 					"Referer": `${originReferer(credential)}/`,
-					"User-Agent": PRODUCT_UA
+					"User-Agent": mediaChannelUA
 				},
 				signal: signal ?? AbortSignal.timeout(JSON_TIMEOUT_MS)
 			});
@@ -6017,7 +7375,7 @@ var WorkBuddyUpstreamClient = class {
 	* HTTP 200 但信封 `code !== 0` 由 {@link parseImageResponse} 处理。
 	*/
 	async generateImage(credential, request, signal) {
-		const response = await fetch(`${chatBase(credential)}${IMAGE_GENERATIONS_PATH}`, {
+		const response = await fetch(`${chatBase(credential, this.cnBaseOf())}${IMAGE_GENERATIONS_PATH}`, {
 			method: "POST",
 			headers: imageHeaders(credential, await this.wireIdentity(credential)),
 			body: JSON.stringify(buildImageBody(request)),
@@ -6046,7 +7404,7 @@ var WorkBuddyUpstreamClient = class {
 	*/
 	async editImage(credential, request, signal) {
 		if (request.image.length === 0) throw new WorkBuddyImageError("workbuddy image: 改图请求缺少输入图（image 数组为空）。", "INVALID_ARGS");
-		const response = await fetch(`${chatBase(credential)}${IMAGE_EDITS_PATH}`, {
+		const response = await fetch(`${chatBase(credential, this.cnBaseOf())}${IMAGE_EDITS_PATH}`, {
 			method: "POST",
 			headers: imageHeaders(credential, await this.wireIdentity(credential)),
 			body: JSON.stringify(buildEditBody(request)),
@@ -6087,7 +7445,7 @@ var WorkBuddyUpstreamClient = class {
 			aspectRatio: request.aspectRatio,
 			enableAudio: request.enableAudio
 		}, isImageToVideo);
-		const response = await fetch(`${chatBase(credential)}${VIDEO_GENERATIONS_PATH}`, {
+		const response = await fetch(`${chatBase(credential, this.cnBaseOf())}${VIDEO_GENERATIONS_PATH}`, {
 			method: "POST",
 			headers: imageHeaders(credential, await this.wireIdentity(credential)),
 			body: JSON.stringify(body),
@@ -6123,7 +7481,7 @@ var WorkBuddyUpstreamClient = class {
 			if (Date.now() - startedAt > VIDEO_POLL_TIMEOUT_MS) throw new WorkBuddyVideoError(`workbuddy video: 轮询超过 ${VIDEO_POLL_TIMEOUT_MS / 1e3} 秒仍未完成（task ${taskId}）。`, "POLL_TIMEOUT");
 			let payload;
 			try {
-				const response = await fetch(`${chatBase(credential)}${VIDEO_TASKS_PATH}`, {
+				const response = await fetch(`${chatBase(credential, this.cnBaseOf())}${VIDEO_TASKS_PATH}`, {
 					method: "POST",
 					headers: imageHeaders(credential, await this.wireIdentity(credential)),
 					body: JSON.stringify({ task_id: taskId }),
@@ -6148,7 +7506,7 @@ var WorkBuddyUpstreamClient = class {
 					...result.credit !== void 0 ? { credit: result.credit } : {}
 				};
 			}
-			if (result.status === "failed") throw new WorkBuddyVideoError(`workbuddy video: 生视频任务失败（task ${taskId}）。`, "TASK_FAILED");
+			if (result.status === "failed") throw new WorkBuddyVideoError(`workbuddy video: 生视频任务失败（task ${taskId}）。` + (result.detail === void 0 ? "上游没有给出任何原因字段。" : ` 上游返回的额外字段：${result.detail}`), "TASK_FAILED");
 			await new Promise((resolve, reject) => {
 				const timer = setTimeout(resolve, VIDEO_POLL_INTERVAL_MS);
 				const onAbort = () => {
@@ -6181,7 +7539,7 @@ var WorkBuddyUpstreamClient = class {
 	}
 	/** Query today's check-in status without changing account state. */
 	async fetchCheckinStatus(credential) {
-		const response = await fetch(`${billingBase(credential)}/v2/billing/meter/checkin-activity-status`, {
+		const response = await fetch(`${billingBase(credential, this.cnBaseOf())}/v2/billing/meter/checkin-activity-status`, {
 			method: "POST",
 			headers: billingHeaders(credential, await this.wireIdentity(credential)),
 			body: "{}",
@@ -6234,7 +7592,7 @@ var WorkBuddyUpstreamClient = class {
 	}
 	/** One benefit status endpoint. Throws on anything that is not a clean `code: 0`. */
 	async readBenefitStatus(kind, credential, path) {
-		const response = await fetch(`${billingBase(credential)}${path}`, {
+		const response = await fetch(`${billingBase(credential, this.cnBaseOf())}${path}`, {
 			method: "POST",
 			headers: billingHeaders(credential, await this.wireIdentity(credential)),
 			body: "{}",
@@ -6279,7 +7637,7 @@ var WorkBuddyUpstreamClient = class {
 	* that silently did nothing still cannot leave the card saying 待领取.
 	*/
 	async claimBenefit(credential, kind) {
-		const response = await fetch(`${billingBase(credential)}${BENEFIT_CLAIM_PATHS[kind]}`, {
+		const response = await fetch(`${billingBase(credential, this.cnBaseOf())}${BENEFIT_CLAIM_PATHS[kind]}`, {
 			method: "POST",
 			headers: billingHeaders(credential, await this.wireIdentity(credential)),
 			body: "{}",
@@ -6290,7 +7648,7 @@ var WorkBuddyUpstreamClient = class {
 	}
 	/** Claim today's check-in reward. The browser route guards this mutation. */
 	async claimDailyCheckin(credential) {
-		const response = await fetch(`${billingBase(credential)}/v2/billing/meter/daily-checkin`, {
+		const response = await fetch(`${billingBase(credential, this.cnBaseOf())}/v2/billing/meter/daily-checkin`, {
 			method: "POST",
 			headers: billingHeaders(credential, await this.wireIdentity(credential)),
 			body: "{}",
@@ -6327,7 +7685,7 @@ var WorkBuddyUpstreamClient = class {
 	*          reporting zero).
 	*/
 	async fetchEnterpriseCredits(credential) {
-		const response = await fetch(`${billingBase(credential)}/billing/meter/get-enterprise-user-usage`, {
+		const response = await fetch(`${billingBase(credential, this.cnBaseOf())}/billing/meter/get-enterprise-user-usage`, {
 			method: "POST",
 			headers: billingHeaders(credential, await this.wireIdentity(credential)),
 			body: JSON.stringify({}),
@@ -6376,7 +7734,7 @@ var WorkBuddyUpstreamClient = class {
 			date.getMinutes().toString().padStart(2, "0"),
 			date.getSeconds().toString().padStart(2, "0")
 		].join(":");
-		const response = await fetch(`${billingBase(credential)}/v2/billing/meter/get-user-resource`, {
+		const response = await fetch(`${billingBase(credential, this.cnBaseOf())}/v2/billing/meter/get-user-resource`, {
 			method: "POST",
 			headers: billingHeaders(credential, await this.wireIdentity(credential)),
 			body: JSON.stringify({
@@ -6811,12 +8169,24 @@ function isVaultCredentialFileName(name) {
 /** Current on-disk format of the vault; readers reject others. */
 const VAULT_FORMAT_VERSION = 1;
 /**
+* 鸿蒙上用户可见的家目录。
+*
+* `os.homedir()` 在鸿蒙上返回的是**应用沙箱**
+* (`/data/storage/el2/base/haps/entry/files`)，不是用户目录，所以不能像
+* linux 那样由 `home` 派生。真实凭据落在 `/storage/Users/currentUser` 下，
+* 这个挂载点由系统规定，不随应用变化。
+*/
+const OPENHARMONY_USER_HOME = "/storage/Users/currentUser";
+/**
 * Platform-default directories holding the WorkBuddy desktop app's auth file.
 *
 * Windows and Linux prefer the OS-issued env location and fall back to the
 * home-derived convention when it is unset, so a redirected profile (OneDrive
 * folder backup, enterprise policy) still resolves. macOS has no equivalent
 * env variable; the single Application Support path is used as-is.
+*
+* 鸿蒙（issue #190）没有 `homedir()` 可用——它返回应用沙箱，所以那条分支用
+* 系统固定挂载点。Linux 会同时看 XDG 的 data 与 config 两套目录。
 *
 * `platform`, `home`, and `env` are injectable so the platform branches are
 * testable on any host without touching a real machine.
@@ -6828,9 +8198,41 @@ function defaultDesktopAuthDirs(platform = process.platform, home = homedir(), e
 		const roaming = nonEmptyEnv(env["APPDATA"]) ?? join(home, "AppData", "Roaming");
 		return [join(local, "CodeBuddyExtension", "Data", "Public", "auth"), join(roaming, "CodeBuddyExtension", "Data", "Public", "auth")];
 	}
+	/**
+	* 鸿蒙（issue #190）。
+	*
+	* 走 XDG 的 `~/.local/share` 形状，但 `~` **不能**用 `homedir()`——那是
+	* 沙箱路径。用系统固定挂载点，并允许 `WORKBUDDY_USER_HOME` 覆盖（未来的
+	* 多用户或不同发行版挂法）。
+	*
+	* 没有这个分支时落到 `return []`，卡片连一个候选路径都扫不到，账号池恒为 0，
+	* 而 `doctor` 只会说"no platform default; set WORKBUDDY_AUTH_FILE"——
+	* 把一个本该自动完成的事推给用户。
+	*/
+	if (platform === "openharmony") {
+		const root = nonEmptyEnv(env["WORKBUDDY_USER_HOME"]) ?? OPENHARMONY_USER_HOME;
+		return [posix.join(root, ".local", "share", "CodeBuddyExtension", "Data", "Public", "auth")];
+	}
 	if (platform === "linux") {
+		/**
+		* Linux 同时看 XDG 的**两套**目录（issue #190 附带发现）。
+		*
+		* `Data/Public/auth` 是**数据**，按 XDG 惯例该在 `$XDG_DATA_HOME`
+		* （缺省 `~/.local/share`）下；而这里原先只读 `$XDG_CONFIG_HOME`
+		* （缺省 `~/.config`）。issue #190 的报告机器与鸿蒙实测都指向
+		* `.local/share`，所以两套都给。
+		*
+		* ⚠️ **`.config` 仍然排在前面**，也就是探测顺序与改动前完全一致。
+		* 理由：README §平台支持写明"其余候选仍未经真机逐项验证"，Linux 从来没有
+		* 真机证据；把 data 提到前面会改变"没设 WORKBUDDY_AUTH_FILE 时用哪一个"
+		* 这个已经上线的行为，而换来的收益尚无证据。这里只做**加法**：多一个候选，
+		* 不动已有的顺序，老用户的行为一个字节都不变。
+		*
+		* 两个目录都不存在时与以前一致：扫不到，回落 `WORKBUDDY_AUTH_FILE`。
+		*/
 		const config = nonEmptyEnv(env["XDG_CONFIG_HOME"]) ?? join(home, ".config");
-		return [join(config, "CodeBuddyExtension", "Data", "Public", "auth")];
+		const data = nonEmptyEnv(env["XDG_DATA_HOME"]) ?? join(home, ".local", "share");
+		return [join(config, "CodeBuddyExtension", "Data", "Public", "auth"), join(data, "CodeBuddyExtension", "Data", "Public", "auth")];
 	}
 	return [];
 }
@@ -7167,34 +8569,51 @@ async function readVaultEntries(dir) {
 * to persist a credential because an ACL call failed would turn it into an
 * outage. `doctor` reports the outcome so a machine where it failed is visible.
 * On POSIX this call is a no-op, and `mode` below carries the same intent.
+*
+* WHICH directory gets hardened is decided by {@link vaultRootToHarden}, not by
+* a bare `dirname(dir)` — see the issue #208 note there.
 */
 async function writeVaultEntry(dir, accountId, credential, refreshedFrom) {
 	const path = join(dir, `${accountId}.json`);
-	/**
-	* Harden the vault ROOT, which also hardens this region's directory and sweeps
-	* the files already inside (issue #183).
-	*
-	* The root, not just `dir`: `dir` is `<vault>/<region>`, and the root is what
-	* carries the inherited `Everyone: FullControl` from `~/.dsh`. Leaving the
-	* root widened would let any local process delete or replace the region
-	* directory itself, which defeats the file-level restriction inside it.
-	*
-	* BEFORE the write, so the commit's temp inode — and the file it is renamed
-	* over — inherit the hardened ACEs instead of the widened ones. A file-level
-	* pass AFTER the write would leave the pre-rename window open and would be
-	* lost by the next atomic replace, which creates a fresh inode each time.
-	*
-	* Memoized per directory per process, so the second account costs nothing: see
-	* the cost model in `src/windows-acl.ts` for why the per-write budget matters
-	* here.
-	*/
-	await protectCredentialDirectory(dirname(dir));
+	await protectCredentialDirectory(vaultRootToHarden(dir));
 	await withFileLock(path, async () => {
 		await writeFileAtomic(path, `${JSON.stringify(vaultDocument(credential, accountId, refreshedFrom), null, 2)}\n`, {
 			mode: 384,
 			dirMode: 448
 		});
 	});
+}
+/**
+* The directory {@link writeVaultEntry} hardens: the vault ROOT, not this
+* entry's own directory (issue #183), and never the Harness home (issue #208).
+*
+* WHY THE ROOT. `Everyone: FullControl` is inherited from `~/.dsh` onto
+* `…/workbuddy-vault`; hardening only `<vault>/<region>` would leave the root
+* writable, so any local process could replace the region directory itself and
+* defeat the restriction inside it. Hardening the root propagates down the
+* whole tree in one `icacls` call (measured on a real host: one call on the
+* root left the root, both region directories AND the files inside with exactly
+* the three intended ACEs).
+*
+* WHY NOT ALWAYS `dirname(dir)` — THE ISSUE #208 DEFECT. That shape assumes
+* `dir` is `<vault>/<region>`. It is not for the UNREGIONED store, whose vault
+* directory IS `<DSH home>/workbuddy-vault`; `dirname` then yields `<DSH home>`
+* itself, and `/inheritance:r` there strips the ACEs every other directory
+* under the home inherits. A reporter hit exactly that: `<DSH home>/attachments`
+* became unreadable (EPERM on `scandir`) and every image send failed with the
+* host's unrelated `prompt rejected (session/agent-busy)`. `doctor` reaches
+* this path because it builds an unregioned store.
+*
+* So the parent is used only when it is genuinely a vault root — i.e. NOT the
+* Harness home. When `dir` already IS the vault root, `dir` is the right
+* target. `src/windows-acl.ts` independently refuses the home and its
+* ancestors, which covers an injected `vaultDir` and any future call site that
+* computes this one level too high; this function is what keeps the CORRECT
+* call from relying on that backstop.
+*/
+function vaultRootToHarden(dir) {
+	const parent = dirname(dir);
+	return resolve(parent) === resolve(resolveDshHome()) ? dir : parent;
 }
 /**
 * Probe one auth file, reporting WHY it yielded no credential.
@@ -7664,6 +9083,34 @@ var WorkBuddyCredentialStore = class {
 		const credentials = await this.readAll();
 		if (credentials.length === 0) return false;
 		return !credentials.some((credential) => workbuddyAccountId(credential) === this.accountId);
+	}
+	/**
+	* Why the vault could not be read, when it could not (issue #199).
+	*
+	* `syncVault` deliberately swallows a failed `readVaultEntries` so account
+	* discovery stays up — the right call for availability, the wrong call for
+	* honesty: the user then sees the SAVED account reported as "no longer on
+	* this machine" when the truth is "this process may not read the directory".
+	* The issue #199 lockout (foreign owner + `/inheritance:r`) produces exactly
+	* that shape: readdir EPERM while per-path readFile still works, so nothing
+	* else in the diagnostics reports the directory either.
+	*
+	* A dedicated readdir probe rather than a field recorded during the scan:
+	* the scan is shared/cached (`scanInflight`), its failure is transient by
+	* design, and a probe here is one cheap readdir on a path that is already
+	* failing — the error string is the fact the card needs.
+	*
+	* Returns the raw error message, or `undefined` when the directory reads
+	* (including the absent case, which is normal before the first OAuth add).
+	*/
+	async vaultReadError() {
+		try {
+			await readdir(this.vaultDir());
+			return;
+		} catch (error) {
+			if (isENOENT(error)) return void 0;
+			return error instanceof Error ? error.message : String(error);
+		}
 	}
 	/** The freshest stored credential for the current selection, no refresh. */
 	async current() {
@@ -8173,141 +9620,143 @@ const FALLBACK_WORKBUDDY_MODELS = [
 * expose different rosters — the CN list has no `gpt-*`/`gemini-*` entries —
 * so a global account must never be seeded with the CN list. Like the CN
 * fallback this is replaced by the live refresh; it only keeps the provider
-* usable before the first fetch lands. Order and rates mirror the upstream.
+* usable before the first fetch lands. Order mirrors the upstream.
+*
+* ⚠️ IT CARRIES NO `creditMultiplier`, AND THAT IS THE FIX FOR ISSUE #214.
+* This list used to hardcode one rate per model, captured on 2026-09-11. The
+* upstream moves those rates — the reporter measured `glm-5.3` at x0.69 and
+* `hy4-preview` at x0.29 on 2026-11-04 against the x0.79 / x0.00 written
+* here — so every captured rate aged into a WRONG PRICE. Worse, the overlay
+* rule (`overlayLiveCapabilities`: the live side owns `creditMultiplier`)
+* meant this table WON over the user's saved directory whenever the catalog
+* still held it, which is exactly the reported symptom: the card showed the
+* built-in table's figures, not the saved ones and not the upstream's.
+*
+* A price is a FACT ABOUT NOW, and this module never learns "now": it is the
+* offline placeholder, written once and never refreshed. So it must not
+* assert a price at all. An absent multiplier renders as "no rate" — the
+* honest answer — and `pickFreeModel` deliberately treats absence as NOT
+* free, so the account pool can never probe a paid model by mistake. The CN
+* table has always been shaped this way for the same reason.
+*
+* The ROSTER (ids, names, windows) stays: that is what keeps the provider
+* non-empty while the first fetch is in flight, and an id list ages far
+* more slowly than a price list.
 */
 const FALLBACK_WORKBUDDY_MODELS_GLOBAL = [
 	{
 		id: "fast-model",
 		name: "Fast",
 		contextWindow: 2e5,
-		maxTokens: 32e3,
-		creditMultiplier: .34
+		maxTokens: 32e3
 	},
 	{
 		id: "balanced-model",
 		name: "Balanced",
 		contextWindow: 256e3,
-		maxTokens: 32e3,
-		creditMultiplier: .59
+		maxTokens: 32e3
 	},
 	{
 		id: "primary-model",
 		name: "Primary",
 		contextWindow: 272e3,
-		maxTokens: 72e3,
-		creditMultiplier: 3.31
+		maxTokens: 72e3
 	},
 	{
 		id: "deep-model",
 		name: "Deep",
 		contextWindow: 176e3,
-		maxTokens: 24e3,
-		creditMultiplier: 3.33
+		maxTokens: 24e3
 	},
 	{
 		id: "deepseek-v4.1-flash",
 		name: "Deepseek-V4.1-Flash",
 		contextWindow: 1e6,
-		maxTokens: 128e3,
-		creditMultiplier: 0
+		maxTokens: 128e3
 	},
 	{
 		id: "gpt-6-astra",
 		name: "GPT-6-Astra",
 		contextWindow: 1e6,
-		maxTokens: 128e3,
-		creditMultiplier: 6.67
+		maxTokens: 128e3
 	},
 	{
 		id: "hy4-preview",
 		name: "Hy4 preview",
 		contextWindow: 1e6,
-		maxTokens: 64e3,
-		creditMultiplier: 0
+		maxTokens: 64e3
 	},
 	{
 		id: "hy3",
 		name: "Hy3",
 		contextWindow: 192e3,
-		maxTokens: 64e3,
-		creditMultiplier: 0
+		maxTokens: 64e3
 	},
 	{
 		id: "gpt-5.6-sol",
 		name: "GPT-5.6-Sol",
 		contextWindow: 1e6,
-		maxTokens: 128e3,
-		creditMultiplier: 3.47
+		maxTokens: 128e3
 	},
 	{
 		id: "gpt-5.6-terra",
 		name: "GPT-5.6-Terra",
 		contextWindow: 1e6,
-		maxTokens: 128e3,
-		creditMultiplier: 1.39
+		maxTokens: 128e3
 	},
 	{
 		id: "gpt-5.6-luna",
 		name: "GPT-5.6-Luna",
 		contextWindow: 1e6,
-		maxTokens: 128e3,
-		creditMultiplier: .14
+		maxTokens: 128e3
 	},
 	{
 		id: "gpt-5.5",
 		name: "GPT-5.5",
 		contextWindow: 1e6,
-		maxTokens: 128e3,
-		creditMultiplier: 3.31
+		maxTokens: 128e3
 	},
 	{
 		id: "gpt-5.4",
 		name: "GPT-5.4",
 		contextWindow: 272e3,
-		maxTokens: 72e3,
-		creditMultiplier: 1.65
+		maxTokens: 72e3
 	},
 	{
 		id: "gpt-5.3-codex",
 		name: "GPT-5.3-Codex",
 		contextWindow: 272e3,
-		maxTokens: 72e3,
-		creditMultiplier: 1.25
+		maxTokens: 72e3
 	},
 	{
 		id: "gemini-3.5-flash",
 		name: "Gemini-3.5-Flash",
 		contextWindow: 1e6,
-		maxTokens: 65536,
-		creditMultiplier: .99
+		maxTokens: 65536
 	},
 	{
 		id: "glm-5.3",
 		name: "GLM-5.3",
 		contextWindow: 1e6,
-		maxTokens: 48e3,
-		creditMultiplier: .79
+		maxTokens: 48e3
 	},
 	{
 		id: "glm-5.2",
 		name: "GLM-5.2",
 		contextWindow: 1e6,
-		maxTokens: 48e3,
-		creditMultiplier: .79
+		maxTokens: 48e3
 	},
 	{
 		id: "kimi-k3",
 		name: "Kimi-K3",
 		contextWindow: 1e6,
-		maxTokens: 32e3,
-		creditMultiplier: 1.62
+		maxTokens: 32e3
 	},
 	{
 		id: "kimi-k2.6",
 		name: "Kimi-K2.6",
 		contextWindow: 256e3,
-		maxTokens: 32e3,
-		creditMultiplier: .52
+		maxTokens: 32e3
 	}
 ];
 /**
@@ -8385,6 +9834,13 @@ function deriveCatalog(catalog, enabled, budgets = {}) {
 var WorkBuddyCatalog = class {
 	models;
 	/**
+	* Whether {@link models} came from the upstream at least once.
+	*
+	* Starts `false`: the constructor seeds the static fallback, and that list
+	* must never be mistaken for a live answer (see {@link hasLiveRoster}).
+	*/
+	live = false;
+	/**
 	* Whether this region has any local sign-in. Defaults to `true` — the
 	* permissive direction — so a scan that has not run yet (or failed) keeps
 	* serving the fallback rather than blanking a region that may be fine.
@@ -8424,6 +9880,28 @@ var WorkBuddyCatalog = class {
 	current() {
 		return this.usable && this.enabled ? this.models : [];
 	}
+	/**
+	* Whether {@link current} is an UPSTREAM answer rather than the built-in
+	* fallback it was constructed with.
+	*
+	* This distinction is what keeps issue #32 fixed. `applySelection` passes
+	* `current()` into `configuredModels` as the live roster to fall back to, so
+	* a partial saved slot demotes to the live directory instead of the static
+	* list. But before the first refresh lands, `current()` IS the static list
+	* (the constructor seeds it), and `resolveRoster` cannot tell the two apart
+	* because it only sees a non-empty array. The result was the exact bug #32
+	* describes, reached from the other direction: a settings write arriving
+	* before the first catalog refresh let the STATIC roster masquerade as live,
+	* and `set()` then committed it — so a model that only exists upstream
+	* (`space-bunny`) vanished from the picker while the runtime still served it.
+	*
+	* Callers that use `current()` as a *live* answer must check this first. A
+	* caller that only wants "what would we advertise right now" does not need
+	* to: the fallback is the honest answer to that question.
+	*/
+	hasLiveRoster() {
+		return this.live;
+	}
 	/** Whether this region currently advertises any model. */
 	isRegionUsable() {
 		return this.usable;
@@ -8462,9 +9940,21 @@ var WorkBuddyCatalog = class {
 		this.enabled = enabled;
 		return true;
 	}
-	/** Replace the list; callers invalidate their adapter snapshot after this. */
-	set(models) {
+	/**
+	* Replace the list; callers invalidate their adapter snapshot after this.
+	*
+	* `origin` says where the list came from, and it is not cosmetic: only an
+	* `upstream` answer may mark the catalog live. `applySelection` also calls
+	* this on every settings write — including before the first refresh has
+	* landed — and the list it passes then is the static fallback. Letting that
+	* count as live is what re-opened issue #32 (see {@link hasLiveRoster}).
+	*
+	* The default is `'upstream'` so every pre-existing call site keeps meaning
+	* what it meant; only the re-derivation path opts into `'derived'`.
+	*/
+	set(models, origin = "upstream") {
 		if (models.length === 0) throw new Error("workbuddy model catalog cannot be empty");
+		if (origin === "upstream") this.live = true;
 		this.models = models.map((model) => ({ ...model }));
 	}
 };
@@ -9032,7 +10522,9 @@ function createDeviceSdkPort(options) {
 			await options.sdk.tokens.refresh();
 			return snap();
 		},
-		reveal: () => options.sdk.tokens.reveal()
+		reveal: () => options.sdk.tokens.reveal(),
+		readEnabled: async () => options.enabled === void 0 ? void 0 : options.enabled.read(),
+		writeEnabled: async (enabled) => options.enabled === void 0 ? false : options.enabled.write(enabled)
 	};
 }
 /**
@@ -9049,6 +10541,21 @@ function createTuringSdk(options = {}) {
 		...TURING_KEEP_ALIVE_TIMING,
 		...options.keepAliveTiming
 	};
+	/**
+	* 每次**现读**开关，不在构造时求值一次。
+	*
+	* 开关是 `asVolatile` 的配置项，热更新后会变；而句柄活到卸载。钉死一次会让
+	* "关掉开关"必须重启宿主才生效——那与这个开关存在的理由（随时能停）矛盾。
+	*
+	* 未传 `enabled` 时回落到环境变量（{@link TURING_SDK_ENABLED_ENV}）：那是给
+	* `doctor` 这种读不到插件配置的独立进程用的。插件永远显式传，所以两边不会打架。
+	*
+	* **默认也是关**，与插件的 `default(false)` 同一个答案。代价是 `doctor` 在用户
+	* 开启之前只答 `disabled`——但那正是现状，而 `doctor` 的全部价值就是如实回答
+	* 现状。想排障"这个 SDK 到底能不能用"，用
+	* `WORKBUDDY_DEVICE_SDK_ENABLED=1 node lib/bin.js doctor` 临时打开即可。
+	*/
+	const isEnabled = () => options.enabled !== void 0 ? options.enabled !== false : /^(?:1|true)$/u.test(String((options.env ?? process.env)["WORKBUDDY_DEVICE_SDK_ENABLED"] ?? "").trim());
 	const platform = options.platform ?? process.platform;
 	const arch = options.arch ?? process.arch;
 	const env = options.env ?? process.env;
@@ -9110,6 +10617,21 @@ function createTuringSdk(options = {}) {
 	};
 	async function probe() {
 		const at = now();
+		/**
+		* 总开关先于一切：关掉时**不解析目录、不碰文件系统、不起子进程**。
+		*
+		* 放在 `resolveDir()` 之前是刻意的——目录解析本身要读环境、可能读注册表（win32），
+		* 而关掉开关的人要的正是"这个插件别去碰桌面端"。
+		*/
+		if (!isEnabled()) return {
+			state: "disabled",
+			bundle,
+			path: "",
+			platform,
+			arch,
+			runtime: runtimeLabel,
+			reason: "the real-device SDK is turned off in this plugin's settings"
+		};
 		const dir = await resolveDir();
 		if (probeCache !== void 0 && probeCache.path === dir && at - probeCache.at < PROBE_CACHE_MS) return probeCache.info;
 		let info;
@@ -9197,6 +10719,7 @@ function createTuringSdk(options = {}) {
 	}
 	async function current() {
 		const at = now();
+		if (!isEnabled()) return void 0;
 		if (cached !== void 0 && at - cached.fetchedAtMs <= ttlMs) return cached.token;
 		if (lastFailureAtMs !== void 0 && at - lastFailureAtMs < RETRY_BACKOFF_MS) return cached !== void 0 && at - cached.fetchedAtMs <= TURING_TOKEN_STALE_MS ? cached.token : void 0;
 		if (inFlight !== void 0) return inFlight;
@@ -9219,6 +10742,7 @@ function createTuringSdk(options = {}) {
 	*/
 	async function warm() {
 		const at = now();
+		if (!isEnabled()) return;
 		const failedSinceFetch = cached !== void 0 && lastFailureAtMs !== void 0 && lastFailureAtMs >= cached.fetchedAtMs;
 		if (cached !== void 0 && at - cached.fetchedAtMs < ttlMs - keepAliveTiming.leadMs && !failedSinceFetch) return;
 		if (lastFailureAtMs !== void 0 && at - lastFailureAtMs < RETRY_BACKOFF_MS) return;
@@ -9261,6 +10785,7 @@ function createTuringSdk(options = {}) {
 	return {
 		info: probe,
 		startAutoRefresh() {
+			if (!isEnabled()) return;
 			if (keepAliveActive) return;
 			keepAliveActive = true;
 			tick();
@@ -9450,6 +10975,141 @@ function generationOf(version) {
 	const match = /^0\.(\d+)\./u.exec(version);
 	if (match === null) return "legacy";
 	return Number(match[1]) >= 87 ? "modern" : "legacy";
+}
+//#endregion
+//#region src/cn-gateway.ts
+/**
+* The CN region's gateway host, and the ONE place an override is validated.
+*
+* ## Why this exists (issue #220)
+*
+* The CN chat gateway was the single hard-coded constant
+* `https://copilot.tencent.com`. In a corporate network that filters on the TLS
+* ClientHello's SNI, that name is reset before the handshake completes — while
+* the SAME network lets the WorkBuddy desktop app work, because the app reads a
+* failover list from its own config and uses `wb.tencentbuddy.com` as well.
+*
+* The reporter measured (2026-11-06): `copilot.tencent.com` answers
+* `ECONNRESET` in <100ms while `wb.tencentbuddy.com` answers a normal
+* `401 Authorization Required`. This module is what lets such a user point the
+* plugin at a host their network actually permits.
+*
+* ## Why an allowlist, and not "any URL you like"
+*
+* The value feeds `Authorization: Bearer <token>` on every CN request, plus the
+* refresh-token exchange. A free-form base is therefore a **credential
+* exfiltration primitive**: whoever can edit the settings (a synced profile, a
+* shared dotfile, a pasted "fix" from a forum post) could redirect a live
+* WorkBuddy token to a host they run. That is a strictly worse failure than the
+* timeout it fixes, and it is invisible — the requests would keep succeeding.
+*
+* So the override names a HOST from a closed set, never a URL from the open
+* internet. The set is the CN product's own brand registrable domains, measured
+* 2026-11-06 to answer the chat, billing, catalog and busy routes identically
+* (see `docs/CN_GATEWAY_FALLBACK.md`):
+*
+*   copilot.tencent.com     the shipping default
+*   wb.tencentbuddy.com     what the desktop app's failover.json lists
+*   www.workbuddy.cn        the brand host
+*   www.codebuddy.cn        the sibling brand host, also the billing base
+*
+* Each is admitted by REGISTRABLE domain, so any subdomain of those brands
+* qualifies and a lookalike (`wb.tencentbuddy.com.evil.example`) cannot —
+* the same rule `knownRegionOf` already applies to credential domains.
+*
+* ## What an override does NOT change
+*
+* `Origin` / `Referer` stay on the billing base (see `originReferer`): they
+* describe which web app the request comes from, not which socket it reaches.
+* Rewriting them from the override would make the identity claim disagree with
+* itself for no benefit — the gateway reads them as "this is the CN web app".
+*
+* @module dsh-connect-workbuddy/cn-gateway
+*/
+/** The CN chat gateway the plugin has always used. */
+const CN_GATEWAY_DEFAULT = "https://copilot.tencent.com";
+/**
+* Environment override for `doctor`, mirroring the settings field.
+*
+* WHY THIS EXISTS. `dsh plugin exec … doctor` runs in its own process, which
+* never loads the plugin's settings — the same reason `WORKBUDDY_DEVICE_TOKEN_FILE`
+* already exists as the CLI's way to see what the plugin sees. Without it, a
+* user who fixed their network via the card's field would run `doctor` and get a
+* report measured against the gateway their network RESETS: a diagnostics tool
+* that lies about which host it probed is worse than no tool.
+*
+* The plugin reads the settings field; `doctor` reads this. Both go through
+* `resolveCnGateway`, so the allowlist cannot diverge between them.
+*/
+const WORKBUDDY_CN_BASE_ENV = "WORKBUDDY_CN_BASE";
+/**
+* Hosts an override may name, as registrable domains.
+*
+* A closed set is the security boundary described in this module's header. Adding
+* a host here is a deliberate act that must come with a measurement showing it
+* answers the CN routes, not with a guess about the brand.
+*/
+const ALLOWED_CN_DOMAINS = [
+	"copilot.tencent.com",
+	"tencentbuddy.com",
+	"workbuddy.cn",
+	"codebuddy.cn"
+];
+/**
+* Whether `hostname` belongs to one of the CN brands above.
+*
+* Matched on the registrable domain (`host === domain` or `host.endsWith('.' +
+* domain)`), so `wb.tencentbuddy.com` and `copilot.internal.tencentbuddy.com`
+* both qualify while `tencentbuddy.com.evil.example` does not.
+*/
+function isKnownCnHost(hostname) {
+	const lowered = hostname.trim().toLowerCase();
+	if (lowered === "") return false;
+	return ALLOWED_CN_DOMAINS.some((domain) => lowered === domain || lowered.endsWith(`.${domain}`));
+}
+/**
+* Resolve the CN gateway base from an optional user-supplied value.
+*
+* An ABSENT or blank value is the normal case and yields the default with
+* `overridden: false`. A non-blank value must pass every check or the caller
+* gets `ok: false` and is expected to say so rather than silently falling back:
+* a user who typed a host and got the default anyway has no way to tell the
+* setting was ignored, and would keep debugging a network they already fixed.
+*/
+function resolveCnGateway(value) {
+	const raw = typeof value === "string" ? value.trim() : "";
+	if (raw === "") return {
+		ok: true,
+		base: CN_GATEWAY_DEFAULT,
+		host: "copilot.tencent.com",
+		overridden: false
+	};
+	let parsed;
+	try {
+		parsed = new URL(raw);
+	} catch {
+		return {
+			ok: false,
+			reason: "malformed",
+			value: raw
+		};
+	}
+	if (parsed.protocol !== "https:") return {
+		ok: false,
+		reason: "insecure",
+		value: raw
+	};
+	if (!isKnownCnHost(parsed.hostname)) return {
+		ok: false,
+		reason: "unknown-host",
+		value: raw
+	};
+	return {
+		ok: true,
+		base: `https://${parsed.hostname.toLowerCase()}`,
+		host: parsed.hostname.toLowerCase(),
+		overridden: true
+	};
 }
 /** The versions this build can read (add a new one on upgrade, keep old ones). */
 const KNOWN_ROSTER_SEEN_VERSIONS = Object.freeze([1]);
@@ -9665,7 +11325,7 @@ function describeRosterSeenPayload(raw) {
 //#endregion
 //#region src/version.ts
 /** The npm package version this build was produced from. */
-const WORKBUDDY_CONNECT_VERSION = "5.17.0";
+const WORKBUDDY_CONNECT_VERSION = "5.24.15";
 //#endregion
 //#region src/host-heartbeat.ts
 /**
@@ -9677,7 +11337,7 @@ const WORKBUDDY_CONNECT_VERSION = "5.17.0";
 *   — 该机制由其设计：浏览器端无法写文件，其健康只能靠 console.error 上报，
 *     因此由宿主写心跳文件，缺失即代表宿主从未启动；崩溃后的陈旧心跳
 *     通过 PID 存活检查识别。
-* 改动：无。机制本身已完备，原样沿用。
+* 改动：清理由成功写入该记录的插件实例负责，避免失败启动删除另一宿主的回执。
 *
 * @module dsh-connect-workbuddy/host-heartbeat
 */
@@ -9860,6 +11520,7 @@ async function readHostHeartbeat() {
 * moment this function is exercised from a child process.
 */
 async function writeHostHeartbeat() {
+	const path = workbuddyHostHeartbeatPath();
 	const hostStartedAt = processStartTimeMs(process.pid);
 	const heartbeat = {
 		version: HEARTBEAT_FORMAT_VERSION,
@@ -9869,11 +11530,33 @@ async function writeHostHeartbeat() {
 		pid: process.pid,
 		...hostStartedAt === void 0 ? {} : { hostStartedAt }
 	};
-	await writeFile(workbuddyHostHeartbeatPath(), `${JSON.stringify(heartbeat, null, 2)}\n`, { mode: 384 });
+	const contents = `${JSON.stringify({
+		...heartbeat,
+		registrationId: randomUUID()
+	}, null, 2)}\n`;
+	await writeFile(path, contents, { mode: 384 });
+	return {
+		path,
+		contents
+	};
 }
-/** Remove the heartbeat; called when the plugin is disposed. */
-async function clearHostHeartbeat() {
-	await rm(workbuddyHostHeartbeatPath(), { force: true });
+/**
+* Remove only this instance's successful write, if it is still current.
+*
+* A failed startup has no owner. The captured path also keeps a later DSH_HOME
+* change from redirecting cleanup. Missing/replaced records are left alone;
+* unexpected read/removal errors reject so the disposer can report them.
+*/
+async function clearHostHeartbeat(owner) {
+	if (owner === void 0) return;
+	let current;
+	try {
+		current = await readFile(owner.path, "utf8");
+	} catch (error) {
+		if (error.code === "ENOENT") return;
+		throw error;
+	}
+	if (current === owner.contents) await rm(owner.path, { force: true });
 }
 //#endregion
-export { WorkBuddyCredentialRejectedError as $, readDeviceTokenFile as $t, WORKBUDDY_AUTH_FILENAME as A, VIDEO_TAG_TEXT_TO_VIDEO as At, isEncryptedCredentialError as B, imageDataUrl as Bt, FALLBACK_WORKBUDDY_MODELS_GLOBAL as C, writeFileAtomic as Cn, defaultOffModelIds as Ct, fallbackModelsFor as D, recordRefusal as Dt, deriveCatalog as E, offRefused as Et, authFileName as F, DEFAULT_IMAGE_SIZE as Ft, workbuddyAccountId as G, sniffImageMime as Gt, legacyWorkbuddyOwnAuthPath as H, isBareBase64Image as Ht, defaultDesktopAuthCandidates as I, IMAGE_TAG_IMAGE_TO_IMAGE as It, APP_VERSION as J, pruneTempDir as Jt, workbuddyOwnAuthPath as K, parseQueueAnswer as Kt, defaultDesktopAuthDirs as L, IMAGE_TAG_TEXT_TO_IMAGE as Lt, WORKBUDDY_VAULT_DIRNAME as M, parseSupportedSecondsRange as Mt, WorkBuddyCredentialStore as N, pickVideoModel as Nt, withoutRouters as O, withEffectiveOff as Ot, WorkBuddyEncryptedCredentialError as P, resolveVideoParams as Pt, WORKBUDDY_FALLBACK_SYSTEM_PROMPT as Q, WORKBUDDY_DEVICE_TOKEN_FILE_ENV as Qt, defaultDesktopAuthPath as R, MAX_INPUT_IMAGE_BYTES as Rt, FALLBACK_WORKBUDDY_MODELS as S, withFileLock as Sn, REFUSES_OFF_MODEL_IDS as St, applyContextBudgets as T, offDefaultFor as Tt, parseWorkBuddyAuth as U, parseImageDataUrl as Ut, isVaultAccountId as V, imageMimeForPath as Vt, preferredAccountName as W, pickMediaModel as Wt, CREDENTIAL_REJECTED_CODE as X, imageDefaultFor as Xt, CONTEXT_OVERFLOW_MARKER as Y, NATIVE_MODALITY_BY_MODEL_ID as Yt, DEFAULT_WIRE_PROFILE as Z, nativeModalityOf as Zt, isDeviceMode as _, openEncryptedField as _n, prepareChatBody as _t, readHostHeartbeat as a, protectCredentialDirectory as an, forceNeutralHead as at, saveDeviceSdkSettings as b, hostPeersInfo as bn, rewriteSessionTitleModel as bt, WORKBUDDY_CONNECT_VERSION as c, deriveAtRestKey as cn, isCredentialRejectedError as ct, rosterSeenPath as d, findWorkbuddyAppExecutable as dn, modelIdOfBody as dt, ensureDeviceSalt as en, WorkBuddyUpstreamClient as et, piAiRuntimeInfo as f, findWorkbuddyAppExecutableWithSource as fn, openingEvidenceOfBody as ft, describeDerivedDevices as g, macosNestedAppBundles as gn, perturbChannelFingerprints as gt, createDeviceProfileLookup as h, macosBundleExecutable as hn, parseUpstreamModel as ht, processStartTimeMs as i, inspectCredentialDirectory as in, describeRequestHeaderNames as it, WORKBUDDY_AUTH_FILE_ENV as j, WorkBuddyVideoError as jt, ENCRYPTED_CREDENTIAL_CODE as k, VIDEO_TAG_IMAGE_TO_VIDEO as kt, createFileRosterSeenStore as l, deriveAtRestKeyId as ln, isFirstMessageGateBody as lt, createTuringSdk as m, isWorkbuddyBundle as mn, parseReasoning as mt, clearHostHeartbeat as n, deriveDeviceId as nn, classifyUpstreamError as nt, workbuddyHostHeartbeatPath as o, WORKBUDDY_APP_EXECUTABLE_ENV as on, isContextTooLongBody as ot, createDeviceSdkPort as p, isEncryptedFieldWrapper as pn, parseCreditMultiplier as pt, workbuddyVaultDir as q, queueNoticeText as qt, isHeartbeatProcessAlive as r, isDeviceId as rn, declaredTools as rt, writeHostHeartbeat as s, clearAtRestKeyCache as sn, isConversationIdGateBody as st, WORKBUDDY_HOST_HEARTBEAT_FILENAME as t, readDeviceSalt as tn, channelGateMemberOf as tt, describeRosterSeenPayload as u, fetchAtRestKeyPayload as un, knownRegionOf as ut, readDeviceSettings as v, readAtRestKey as vn, regionOf as vt, WorkBuddyCatalog as w, lastRefusalFor as wt, setDeviceMode as x, resolveDshHome as xn, attachBusyLevels as xt, saveDeviceProfile as y, workbuddyAppExecutableCandidates as yn, requestEvidenceOf as yt, hasEncryptedCredentialFields as z, WorkBuddyImageError as zt };
+export { CREDENTIAL_REJECTED_CODE as $, imageSizeLimitsOf as $t, withoutRouters as A, openEncryptedField as An, promoBadgeTone as At, defaultDesktopAuthPath as B, VIDEO_TAG_TEXT_TO_VIDEO as Bt, setDeviceMode as C, fetchAtRestKeyPayload as Cn, perturbChannelFingerprints as Ct, applyContextBudgets as D, isWorkbuddyBundle as Dn, rewriteSessionTitleModel as Dt, WorkBuddyCatalog as E, isEncryptedFieldWrapper as En, requestEvidenceOf as Et, WorkBuddyCredentialStore as F, withFileLock as Fn, offDefaultFor as Ft, parseWorkBuddyAuth as G, IMAGE_SIZE_LIMITS_WIDE as Gt, isEncryptedCredentialError as H, parseSupportedSecondsRange as Ht, WorkBuddyEncryptedCredentialError as I, writeFileAtomic as In, offRefused as It, workbuddyOwnAuthPath as J, MAX_INPUT_IMAGE_BYTES as Jt, preferredAccountName as K, IMAGE_TAG_IMAGE_TO_IMAGE as Kt, authFileName as L, recordRefusal as Lt, WORKBUDDY_AUTH_FILENAME as M, workbuddyAppExecutableCandidates as Mn, REFUSES_OFF_MODEL_IDS as Mt, WORKBUDDY_AUTH_FILE_ENV as N, hostPeersInfo as Nn, defaultOffModelIds as Nt, deriveCatalog as O, macosBundleExecutable as On, toolSchemaRejectAdvice as Ot, WORKBUDDY_VAULT_DIRNAME as P, resolveDshHome as Pn, lastRefusalFor as Pt, CONTEXT_OVERFLOW_MARKER as Q, imageModelChoices as Qt, defaultDesktopAuthCandidates as R, withEffectiveOff as Rt, saveDeviceSdkSettings as S, deriveAtRestKeyId as Sn, parseUpstreamModel as St, FALLBACK_WORKBUDDY_MODELS_GLOBAL as T, findWorkbuddyAppExecutableWithSource as Tn, regionOf as Tt, isVaultAccountId as U, pickVideoModel as Ut, hasEncryptedCredentialFields as V, WorkBuddyVideoError as Vt, legacyWorkbuddyOwnAuthPath as W, resolveVideoParams as Wt, APP_VERSION as X, imageDataUrl as Xt, workbuddyVaultDir as Y, WorkBuddyImageError as Yt, BODY_OVERSIZE_MARKER as Z, imageMimeForPath as Zt, createDeviceProfileLookup as _, inspectCredentialDirectory as _n, knownRegionOf as _t, readHostHeartbeat as a, parseQueueAnswer as an, classifyUpstreamError as at, readDeviceSettings as b, clearAtRestKeyCache as bn, parseCreditMultiplier as bt, WORKBUDDY_CONNECT_VERSION as c, NATIVE_MODALITY_BY_MODEL_ID as cn, deriveStableConversationId as ct, rosterSeenPath as d, WORKBUDDY_DEVICE_TOKEN_FILE_ENV as dn, isBodyOversizeRefusal as dt, isBareBase64Image as en, DEFAULT_WIRE_PROFILE as et, WORKBUDDY_CN_BASE_ENV as f, readDeviceTokenFile as fn, isContextTooLongBody as ft, createTuringSdk as g, isDeviceId as gn, isToolSchemaRejectBody as gt, createDeviceSdkPort as h, deriveDeviceId as hn, isFirstMessageGateBody as ht, processStartTimeMs as i, sniffImageMime as in, channelGateMemberOf as it, ENCRYPTED_CREDENTIAL_CODE as j, readAtRestKey as jn, selectPromoBadge as jt, fallbackModelsFor as k, macosNestedAppBundles as kn, attachBusyLevels as kt, createFileRosterSeenStore as l, imageDefaultFor as ln, describeRequestHeaderNames as lt, piAiRuntimeInfo as m, readDeviceSalt as mn, isCredentialRejectedError as mt, clearHostHeartbeat as n, parseImageDataUrl as nn, WorkBuddyCredentialRejectedError as nt, workbuddyHostHeartbeatPath as o, queueNoticeText as on, conversationIdFromSessionId as ot, resolveCnGateway as p, ensureDeviceSalt as pn, isConversationIdGateBody as pt, workbuddyAccountId as q, IMAGE_TAG_TEXT_TO_IMAGE as qt, isHeartbeatProcessAlive as r, pickMediaModel as rn, WorkBuddyUpstreamClient as rt, writeHostHeartbeat as s, pruneTempDir as sn, declaredTools as st, WORKBUDDY_HOST_HEARTBEAT_FILENAME as t, isWatermarkFreeImageModel as tn, WORKBUDDY_FALLBACK_SYSTEM_PROMPT as tt, describeRosterSeenPayload as u, nativeModalityOf as un, forceNeutralHead as ut, describeDerivedDevices as v, protectCredentialDirectory as vn, modelIdOfBody as vt, FALLBACK_WORKBUDDY_MODELS as w, findWorkbuddyAppExecutable as wn, prepareChatBody as wt, saveDeviceProfile as x, deriveAtRestKey as xn, parseReasoning as xt, isDeviceMode as y, WORKBUDDY_APP_EXECUTABLE_ENV as yn, openingEvidenceOfBody as yt, defaultDesktopAuthDirs as z, VIDEO_TAG_IMAGE_TO_VIDEO as zt };

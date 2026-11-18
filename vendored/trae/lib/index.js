@@ -1,21 +1,101 @@
-import z from "@deepseek-ai/schemastery";
-import { listTraeLocalAccounts, syncTraeLocalAccounts, isTraeLocalAccountId } from "./local-accounts.js";
-import { createProvider } from "@earendil-works/pi-ai";
-import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
-import { resolveRetryPolicy } from "@deepseek-ai/dsh-llm";
-import { PiAiAdapter } from "@deepseek-ai/dsh-llm-pi-ai";
-import { existsSync, readFileSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { copyFile, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
-import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID, sign, timingSafeEqual } from "node:crypto";
+import { basename, dirname, join } from "node:path";
 import { withFileLock, writeFileAtomic } from "@deepseek-ai/dsh-atomic-write";
 import { resolveDshHome } from "@deepseek-ai/dsh-home-paths";
+import z from "@deepseek-ai/schemastery";
+import { createProvider } from "@earendil-works/pi-ai";
+import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
+import { ReasoningEffortId, resolveRetryPolicy } from "@deepseek-ai/dsh-llm";
+import { PiAiAdapter } from "@deepseek-ai/dsh-llm-pi-ai";
+import { existsSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID, sign, timingSafeEqual } from "node:crypto";
 import { cpus, homedir, hostname, release, userInfo } from "node:os";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { createServer } from "node:http";
 import { Readable } from "node:stream";
+//#region src/auto-checkin.ts
+/** 按运行机器的本地日期组织进度；领取资格始终以服务器响应为准。 */
+function checkinDay(now) {
+	const date = new Date(now);
+	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+function foldCheckin(state, rows, now) {
+	const done = new Set(state.done);
+	for (const row of rows) if (row.status === "already" || row.status === "claimed") done.add(row.accountId);
+	const failures = rows.some((row) => row.status === "failed") ? state.failures + 1 : 0;
+	return {
+		day: state.day,
+		done: [...done],
+		deviceBlocked: state.deviceBlocked || rows.some((row) => row.status === "device-already" || row.status === "claimed"),
+		failures,
+		retryAt: now + (rows.some((row) => row.status === "disabled") && failures === 0 ? 18e5 : Math.min(18e5, 3e4 * 2 ** Math.min(failures, 6)))
+	};
+}
+/** 单实例内串行执行。关闭开关或卸载后不再启动新批次。 */
+function createAutoCheckin(deps) {
+	let running = false;
+	let stopped = false;
+	let memory;
+	return {
+		stop() {
+			stopped = true;
+		},
+		async tick() {
+			if (stopped || running || !deps.enabled()) return;
+			running = true;
+			try {
+				const now = deps.now?.() ?? Date.now();
+				const day = checkinDay(now);
+				const stored = memory ?? await deps.read();
+				const state = stored?.day === day ? stored : {
+					day,
+					done: [],
+					deviceBlocked: false,
+					failures: 0,
+					retryAt: 0
+				};
+				memory = state;
+				if (stopped || !deps.enabled() || state.deviceBlocked || now < state.retryAt) return;
+				let rows;
+				try {
+					rows = await deps.run(state.done);
+				} catch {
+					rows = [{
+						accountId: "",
+						accountName: "",
+						status: "failed"
+					}];
+				}
+				memory = foldCheckin(state, rows, deps.now?.() ?? Date.now());
+				await deps.write(memory);
+			} finally {
+				running = false;
+			}
+		}
+	};
+}
+//#endregion
+//#region src/auto-checkin-store.ts
+/** 只保存日期、账号 id 和重试进度，不保存凭据或上游错误正文。 */
+const autoCheckinPath = () => join(resolveDshHome(), ".trae-auto-checkin.cn.json");
+async function readAutoCheckin() {
+	try {
+		const value = JSON.parse(await readFile(autoCheckinPath(), "utf8"));
+		return typeof value.day === "string" && Array.isArray(value.done) && value.done.every((id) => typeof id === "string") && typeof value.deviceBlocked === "boolean" && typeof value.failures === "number" && Number.isFinite(value.failures) && typeof value.retryAt === "number" && Number.isFinite(value.retryAt) ? value : void 0;
+	} catch {
+		return;
+	}
+}
+async function writeAutoCheckin(state) {
+	const path = autoCheckinPath();
+	await withFileLock(path, () => writeFileAtomic(path, `${JSON.stringify(state)}\n`, {
+		mode: 384,
+		dirMode: 448
+	}));
+}
+//#endregion
 //#region src/context-budget.ts
 /**
 * Context-budget arithmetic shared by the HOST (which applies a saved budget to
@@ -291,13 +371,21 @@ function applyImageSelection(models, selected) {
 *    account's custom models (`usage: 'custom_model'`); none of those belong
 *    in a model picker. Measured: this one test removed 23 of 50 wire-only
 *    rows, and every row it removed was a tool or a custom model.
-*  - `config_source === 1` — a Trae preset, not the account's own custom
-*    model (source 3, which carries the user's own base_url and key). The
-*    plugin must not offer to bill a model it does not host.
+*  - `config_source === 1`, or `2` once the caller opts in — `1` is a Trae
+*    preset; `2` is a model the tenant's own enterprise console configured
+*    (see `allowTenantConfigured` on {@link mergeTraeModelSources}, which is
+*    what decides whether a `2` may pass). `3` is the account's own custom
+*    model, carrying the user's own base_url and key: the plugin must not
+*    offer to bill a model it does not host, so `3` never passes.
 *  - a REAL display name — not empty, not the upstream placeholder `-`, not a
 *    bare config identifier (`search_agent_qwen_fast`,
 *    `computer_use_subagent`), and not the config's OWN id. A model with no
 *    name has nothing to show in the picker.
+*
+*    A tenant-configured row (`2`) is EXEMPT from the "own id" clause: those
+*    rows commonly publish the config_name as the display name, so the clause
+*    would reject precisely the rows the opt-in exists to surface. The other
+*    name tests still apply to them.
 *
 * The display-name-collision test lives in the merge itself (it needs the
 * Remote rows to compare against); see {@link mergeTraeModelSources}. It is a
@@ -311,9 +399,10 @@ function applyImageSelection(models, selected) {
 */
 function isPromotableWireModel(model) {
 	if (model.usage !== "chat_completion") return false;
-	if (model.configSource !== 1) return false;
+	if (model.configSource !== 1 && model.configSource !== 2) return false;
 	const name = model.name.trim();
 	if (name === "" || name === "-") return false;
+	if (model.configSource === 2) return true;
 	if (name === model.id.trim()) return false;
 	if (!name.includes(" ") && name.includes("_")) return false;
 	return true;
@@ -423,8 +512,17 @@ function wireEffortsOf(supported) {
 * PROMOTED (issue #46) — subject to {@link isPromotableWireModel}. The
 * skeleton systematically omits the dated snapshot configs, so without
 * promotion every snapshot the IDE offers is unreachable from the plugin.
+*
+* @param options.allowTenantConfigured - may a `config_source: 2` row (a model
+* the tenant's enterprise console configured) be promoted? Opt-in, and only
+* the enterprise panel opts in: those rows bill the tenant pool, so surfacing
+* them on a consumer panel would offer a model outside the caller's billing
+* face. The rows also are not callable through `llm_utils_chat` today — they
+* are client-direct with their own base_url (`use_remote_service: false`) and
+* the gateway answers `4001` — which the discovery layer does not hide, but
+* which is why this is a narrow opt-in rather than a default.
 */
-function mergeTraeModelSources(remote, wire) {
+function mergeTraeModelSources(remote, wire, options = {}) {
 	const wireByName = /* @__PURE__ */ new Map();
 	const wireById = /* @__PURE__ */ new Map();
 	for (const model of wire) if (!wireById.has(displayKey(model.id))) wireById.set(displayKey(model.id), model);
@@ -494,6 +592,7 @@ function mergeTraeModelSources(remote, wire) {
 	for (const model of remote) claim(model.name, model.contextWindow);
 	for (const wireModel of wire) {
 		if (remoteIds.has(displayKey(wireModel.id))) continue;
+		if (wireModel.configSource === 2 && options.allowTenantConfigured !== true) continue;
 		if (!isPromotableWireModel(wireModel)) continue;
 		const collides = claimedNames.has(displayKey(wireModel.name));
 		if (collides && (wireModel.contextWindow ?? 0) <= (claimedNames.get(displayKey(wireModel.name)) ?? 0)) continue;
@@ -642,6 +741,375 @@ var TraeCatalog = class {
 			...model.input === void 0 ? {} : { input: [...model.input] }
 		}));
 	}
+};
+//#endregion
+//#region src/promo.ts
+/** Zone used when upstream omits `off_peak.time_zone` (CN accounts). */
+const TRAE_PROMO_DEFAULT_TIME_ZONE = "Asia/Shanghai";
+function record$2(value) {
+	return typeof value === "object" && value !== null && !Array.isArray(value) ? value : void 0;
+}
+function finite(value) {
+	return typeof value === "number" && Number.isFinite(value) ? value : void 0;
+}
+function percent(value) {
+	const parsed = finite(value);
+	return parsed !== void 0 && parsed > 0 && parsed < 100 ? parsed : void 0;
+}
+function ratePair(raw) {
+	const entry = record$2(raw);
+	if (entry === void 0) return {};
+	const beforeRate = finite(entry["before_consumption_rate"]);
+	const rate = finite(entry["consumption_rate"]) ?? finite(entry["after_consumption_rate"]);
+	const discountPercent = percent(entry["discount"]);
+	return {
+		...beforeRate === void 0 || beforeRate <= 0 ? {} : { beforeRate },
+		...rate === void 0 || rate <= 0 ? {} : { rate },
+		...discountPercent === void 0 ? {} : { discountPercent }
+	};
+}
+function windows(raw) {
+	const list = Array.isArray(raw) ? raw : [];
+	const parsed = [];
+	for (const item of list) {
+		const entry = record$2(item);
+		if (entry === void 0) continue;
+		const weekdays = Array.isArray(entry["weekdays"]) ? entry["weekdays"].filter((day) => Number.isInteger(day) && day >= 1 && day <= 7) : [];
+		const startMinute = finite(entry["start_minute"]);
+		const endMinute = finite(entry["end_minute"]);
+		if (weekdays.length === 0 || startMinute === void 0 || endMinute === void 0) continue;
+		if (startMinute < 0 || startMinute > 1439 || endMinute < 1 || endMinute > 1440) continue;
+		if (startMinute >= endMinute) continue;
+		parsed.push({
+			weekdays,
+			startMinute,
+			endMinute
+		});
+	}
+	return parsed;
+}
+/**
+* Parse one `activity_discount` document.
+*
+* `value` may be the already-parsed object (both call sites hand us the parent
+* object) or the raw JSON string; anything without `enable: true` reads as "no
+* promotion" rather than as a rule we might later misjudge.
+*/
+function parseTraeActivityDiscount(value) {
+	let source = value;
+	if (typeof source === "string") {
+		if (source === "") return void 0;
+		try {
+			source = JSON.parse(source);
+		} catch {
+			return;
+		}
+	}
+	const raw = record$2(source);
+	if (raw === void 0 || raw["enable"] !== true) return void 0;
+	const data = record$2(raw["data"]);
+	if (data === void 0) return void 0;
+	const subKey = typeof raw["subKey"] === "string" && raw["subKey"] !== "" ? raw["subKey"] : void 0;
+	const currentRaw = record$2(data["current"]);
+	const currentType = typeof currentRaw?.["discount_type"] === "string" ? currentRaw["discount_type"] : void 0;
+	const current = currentRaw === void 0 ? void 0 : {
+		...ratePair(currentRaw),
+		...currentType === void 0 ? {} : { discountType: currentType }
+	};
+	const memberRaw = data["member"];
+	const member = record$2(memberRaw) === void 0 ? void 0 : ratePair(memberRaw);
+	const subsidyRaw = data["subsidy"];
+	const subsidy = record$2(subsidyRaw) === void 0 ? void 0 : ratePair(subsidyRaw);
+	const offPeakRaw = record$2(data["off_peak"]);
+	const offPeak = offPeakRaw === void 0 ? void 0 : {
+		...ratePair(offPeakRaw),
+		...typeof offPeakRaw["time_zone"] === "string" && offPeakRaw["time_zone"] !== "" ? { timeZone: offPeakRaw["time_zone"] } : {},
+		windows: windows(offPeakRaw["time_windows"])
+	};
+	const parsed = {
+		...subKey === void 0 ? {} : { subKey },
+		...current === void 0 ? {} : { current },
+		...member === void 0 ? {} : { member },
+		...offPeak === void 0 ? {} : { offPeak },
+		...subsidy === void 0 ? {} : { subsidy }
+	};
+	return parsed.current === void 0 && parsed.member === void 0 && parsed.offPeak === void 0 && parsed.subsidy === void 0 ? void 0 : parsed;
+}
+const WEEKDAY_INDEX = {
+	Mon: 1,
+	Tue: 2,
+	Wed: 3,
+	Thu: 4,
+	Fri: 5,
+	Sat: 6,
+	Sun: 7
+};
+/** Wall clock in one named zone: ISO weekday (1–7) plus minutes since midnight. */
+function zonedClock(now, timeZone) {
+	let parts;
+	try {
+		parts = new Intl.DateTimeFormat("en-US", {
+			timeZone,
+			weekday: "short",
+			hour: "2-digit",
+			minute: "2-digit",
+			hourCycle: "h23"
+		}).formatToParts(now);
+	} catch {
+		return;
+	}
+	let isoWeekday;
+	let hour;
+	let minute;
+	for (const part of parts) if (part.type === "weekday") isoWeekday = WEEKDAY_INDEX[part.value];
+	else if (part.type === "hour") hour = Number.parseInt(part.value, 10);
+	else if (part.type === "minute") minute = Number.parseInt(part.value, 10);
+	if (isoWeekday === void 0 || hour === void 0 || minute === void 0) return void 0;
+	if (!Number.isFinite(hour) || !Number.isFinite(minute)) return void 0;
+	return {
+		isoWeekday,
+		minutes: hour % 24 * 60 + minute
+	};
+}
+function clockOf(minutes) {
+	const hour = Math.floor(minutes / 60);
+	const minute = minutes % 60;
+	return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+function runningWindow(discount, now, defaultTimeZone) {
+	const offPeak = discount.offPeak;
+	if (offPeak === void 0 || offPeak.windows.length === 0) return void 0;
+	const declaredZone = offPeak.timeZone ?? defaultTimeZone;
+	let usedZone = declaredZone;
+	let clock = zonedClock(now, declaredZone);
+	if (clock === void 0 && declaredZone !== defaultTimeZone) {
+		usedZone = defaultTimeZone;
+		clock = zonedClock(now, defaultTimeZone);
+	}
+	if (clock === void 0) return void 0;
+	const match = offPeak.windows.find((window) => window.weekdays.includes(clock.isoWeekday) && clock.minutes >= window.startMinute && clock.minutes < window.endMinute);
+	return match === void 0 ? void 0 : {
+		...match,
+		timeZone: usedZone
+	};
+}
+/** `subKey` is upstream's machine name; it is the only honest source for "限时". */
+function kindOf(discount) {
+	const key = discount.subKey ?? "";
+	if (key.includes("off_peak")) return "offPeak";
+	if (key.includes("subsidy")) return "subsidy";
+	if (key.includes("limited")) return "limited";
+	const type = discount.current?.discountType ?? "";
+	if (type.includes("off")) return "offPeak";
+	if (type.includes("limited")) return "limited";
+	return "subsidy";
+}
+/** Pay ratio as upstream would phrase it; falls back to the rates it published. */
+function discountOf(price) {
+	if (price.discountPercent !== void 0) return price.discountPercent;
+	if (price.beforeRate === void 0 || price.rate === void 0) return void 0;
+	if (price.beforeRate <= 0 || price.rate >= price.beforeRate) return void 0;
+	return Math.round(price.rate / price.beforeRate * 100);
+}
+/**
+* The member price, but only when it beats the rate the badge is already showing.
+*
+* Two rates on the same base are two ways to reach one price: `member` quoting
+* 0.06 beside a live 0.06 is not "another 5 折". Comparing the post-discount
+* numbers is the only honest test — a branch with no rate cannot be shown to be
+* cheaper, so it is not quoted at all.
+*/
+function cheaperMemberOf(price, discount) {
+	const member = discount.member;
+	if (member === void 0 || member.rate === void 0) return void 0;
+	if (price.rate === void 0 || member.rate >= price.rate) return void 0;
+	const discountPercent = discountOf(member);
+	if (discountPercent === void 0) return void 0;
+	return {
+		rate: member.rate,
+		discountPercent
+	};
+}
+function badgeOf(kind, price, discount, window) {
+	const discountPercent = discountOf(price);
+	if (discountPercent === void 0) return void 0;
+	const member = cheaperMemberOf(price, discount);
+	return {
+		kind,
+		discountPercent,
+		percentOff: 100 - discountPercent,
+		...price.beforeRate === void 0 ? {} : { beforeRate: price.beforeRate },
+		...price.rate === void 0 ? {} : { rate: price.rate },
+		...member === void 0 ? {} : {
+			memberDiscountPercent: member.discountPercent,
+			memberRate: member.rate
+		},
+		...window === void 0 ? {} : {
+			fromClock: clockOf(window.startMinute),
+			untilClock: clockOf(window.endMinute),
+			timeZone: window.timeZone
+		}
+	};
+}
+/**
+* Decide the one badge (if any) a model shows right now.
+*
+* `now` is injected so the verdict is testable and so the card, which re-renders
+* on its own poll, always judges against the current clock. `defaultTimeZone` is
+* the account's zone, used only when upstream omits `off_peak.time_zone`.
+*/
+function selectTraePromoBadge(discount, now, defaultTimeZone = TRAE_PROMO_DEFAULT_TIME_ZONE) {
+	if (discount === void 0) return void 0;
+	const current = discount.current;
+	if (current !== void 0) {
+		if ((current.discountType ?? "none") !== "none" && (current.beforeRate === void 0 || current.rate === void 0 || current.rate < current.beforeRate)) {
+			const kind = kindOf(discount);
+			const badge = badgeOf(kind, current, discount, kind === "offPeak" ? runningWindow(discount, now, defaultTimeZone) : void 0);
+			if (badge !== void 0) return badge;
+		}
+	}
+	const window = runningWindow(discount, now, defaultTimeZone);
+	if (window !== void 0 && discount.offPeak !== void 0) {
+		if ((discount.current?.discountType ?? "none") === "none" || discountOf(discount.offPeak) !== void 0) return badgeOf("offPeak", discount.offPeak, discount, window);
+	}
+}
+//#endregion
+//#region src/model-badge.ts
+/**
+* The one selector badge this plugin advertises on its own catalog rows.
+*
+* WHY A BADGE AT ALL, GIVEN THE CAPSULE ALREADY EXISTS. The picker's model label
+* is a `single` slot: exactly one component renders, and it is called for EVERY
+* provider's rows. Whichever plugin holds that cell is the only thing that can
+* draw a sibling's capsule — and it can only draw what the sibling PUBLISHED,
+* because `model.badge` is the only channel between them. So a connector that
+* writes no badge has bare rows the moment another plugin wins the seat, no
+* matter how carefully that plugin reproduces `badge`. See
+* `docs/MODEL-LABEL-SPEC.md` (sibling `dsh-connect-workbuddy` repository), whose
+* rules this file follows.
+*
+* UNAVAILABLE HOSTS. On 0.1.x there is no `badge` field at all; the registry
+* drops the key and every row renders exactly as before. See `src/adapter.ts`
+* for the conditional-spread that keeps this file compiling there.
+*
+* @module dsh-connect-trae/model-badge
+*/
+/** Every tone the host understands; the test asserts this list is complete. */
+const TRAE_BADGE_TONES = [
+	"neutral",
+	"info",
+	"success",
+	"warning"
+];
+/**
+* Why each promotion kind paints the way it does in the picker.
+*
+* MIRRORS `PROMO_TONES` IN `src/client/TraeModelLabel.tsx`, which is the chip
+* this plugin draws on its own rows. The two must agree: when this plugin holds
+* the label slot the same row is drawn by that component, and when a SIBLING
+* holds it the row is drawn from this badge instead. One row, one colour.
+*
+* `subsidy` is the only negative-valence kind (`state-error`, red) because it is
+* Trae paying part of the bill; `limited` warns, `offPeak` is the mildest.
+*/
+const PROMO_TONES = {
+	subsidy: "warning",
+	limited: "warning",
+	offPeak: "info"
+};
+/**
+* The badge one catalog row should carry, or `undefined` for none.
+*
+* WHY THE PROMOTION, AND NOT THE PRICE. A badge is the ONE thing a sibling can
+* draw on this plugin's behalf, so it has to be the thing a user would act on.
+* "This model is 50% off right now" changes the choice; a price that has been
+* identical for months does not.
+*
+* WHY THE CLOCK IS READ HERE. `activityDiscount` rides along UNRESOLVED on the
+* model entry precisely so the judgement happens where the row is drawn
+* (`src/promo.ts` explains why freezing it at parse time would leave a night-time
+* discount hanging there the next morning). `listModels()` IS that moment on the
+* host side — it runs when the host builds the catalog — and the plugin asks the
+* host to re-read the catalog via `llm/models-updated` whenever the card's own
+* clock crosses a window boundary. So this is not "catalog data that ignores the
+* clock"; it is a clock judgement made at each catalog rebuild.
+*
+* A NOTE ON WHAT WAS TRIED FIRST AND REJECTED. An earlier version advertised
+* `creditMultiplier === 0` as "免费"/"Free". It never fired: every path that
+* parses upstream's `consumption_rate` runs it through `finitePositive`
+* (`src/solo.ts`, `src/model-metadata.ts`), which requires `> 0`, so a rate of
+* `0` arrives as `undefined`. A multiplier of exactly `0` can only come from a
+* saved `lastCatalog`, never from the live directory. Do not reintroduce a
+* price-derived badge from that field.
+*
+* @param model - the catalog row about to be advertised.
+* @param now - the clock the promotion is judged against. Passed in rather than
+*        read from `Date.now()` so the caller owns the "one clock for the whole
+*        catalog" decision and the tests can move time.
+* @returns the badge, or `undefined` — never `null`. A `null` makes the host
+*          registry throw inside `listModels`, which drops this provider's
+*          ENTIRE catalog into `failures`, not just the decorated row.
+*/
+function traeModelBadge(model, now) {
+	const promo = selectTraePromoBadge(model.activityDiscount, now, TRAE_PROMO_DEFAULT_TIME_ZONE);
+	return promo === void 0 ? void 0 : badgeOfPromo(promo);
+}
+/**
+* The picker's wording for one promotion.
+*
+* WHY THE UPSTREAM'S OWN WORDING AND NOT INVENTED COPY. The chip the plugin
+* draws in its own card says "闲时 5 折"; the badge has to be recognisable as the
+* same offer, so it reuses the same three phrasings with the same `promoZhe`
+* figure. If a future kind has no wording here, it must NOT fall through to a
+* generic "优惠" — an unlabelled capsule in the picker is worse than none.
+*/
+function badgeOfPromo(promo) {
+	const zhe = promoZhe(promo.discountPercent);
+	const percent = String(promo.percentOff);
+	return {
+		text: {
+			en: PROMO_EN[promo.kind].replace("{percent}", percent),
+			zh: PROMO_ZH[promo.kind].replace("{zhe}", zhe)
+		},
+		tone: PROMO_TONES[promo.kind]
+	};
+}
+/**
+* Pay ratio as the "折" figure a Chinese price tag uses: 50 → "5", 25 → "2.5".
+*
+* Duplicated from `src/client/TraeModelLabel.tsx` ON PURPOSE: that module is a
+* client component and importing it from here would pull React into the host
+* process. `tests/model-badge.spec.ts` asserts the two produce the same string
+* for every percent the directory can publish, so they cannot drift silently.
+*/
+function promoZhe(discountPercent) {
+	const zhe = Math.round(discountPercent * 10) / 100;
+	return Number.isInteger(zhe) ? String(zhe) : zhe.toFixed(1);
+}
+/**
+* English wording per kind.
+*
+* NOT a translation table of the Chinese strings: English has no "折", so the
+* discount has to be restated as a percentage. Same number, different grammar.
+*
+* THE ENGLISH HERE IS SHORTER THAN THE CARD'S, BY DESIGN. `src/client/locales.ts`
+* (the chip in this plugin's own settings card) says `Off-peak {percent}% off`;
+* the badge cannot, because the picker enforces 12 graphemes and that phrasing is
+* 17 at `percent = 100`. A settings row has room for the longer sentence; a
+* picker row does not. The Chinese templates, where the two DO match exactly, are
+* asserted in `tests/model-badge.spec.ts` — the English difference is deliberate
+* and is not drift to "fix".
+*/
+const PROMO_EN = {
+	limited: "Limited {percent}%",
+	subsidy: "{percent}% off",
+	offPeak: "Offpeak {percent}%"
+};
+/** Chinese wording per kind, matching the chip this plugin draws in its card. */
+const PROMO_ZH = {
+	limited: "限时 {zhe} 折",
+	subsidy: "{zhe} 折",
+	offPeak: "闲时 {zhe} 折"
 };
 //#endregion
 //#region src/pi-ai-runtime.ts
@@ -818,6 +1286,144 @@ function readManifest(directory) {
 	}
 }
 //#endregion
+//#region src/reasoning.ts
+/**
+* The DSH thinking levels this plugin can carry, in ascending order.
+*
+* `max` is the fifth level Trae's own client advertises — its bundle ships the
+* i18n keys `trae-chat-core.model.reasoning_effort.{low,medium,high,extra_high,max}`
+* and `ai.model.reasoning_effort.{low,medium,high,xhigh,max}`, and publishes the
+* per-model list from a remote config (`AI.agent.model.reasoning_effort_level_by_agent_model_v2`).
+* Leaving it out of this list meant a level the vendor could start serving was
+* filtered away at PARSE time, before anything downstream could decide (issue
+* #60). Listing it does not fabricate the level: `supported` is still built
+* only from what the upstream response actually contains, so a model that does
+* not advertise `max` never offers it.
+*
+* `minimal` is kept for the same reason in reverse — it is a DSH level, so the
+* type must be able to represent it even though no CN model has advertised it.
+*/
+const TRAE_REASONING_EFFORTS = [
+	"minimal",
+	"low",
+	"medium",
+	"high",
+	"xhigh",
+	"max"
+];
+function parseReasoningCapability(value) {
+	if (typeof value !== "object" || value === null || Array.isArray(value)) return void 0;
+	const record = value;
+	const supported = (Array.isArray(record["reasoning_effort_options"]) ? record["reasoning_effort_options"] : []).filter((item) => typeof item === "string" && TRAE_REASONING_EFFORTS.includes(item));
+	const rawDefault = record["default_reasoning_effort"];
+	const defaultEffort = typeof rawDefault === "string" && supported.includes(rawDefault) ? rawDefault : void 0;
+	if (supported.length === 0 && defaultEffort === void 0) return void 0;
+	return {
+		supported,
+		...defaultEffort === void 0 ? {} : { defaultEffort }
+	};
+}
+/** Add effort only when the selected model advertises that exact value. */
+function applyReasoningEffort(body, effort, capability) {
+	if (effort === void 0) return body;
+	if (capability === void 0 || !capability.supported.includes(effort)) throw new Error(`Trae model does not advertise reasoning effort ${effort}`);
+	return {
+		...body,
+		reasoning_effort: effort
+	};
+}
+//#endregion
+//#region src/default-effort.ts
+/**
+* Which thinking level a model runs at when the caller names none.
+*
+* ## Why this module exists
+*
+* Trae's directory already tells us each model's own default level
+* (`reasoning_effort_config.default_level`, parsed into `reasoning.defaultEffort`
+* by `model-metadata.ts`) — measured 2026-11-03 on a live CN credential:
+* `deepseek-v4.1-flash` says `high`, `glm-5.3` says `xhigh`. The card's meta row
+* names the tiers it accepts, so the fact is known.
+*
+* DSH's model picker nevertheless reads **Default**, because the adapter never
+* reports that level upward (`reasoning.defaultEffort` is absent from what
+* {@link toPiModel} hands the kernel). The picker therefore cannot say which
+* tier a request will run at, and the request itself carries no
+* `reasoning_effort` — the upstream falls back to the same level it already
+* published, so nothing is broken, but nothing is knowable either, and the user
+* has no way to say "always use high on this model, regardless of what Trae
+* ships as its default".
+*
+* ## The three seams that must agree (any one missing and the picker still says Default)
+*
+* 1. **The adapter** must report the level as `LlmResolvedModelInfo.reasoning.defaultEffort`.
+*    The kernel materialises that into every request that names no effort
+*    (`dsh-llm` `resolveCallWithInfo`: `const effective = requested ?? reasoning.defaultEffort`),
+*    and DSH's model picker takes its "current level" from the same metadata.
+* 2. **A per-model saved choice** must survive a settings save. The settings
+*    channel rebuilds the whole region document through its schema, so a field
+*    absent from that schema is dropped on every save — the failure that once
+*    reset `wireConfigName` (see the `modelConfig` schema).
+* 3. **The bridge** must translate the level it receives into Trae's wire name.
+*    `solo-bridge.ts` already does exactly that through the model's own
+*    `reasoningEfforts` table, and deletes the field when the model does not
+*    advertise it — so a level is never sent under a name the vendor never said.
+*
+* ## Precedence
+*
+* The user's explicit choice > the level upstream declares > this model's own
+* middle tier.
+*
+* @module dsh-connect-trae/default-effort
+*/
+/**
+* The tier to fall back to when a model publishes a tier list but names no
+* default of its own and the user has never chosen one.
+*
+* `medium` is tried first because it is the only middle tier shared by the
+* families seen so far. It is deliberately not the only fallback: a model that
+* publishes `low / high` (measured on `Doubao-Seed-2.1-Pro` and
+* `step-5-preview`) has no `medium` at all, and picking its weakest tier instead
+* would silently mean "thinking off" — that is not a fallback, that is the worst
+* possible default.
+*/
+const TRAE_FALLBACK_EFFORT = "medium";
+/**
+* The tiers a model actually declares, filtered to ones DSH can name.
+*
+* Upstream's vocabulary is not DSH's: Trae publishes `light / high / extra_high`
+* and the parser maps them to `low / high / xhigh` (`EFFORT_MAP`). Anything that
+* still fails to land in DSH's six names is dropped rather than passed through —
+* a level the kernel cannot name would be rejected with
+* `UNSUPPORTED_REASONING_EFFORT` and take the whole request with it.
+*
+* The result keeps `TRAE_REASONING_EFFORTS` order, so it reads weakest-first.
+*/
+function declaredEfforts(model) {
+	const supported = model.supported ?? [];
+	return TRAE_REASONING_EFFORTS.filter((level) => supported.includes(level));
+}
+/**
+* The tier this model should run at when a request names none.
+*
+* @param model - the model, with the tiers it declares and its upstream default.
+* @param saved - the user's per-model choices (model id -> tier). A missing key
+*   means the user never chose, which is different from choosing the tier that
+*   happens to equal the upstream default.
+* @returns a tier **this model declares**, or `undefined` when it declares none.
+*/
+function defaultEffortFor(model, saved = {}) {
+	const declared = declaredEfforts(model);
+	if (declared.length === 0) return void 0;
+	const asked = saved[model.id];
+	const chosen = declared.find((level) => level === asked);
+	if (chosen !== void 0) return chosen;
+	const upstream = declared.find((level) => level === model.defaultEffort);
+	if (upstream !== void 0) return upstream;
+	if (declared.includes("medium")) return TRAE_FALLBACK_EFFORT;
+	return declared[Math.floor((declared.length - 1) / 2)];
+}
+//#endregion
 //#region src/adapter.ts
 /** Provider route this bundle owns for the domestic (CN) gateway. */
 const TRAE_PROVIDER = "trae";
@@ -897,11 +1503,86 @@ const INERT_AUTH = {
 		}
 	}
 };
+/**
+* The image-request policy this hand-built profile hands to `dsh-llm-pi-ai`.
+*
+* WHY THIS OBJECT IS SPELLED OUT. DSH's own config resolution (`resolveProfiles`
+* in `dsh-llm-pi-ai`) defaults every route-level image bound. This plugin never
+* runs that path: it builds `ResolvedPiAiProviderProfile` by hand from a live
+* Trae catalog, so every field the host expects has to be named here or the
+* bound silently does not apply.
+*
+* `maxRequestImages` / `imageOffloadCountQuantum` joined that contract in DSH
+* 0.2.2-rc.1 (the required fields on `ResolvedPiAiProviderProfile`). The count
+* bound is what turns a request carrying more images than a route accepts into
+* the host's `IMAGE_OFFLOAD_REQUIRED` flow instead of an upstream rejection, and
+* the quantum is how many of the oldest occurrences that flow offloads at once.
+* Without them the host treats the route as count-unbounded — the pre-0.2.2
+* behaviour, which is why 4.8.0 kept working — but the type contract no longer
+* compiles, so they are declared here with the host's own defaults (50 / 10).
+*
+* `imageOffloadCountQuantum` must be a positive integer no greater than
+* `maxRequestImages`; 10 ≤ 50 keeps the host's default ratio.
+*
+* The BYTE bound is the one field here that is not a host contract: it has to
+* match the gateway at the other end, and the gateways disagree (issue #81).
+* See {@link ENTERPRISE_MAX_REQUEST_IMAGE_BYTES}.
+*/
 const REQUEST_IMAGE_BUDGETS = {
 	maxRequestImageBytes: 20971520,
 	requestImagePixelBudget: 4194304,
-	requestImageMaxBytes: 1048576
+	requestImageMaxBytes: 1048576,
+	maxRequestImages: 50,
+	imageOffloadCountQuantum: 10
 };
+/**
+* Request-image byte bound for the enterprise route, in bytes (8 MiB).
+*
+* WHY THE HOST DEFAULT IS WRONG HERE. `maxRequestImageBytes` is not a taste
+* setting — DSH compares it against the base64 aggregate of every image a
+* request re-inlines, and raising `IMAGE_OFFLOAD_REQUIRED` is how the oldest
+* images get replaced by placeholders and the request retried. That only works
+* if the bound is BELOW what the gateway accepts: a bound above it means the
+* host believes an unsendable request fits and sends it anyway.
+*
+* Measured 2026-11-09 with unauthenticated probes (openresty rejects on body
+* size before authentication, so no credentials or credits are involved):
+*
+*   console.enterprise.trae.cn, /api/agent/v3/create_agent_task AND
+*   /api/agent/v3/llm_utils_chat:
+*     10_485_758 bytes -> 401        10_485_762 bytes -> 413
+*     => the cap is exactly 10 MiB (10_485_760)
+*
+* The other two regions have no comparable cap: `trae-api-cn.mchost.guru`
+* answered 401 at 48 MiB and `coresg-normal.trae.ai` at 20 MiB, so they keep
+* the host default — lowering them would offload images those gateways accept.
+*
+* WHY 8 MiB AND NOT 10. The budget bounds the IMAGES; the request also carries
+* the system prompt, tool declarations and message text. 8 MiB leaves 2 MiB of
+* envelope, which the measured requests did not come close to (tool
+* declarations ~49 KB). The failure this fixes: a real 15-image session reached
+* 12.32 MB of base64 image payload, under the old 20 MiB budget and over the
+* 10 MiB cap, and died at step 20 with `413 Request Entity Too Large`.
+*/
+const ENTERPRISE_MAX_REQUEST_IMAGE_BYTES = 8388608;
+/**
+* Image-request budgets for one route.
+*
+* The byte bound is region-specific; every other field is shared. Kept as a
+* function rather than two constants so the shared fields cannot drift apart.
+*
+* The return type is the profile's own field types rather than
+* `typeof REQUEST_IMAGE_BUDGETS`: that constant is `as const`, so its
+* `maxRequestImageBytes` is the LITERAL `20_971_520` and the enterprise arm
+* would not typecheck against it.
+* @param providerId - the route whose gateway will receive the request.
+*/
+function requestImageBudgets(providerId) {
+	return providerId === "trae-enterprise" ? {
+		...REQUEST_IMAGE_BUDGETS,
+		maxRequestImageBytes: ENTERPRISE_MAX_REQUEST_IMAGE_BYTES
+	} : REQUEST_IMAGE_BUDGETS;
+}
 function toPiModel(info, baseUrl, providerId, withRate = true) {
 	return {
 		id: info.id,
@@ -1133,6 +1814,111 @@ function withContextAdaptation(api, generation) {
 		streamSimple: (model, context, options) => api.streamSimple(model, forApi(context), options)
 	};
 }
+/**
+* The adapter, with the level each model runs at reported upward and the
+* selector badge this plugin advertises on its own rows.
+*
+* WHY THIS SUBCLASS EXISTS. The kernel asks the adapter for a model's reasoning
+* metadata and materialises `reasoning.defaultEffort` into every request that
+* names no level (`dsh-llm` `resolveCallWithInfo`), and DSH's model picker reads
+* the same field to say which level is current. This plugin knows the answer —
+* Trae publishes a per-model default and the user may override it — but the
+* hand-built provider cannot express a per-model default through pi-ai's `Model`
+* (its shape has one `reasoning: boolean` for the whole row). Reporting it here,
+* at the seam the kernel actually consults, is what makes the picker name a
+* level instead of `Default`. See `default-effort.ts` for the precedence.
+*
+* Both overrides are deliberately narrow: each rewrites ONE field of an object
+* the parent just built, and only where this plugin genuinely has something to
+* say that the parent cannot.
+*/
+var DefaultEffortAdapter = class extends PiAiAdapter {
+	/**
+	* The level one model should run at; `undefined` means it offers no reasoning.
+	*
+	* Read on every resolution rather than captured once, so a catalog refresh or
+	* a settings change reaches the very next request without a restart.
+	*/
+	defaultEffort;
+	/**
+	* The badge for one advertised row id, judged at a caller-supplied clock;
+	* `undefined` means "say nothing".
+	*
+	* Looked up per row rather than precomputed, for the same reason as
+	* `defaultEffort`: `listModels()` is answered from the LIVE catalog, which a
+	* refresh can replace between two reads.
+	*/
+	badgeOf;
+	constructor(config, defaultEffort = () => void 0, badgeOf = () => void 0) {
+		super(config);
+		this.defaultEffort = defaultEffort;
+		this.badgeOf = badgeOf;
+	}
+	/**
+	* Attach the selector badge to the rows this provider advertises.
+	*
+	* WHY OVERRIDE `listModels` SPECIFICALLY: `badge` travels the CATALOG path
+	* only. `normalizeModelInfo` (exact-route resolution) does not copy it, and no
+	* request or Session event carries it — the host's `LlmRuntime.listModels`
+	* is the one place it is read off an adapter and forwarded. `PiAiAdapter`'s
+	* own implementation never emits one, so a subclass has to add it here.
+	*
+	* WHY THE CONDITIONAL SPREAD, AND NOT `{ ...model, badge }`: hosts before
+	* 0.2.2 have no `badge` on `LlmModelInfo` at all, and a literal `badge` key
+	* would be rejected there as an unknown property — this file has to compile
+	* against BOTH host lines. Spreading a variable dodges that check, and the
+	* old registry silently drops the key, so a row degrades to exactly the name
+	* it had before. `undefined` must therefore express "no badge"; a `null`
+	* would throw inside the registry's `badge.text` and take the whole provider
+	* out of the catalog (see `model-badge.ts`).
+	*
+	* ONE CLOCK FOR THE WHOLE CATALOG. `now` is fixed before the map, not inside
+	* it: a promotion window can end between two rows, and two models of one
+	* directory disagreeing about whether the same offer is running is a bug the
+	* user sees as one row decorated and its neighbour not.
+	*/
+	async listModels(provider) {
+		const models = await super.listModels(provider);
+		const now = /* @__PURE__ */ new Date();
+		return models.map((model) => {
+			const badge = this.badgeOf(model.id, now);
+			return {
+				...model,
+				...badge === void 0 ? {} : { badge }
+			};
+		});
+	}
+	resolveModel(provider, model, signal) {
+		return super.resolveModel(provider, model, signal).then((info) => this.advertiseDefaultEffort(info));
+	}
+	prepareCall(provider, model, signal) {
+		return super.prepareCall(provider, model, signal).then((call) => ({
+			...call,
+			model: this.advertiseDefaultEffort(call.model)
+		}));
+	}
+	/**
+	* Write the level into the model metadata.
+	*
+	* It must NEVER contradict the tier list: reporting a level the model does not
+	* offer makes the kernel reject the request outright with
+	* `INVALID_MODEL_REASONING` — far worse than the picker saying `Default`.
+	*/
+	advertiseDefaultEffort(info) {
+		if (info.reasoning === void 0) return info;
+		const effort = this.defaultEffort(info.id);
+		if (effort === void 0) return info;
+		if (!info.reasoning.efforts.some((level) => level.id === effort)) return info;
+		if (info.reasoning.defaultEffort === effort) return info;
+		return {
+			...info,
+			reasoning: {
+				...info.reasoning,
+				defaultEffort: ReasoningEffortId(effort)
+			}
+		};
+	}
+};
 function createTraeAdapter(options) {
 	const providerId = options.provider ?? "trae";
 	const providerName = options.displayName ?? "Trae";
@@ -1170,17 +1956,57 @@ function createTraeAdapter(options) {
 		configuredMaxTokens: /* @__PURE__ */ new Map(),
 		modelErrors: /* @__PURE__ */ new Map(),
 		defaultContextWindow: FALLBACK_CONTEXT_WINDOW,
-		...REQUEST_IMAGE_BUDGETS,
+		...requestImageBudgets(providerId),
 		piProvider: provider
 	};
 	let profiles = /* @__PURE__ */ new Map([[providerId, profile]]);
+	/**
+	* The level one model should run at, resolved from the LIVE catalog.
+	*
+	* The catalog, not the saved `lastCatalog`, because `catalog.current()` is
+	* what the provider serves and what `toPiModel` sized the tier list from —
+	* answering from a different source could name a level that row does not
+	* offer, which the kernel rejects.
+	*/
+	const resolveDefaultEffort = (model) => {
+		const info = options.catalog.current().find((entry) => entry.id === model);
+		if (info === void 0 || info.reasoning === void 0) return void 0;
+		return defaultEffortFor({
+			id: info.id,
+			supported: info.reasoning.supported,
+			defaultEffort: info.reasoning.defaultEffort
+		}, options.defaultEfforts?.() ?? {});
+	};
+	/**
+	* The badge for one advertised row, resolved from the LIVE catalog.
+	*
+	* `catalog.current()` for the same reason `resolveDefaultEffort` reads it:
+	* those are the rows this provider actually serves, so the badge describes the
+	* promotion running RIGHT NOW rather than one saved earlier.
+	*
+	* ONE CLOCK PER CALL, NOT PER ROW. `listModels()` maps over every row, so
+	* reading `Date.now()` per row would let a window boundary fall between two
+	* rows of the same catalog — one model marked "闲时 5 折" and the next not, in
+	* the same menu, from the same clock tick that never happened. `listModels`
+	* fixes the instant once and passes it here.
+	*
+	* THE ENTERPRISE ROUTE IS NOT SPECIAL-CASED. The badge now describes a
+	* promotion rather than a consumer-pool price, and `activity_discount` is a
+	* property of the row's own config, so a tenant row that publishes one is
+	* genuinely discounted for that tenant. The `showRate` suppression stays where
+	* it belongs: the NAME still omits the multiplier there.
+	*/
+	const resolveBadge = (model, now) => {
+		const info = options.catalog.current().find((entry) => entry.id === model);
+		return info === void 0 ? void 0 : traeModelBadge(info, now);
+	};
 	return {
-		adapter: new PiAiAdapter({
+		adapter: new DefaultEffortAdapter({
 			profiles: () => profiles,
 			auth: INERT_AUTH,
 			resolveApiKey: async () => options.secret ?? options.shim.token(),
 			...options.resolveAttachments === void 0 ? {} : { resolveAttachments: options.resolveAttachments }
-		}),
+		}, resolveDefaultEffort, resolveBadge),
 		invalidate() {
 			profiles = /* @__PURE__ */ new Map([[providerId, profile]]);
 		}
@@ -1363,8 +2189,6 @@ const TRAE_MODELS_REFRESH_PATH = "/plugins/dsh-connect-trae/models/refresh";
 const TRAE_MODELS_TEST_PATH = "/plugins/dsh-connect-trae/models/test";
 /** Plugin-owned local account rescan endpoint. */
 const TRAE_ACCOUNTS_REFRESH_PATH = "/plugins/dsh-connect-trae/accounts/refresh";
-/** 本机 TraeDaddy 账号库：多账号列表 + 切换（loopback-only）。 */
-const TRAE_LOCAL_ACCOUNTS_PATH = "/plugins/dsh-connect-trae/local-accounts";
 /**
 * General balance of EVERY account in a region, for the composer panel's table.
 *
@@ -1657,6 +2481,23 @@ function nextRegionCreditPosition(value, panel, position) {
 		creditPosition: position
 	});
 }
+/**
+* The automatic-refresh cadences this plugin offers, in MINUTES.
+*
+* The list is the setting's whole value domain: the schema validates against
+* exactly these, so a hand-edited `7` is refused at write time instead of
+* silently producing a cadence nobody chose. `1` is the floor because every
+* usage read costs two upstream requests and a tighter loop would turn a
+* background refresh into traffic the user never asked for.
+*/
+const TRAE_REFRESH_INTERVAL_MINUTES = [
+	1,
+	5,
+	10,
+	30,
+	60
+];
+new Set(TRAE_REFRESH_INTERVAL_MINUTES);
 /**
 * Panels whose text-to-image path this plugin has actually MEASURED, in
 * `TRAE_PANELS` tab order.
@@ -4147,6 +4988,50 @@ function scopeTraeModels(rows, view, region = "cn") {
 	return rows.filter((row) => traeModelInView(row, view, region));
 }
 //#endregion
+//#region src/upstream.ts
+/**
+* A failure Trae reported INSIDE an already-200 SSE body, once the answer has
+* started crossing the loopback boundary.
+*
+* Issue #85 is why this is a class rather than a plain `Error`. A refusal that
+* arrives before any output can still become a real HTTP status, but one that
+* arrives after the headers and the first bytes are gone cannot: the only
+* remaining channel is the stream itself. The shim therefore has to tell
+* "the upstream throttled this request" apart from "the socket died", and it
+* gets that from `kind`/`status` here — the message text alone would have made
+* it guess.
+*
+* `traeCode` is Trae's own numeric code (`3004` for the shared-queue rate
+* limit), kept separate from `kind` so a log line can name the upstream code
+* without the plugin's reading of it.
+*/
+var TraeStreamFailure = class extends Error {
+	kind;
+	status;
+	traeCode;
+	name = "TraeStreamFailure";
+	constructor(message, kind, status, traeCode) {
+		super(message);
+		this.kind = kind;
+		this.status = status;
+		this.traeCode = traeCode;
+	}
+};
+/**
+* Safe first-stage upstream. Real Trae traffic stays disabled until one
+* edition-specific endpoint and wire codec are verified with fixtures.
+*/
+var UnconfiguredTraeUpstreamClient = class {
+	async chatStream(_bodyJson, _signal) {
+		return {
+			ok: false,
+			status: 503,
+			kind: "unconfigured",
+			message: "Trae upstream protocol is not configured; complete offline protocol verification first"
+		};
+	}
+};
+//#endregion
 //#region src/shim.ts
 const BODY_LIMIT = 67108864;
 const LOOPBACK_HOSTS = /* @__PURE__ */ new Set([
@@ -4223,6 +5108,29 @@ function writeError(res, status, kind, message) {
 		code: kind
 	} });
 }
+/**
+* Write a failure into an SSE body that has already started.
+*
+* The shape is OpenAI's own in-stream error payload (`data: {"error":{...}}`),
+* because that is what an OpenAI-compatible reader understands: the `openai`
+* SDK throws an `APIError` whose message is the `error.message` here, and the
+* kernel classifies that text. A bare `[DONE]` would claim success; nothing at
+* all is the truncated-200 case this exists to end (issue #85).
+*
+* Deliberately NOT followed by `[DONE]`: this is a failure, and a terminal
+* "done" after it would let a client that only looks for the sentinel treat the
+* turn as completed.
+*/
+function writeStreamError(res, failure) {
+	const payload = JSON.stringify({ error: {
+		message: failure.message,
+		type: failure.kind,
+		code: failure.kind,
+		...failure.traeCode === void 0 ? {} : { trae_code: failure.traeCode }
+	} });
+	res.write(`data: ${payload}\n\n`);
+	res.end();
+}
 function readBody(req) {
 	return new Promise((resolve, reject) => {
 		const chunks = [];
@@ -4294,7 +5202,9 @@ function createTraeShim(options) {
 			const result = await client.chatStream(raw, signal);
 			if (result.ok) return {
 				kind: "stream",
-				response: result.response
+				response: result.response,
+				...accountId === void 0 ? {} : { accountId },
+				...pool === void 0 ? {} : { pool }
 			};
 			const retryable = pool !== void 0 && !signal.aborted && FAILOVER_KINDS.has(result.kind);
 			if (retryable && accountId !== void 0) await pool.failed(accountId, result.kind, result.message).catch(() => {});
@@ -4373,7 +5283,18 @@ function createTraeShim(options) {
 						cause: error.cause ? String(error.cause) : void 0
 					} : String(error);
 					options.logger?.warn("dsh-connect-trae: upstream stream failed", record);
-					if (!res.writableEnded) res.end();
+					if (!res.writableEnded) {
+						if (error instanceof TraeStreamFailure) {
+							if (FAILOVER_KINDS.has(error.kind) && result.accountId !== void 0 && result.pool !== void 0) result.pool.failed(result.accountId, error.kind, error.message).catch(() => {});
+							if (controller.signal.aborted) {
+								if (!res.writableEnded) res.end();
+								return;
+							}
+							writeStreamError(res, error);
+							return;
+						}
+						res.end();
+					}
 				});
 				body.pipe(res);
 				return;
@@ -4917,144 +5838,6 @@ function decodeRawChatChunk(value) {
 	}] : result;
 }
 //#endregion
-//#region src/promo.ts
-function record$1(value) {
-	return typeof value === "object" && value !== null && !Array.isArray(value) ? value : void 0;
-}
-function finite(value) {
-	return typeof value === "number" && Number.isFinite(value) ? value : void 0;
-}
-function percent(value) {
-	const parsed = finite(value);
-	return parsed !== void 0 && parsed > 0 && parsed < 100 ? parsed : void 0;
-}
-function ratePair(raw) {
-	const entry = record$1(raw);
-	if (entry === void 0) return {};
-	const beforeRate = finite(entry["before_consumption_rate"]);
-	const rate = finite(entry["consumption_rate"]) ?? finite(entry["after_consumption_rate"]);
-	const discountPercent = percent(entry["discount"]);
-	return {
-		...beforeRate === void 0 || beforeRate <= 0 ? {} : { beforeRate },
-		...rate === void 0 || rate <= 0 ? {} : { rate },
-		...discountPercent === void 0 ? {} : { discountPercent }
-	};
-}
-function windows(raw) {
-	const list = Array.isArray(raw) ? raw : [];
-	const parsed = [];
-	for (const item of list) {
-		const entry = record$1(item);
-		if (entry === void 0) continue;
-		const weekdays = Array.isArray(entry["weekdays"]) ? entry["weekdays"].filter((day) => Number.isInteger(day) && day >= 1 && day <= 7) : [];
-		const startMinute = finite(entry["start_minute"]);
-		const endMinute = finite(entry["end_minute"]);
-		if (weekdays.length === 0 || startMinute === void 0 || endMinute === void 0) continue;
-		if (startMinute < 0 || startMinute > 1439 || endMinute < 1 || endMinute > 1440) continue;
-		if (startMinute >= endMinute) continue;
-		parsed.push({
-			weekdays,
-			startMinute,
-			endMinute
-		});
-	}
-	return parsed;
-}
-/**
-* Parse one `activity_discount` document.
-*
-* `value` may be the already-parsed object (both call sites hand us the parent
-* object) or the raw JSON string; anything without `enable: true` reads as "no
-* promotion" rather than as a rule we might later misjudge.
-*/
-function parseTraeActivityDiscount(value) {
-	let source = value;
-	if (typeof source === "string") {
-		if (source === "") return void 0;
-		try {
-			source = JSON.parse(source);
-		} catch {
-			return;
-		}
-	}
-	const raw = record$1(source);
-	if (raw === void 0 || raw["enable"] !== true) return void 0;
-	const data = record$1(raw["data"]);
-	if (data === void 0) return void 0;
-	const subKey = typeof raw["subKey"] === "string" && raw["subKey"] !== "" ? raw["subKey"] : void 0;
-	const currentRaw = record$1(data["current"]);
-	const currentType = typeof currentRaw?.["discount_type"] === "string" ? currentRaw["discount_type"] : void 0;
-	const current = currentRaw === void 0 ? void 0 : {
-		...ratePair(currentRaw),
-		...currentType === void 0 ? {} : { discountType: currentType }
-	};
-	const memberRaw = data["member"];
-	const member = record$1(memberRaw) === void 0 ? void 0 : ratePair(memberRaw);
-	const subsidyRaw = data["subsidy"];
-	const subsidy = record$1(subsidyRaw) === void 0 ? void 0 : ratePair(subsidyRaw);
-	const offPeakRaw = record$1(data["off_peak"]);
-	const offPeak = offPeakRaw === void 0 ? void 0 : {
-		...ratePair(offPeakRaw),
-		...typeof offPeakRaw["time_zone"] === "string" && offPeakRaw["time_zone"] !== "" ? { timeZone: offPeakRaw["time_zone"] } : {},
-		windows: windows(offPeakRaw["time_windows"])
-	};
-	const parsed = {
-		...subKey === void 0 ? {} : { subKey },
-		...current === void 0 ? {} : { current },
-		...member === void 0 ? {} : { member },
-		...offPeak === void 0 ? {} : { offPeak },
-		...subsidy === void 0 ? {} : { subsidy }
-	};
-	return parsed.current === void 0 && parsed.member === void 0 && parsed.offPeak === void 0 && parsed.subsidy === void 0 ? void 0 : parsed;
-}
-//#endregion
-//#region src/reasoning.ts
-/**
-* The DSH thinking levels this plugin can carry, in ascending order.
-*
-* `max` is the fifth level Trae's own client advertises — its bundle ships the
-* i18n keys `trae-chat-core.model.reasoning_effort.{low,medium,high,extra_high,max}`
-* and `ai.model.reasoning_effort.{low,medium,high,xhigh,max}`, and publishes the
-* per-model list from a remote config (`AI.agent.model.reasoning_effort_level_by_agent_model_v2`).
-* Leaving it out of this list meant a level the vendor could start serving was
-* filtered away at PARSE time, before anything downstream could decide (issue
-* #60). Listing it does not fabricate the level: `supported` is still built
-* only from what the upstream response actually contains, so a model that does
-* not advertise `max` never offers it.
-*
-* `minimal` is kept for the same reason in reverse — it is a DSH level, so the
-* type must be able to represent it even though no CN model has advertised it.
-*/
-const TRAE_REASONING_EFFORTS = [
-	"minimal",
-	"low",
-	"medium",
-	"high",
-	"xhigh",
-	"max"
-];
-function parseReasoningCapability(value) {
-	if (typeof value !== "object" || value === null || Array.isArray(value)) return void 0;
-	const record = value;
-	const supported = (Array.isArray(record["reasoning_effort_options"]) ? record["reasoning_effort_options"] : []).filter((item) => typeof item === "string" && TRAE_REASONING_EFFORTS.includes(item));
-	const rawDefault = record["default_reasoning_effort"];
-	const defaultEffort = typeof rawDefault === "string" && supported.includes(rawDefault) ? rawDefault : void 0;
-	if (supported.length === 0 && defaultEffort === void 0) return void 0;
-	return {
-		supported,
-		...defaultEffort === void 0 ? {} : { defaultEffort }
-	};
-}
-/** Add effort only when the selected model advertises that exact value. */
-function applyReasoningEffort(body, effort, capability) {
-	if (effort === void 0) return body;
-	if (capability === void 0 || !capability.supported.includes(effort)) throw new Error(`Trae model does not advertise reasoning effort ${effort}`);
-	return {
-		...body,
-		reasoning_effort: effort
-	};
-}
-//#endregion
 //#region src/solo.ts
 /**
 * `llm_utils_chat` functions to union per region, in priority order.
@@ -5522,6 +6305,58 @@ async function classifyEnterpriseResponse(response) {
 	return { refusal: data === "" ? "enterprise gateway refused the request" : data };
 }
 //#endregion
+//#region src/usage-cache.ts
+/** Independently implemented from the field-compatibility approach in wild-work.
+* Keep explicit zero, reject invalid counters, and preserve the original usage.
+* A missing counter is not evidence that the request was billed without caching.
+*/
+/**
+* A plain object, or `{}`.
+*
+* The guard matters because the input is an UPSTREAM PAYLOAD, not a typed
+* record: `released v4.18.0` only ever consumed individually type-checked
+* fields from a decoded event, so a non-object `token_usage` payload was
+* harmless. Normalization reads the payload as a whole, which made
+* `data: null` throw inside the stream's `start()` and kill a live answer —
+* see the regression test in `tests/cache-compat.spec.ts`. Arrays are also
+* excluded: spreading one turns `[1,2]` into `{"0":1,"1":2}`, which would be
+* forwarded as a usage object.
+*/
+function record$1(value) {
+	return typeof value === "object" && value !== null && !Array.isArray(value) ? value : {};
+}
+/** First finite, non-negative candidate; anything else is "upstream did not say". */
+function counter(...values) {
+	return values.find((value) => typeof value === "number" && Number.isFinite(value) && value >= 0);
+}
+/**
+* Normalize cache accounting into the OpenAI spelling pi-ai reads.
+*
+* @param usage - the `token_usage` payload exactly as upstream sent it. Typed
+* `unknown` rather than `Record<string, unknown>` on purpose: the caller has
+* only just parsed JSON, and a payload of `null` / an array / a scalar is a
+* shape this function must survive rather than a type the caller guarantees.
+*/
+function normalizeUsageCache(usage) {
+	const source = record$1(usage);
+	const details = record$1(source["prompt_tokens_details"]);
+	const input = record$1(source["input_tokens_details"]);
+	const read = counter(details["cached_tokens"], source["prompt_cache_hit_tokens"], source["cache_read_input_tokens"], input["cached_tokens"], source["cached_tokens"]);
+	const write = counter(details["cache_write_tokens"], source["cache_creation_input_tokens"], input["cache_write_tokens"]);
+	const normalizedDetails = { ...details };
+	delete normalizedDetails["cached_tokens"];
+	delete normalizedDetails["cache_write_tokens"];
+	if (read === void 0 && write === void 0 && source["prompt_tokens_details"] === void 0) return { ...source };
+	return {
+		...source,
+		prompt_tokens_details: {
+			...normalizedDetails,
+			...read === void 0 ? {} : { cached_tokens: read },
+			...write === void 0 ? {} : { cache_write_tokens: write }
+		}
+	};
+}
+//#endregion
 //#region src/sse.ts
 /** Incremental SSE decoder supporting CRLF, chunk splits and multi-line data. */
 var SseDecoder = class {
@@ -5608,15 +6443,18 @@ function decodeTraeEvent(event) {
 		type: "progress",
 		notice: payload
 	};
-	if (event.event === "token_usage") return {
-		type: "usage",
-		...typeof record["prompt_tokens"] === "number" ? { inputTokens: record["prompt_tokens"] } : {},
-		...typeof record["completion_tokens"] === "number" ? { outputTokens: record["completion_tokens"] } : {},
-		...typeof record["total_tokens"] === "number" ? { totalTokens: record["total_tokens"] } : {},
-		...typeof record["reasoning_tokens"] === "number" ? { reasoningTokens: record["reasoning_tokens"] } : {},
-		...typeof record["cache_read_input_tokens"] === "number" ? { cacheReadTokens: record["cache_read_input_tokens"] } : {},
-		...typeof record["cache_creation_input_tokens"] === "number" ? { cacheWriteTokens: record["cache_creation_input_tokens"] } : {}
-	};
+	if (event.event === "token_usage") {
+		const details = normalizeUsageCache(record)["prompt_tokens_details"];
+		return {
+			type: "usage",
+			...typeof record["prompt_tokens"] === "number" ? { inputTokens: record["prompt_tokens"] } : {},
+			...typeof record["completion_tokens"] === "number" ? { outputTokens: record["completion_tokens"] } : {},
+			...typeof record["total_tokens"] === "number" ? { totalTokens: record["total_tokens"] } : {},
+			...typeof record["reasoning_tokens"] === "number" ? { reasoningTokens: record["reasoning_tokens"] } : {},
+			...typeof details?.["cached_tokens"] === "number" ? { cacheReadTokens: details["cached_tokens"] } : {},
+			...typeof details?.["cache_write_tokens"] === "number" ? { cacheWriteTokens: details["cache_write_tokens"] } : {}
+		};
+	}
 	if (event.event === "metadata" || event.event === "timing_cost") return {
 		type: "diagnostic",
 		...record["prompt_cache_pool_record"] === void 0 ? {} : { promptCachePoolRecord: record["prompt_cache_pool_record"] },
@@ -5684,8 +6522,18 @@ function decodeTraeEvent(event) {
 *    empty and then self-resolved later with rows per function, so this is a
 *    TRANSIENT server-side gap the user can wait out or retry — never a local
 *    credential, plugin or account fault, and not something to re-login for.
+*  - `3004` — Trae's own shared-queue rate limit (issue #85). Its text is
+*    `We're sorry, your requests have exceeded the rate limit.`, the same
+*    condition `4011` reports for the SOLO route, and it arrives as an
+*    `error` event AFTER `request_wait_in_queue` / `progress_notice` — which is
+*    why it is classified identically but is a distinct code worth keeping (the
+*    queue is shared, so it says nothing about this account's SOLO route).
+*    Deliberately NOT read as a quota: the kernel checks quota wording BEFORE
+*    rate-limit wording, so one stray "quota" would mis-file it as unretryable.
 */
 const TRAE_ERROR_HINTS = {
+	3004: "Trae throttled the shared request queue for this account (a rate limit, not the credit balance)",
+	4017: "Trae temporarily restricted this account through risk control",
 	1005: "Trae requires a paid plan for this model; the current account's plan does not cover it",
 	2001: "Trae has not published its function config for this route (an upstream condition, not a local credential or config problem)",
 	4001: "Trae does not serve this model under the SOLO function the request used (config_name rejected)",
@@ -5734,14 +6582,25 @@ function describeTraeFailure(failure) {
 * replay — correct, since a throttled route is not a route-compatibility
 * problem.
 *
+* `4008` means exhausted SOLO quota and shares the credit failure category.
+* `4017` restricts the account temporarily and shares the rate-limit category.
+* These account failures must reach pooled-account failover; replaying another
+* route for the same account cannot restore quota or remove its restriction.
 * Everything else stays a client-side rejection.
+*
+* `3004` joins the rate-limit category for the same reason as `4011` and on the
+* same evidence (issue #85): Trae's text says "rate limit", the kernel's own
+* text classifier says RATE_LIMIT, and `soft_rate` is what makes the account
+* pool try a DIFFERENT account instead of replaying the throttled one. It
+* previously fell through to `400`/`client` — a non-retryable verdict on a
+* condition that is retryable by definition.
 */
 function classifyTraeFailure(failure) {
-	if (failure.code === 1005) return {
+	if (failure.code === 1005 || failure.code === 4008) return {
 		status: 402,
 		kind: "hard_credit"
 	};
-	if (failure.code === 4011) return {
+	if (failure.code === 3004 || failure.code === 4011 || failure.code === 4017) return {
 		status: 429,
 		kind: "soft_rate"
 	};
@@ -5750,12 +6609,38 @@ function classifyTraeFailure(failure) {
 		kind: "client"
 	};
 }
+/**
+* Trae codes this build has actually measured (`TRAE_ERROR_HINTS`). Used to
+* recognise a refusal that arrives in an UNNAMED event: the generic rule only
+* trusts the 4xxx error band, and `3004` sits below it (issue #85). Membership
+* is the point — an arbitrary low `code` field on a normal payload still does
+* not become an error.
+*
+* DEPENDS ON: every entry in `TRAE_ERROR_HINTS` being a FAILURE code. Adding a
+* hint for a code that is not a failure would silently widen the unnamed-event
+* rule to cover it, so the two tables must keep the same purpose.
+*/
+const KNOWN_FAILURE_CODES = new Set(Object.keys(TRAE_ERROR_HINTS).map(Number));
+/**
+* Trae's numeric error code, or undefined.
+*
+* Accepts the string form too: the wire is JSON and Trae has been inconsistent
+* about quoting numerics elsewhere (`extra` is a JSON *string*). Reading only
+* `typeof === 'number'` would make the `3004` fix (issue #85) silently stop
+* working the day the code arrives as `"3004"` — the failure would fall through
+* to a codeless `client` verdict with nothing in the logs to say why.
+*/
+function traeCodeOf(payload) {
+	const raw = payload?.["code"];
+	if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+	if (typeof raw === "string" && /^\d+$/.test(raw)) return Number(raw);
+}
 /** Recognise an in-stream failure event, or return undefined for anything else. */
 function traeFailureOf(decoded) {
 	if (decoded.type !== "unknown") return void 0;
 	const payload = decoded.data;
-	const code = typeof payload?.["code"] === "number" ? payload["code"] : void 0;
-	if (decoded.event !== "error" && !(code !== void 0 && code >= 4e3)) return void 0;
+	const code = traeCodeOf(payload);
+	if (decoded.event !== "error" && !(code !== void 0 && (code >= 4e3 || KNOWN_FAILURE_CODES.has(code)))) return void 0;
 	return {
 		...code === void 0 ? {} : { code },
 		message: typeof payload?.["message"] === "string" ? payload["message"] : "",
@@ -5819,7 +6704,10 @@ function bridgeTraeSource(source, model, log) {
 				const decoded = decodeTraeEvent(event);
 				if (decoded.type === "unknown") {
 					const failure = traeFailureOf(decoded);
-					if (failure !== void 0) upstreamError = new Error(describeTraeFailure(failure));
+					if (failure !== void 0) {
+						const classified = classifyTraeFailure(failure);
+						upstreamError = new TraeStreamFailure(describeTraeFailure(failure), classified.kind, classified.status, failure.code);
+					}
 					return;
 				}
 				if (decoded.type === "diagnostic") {
@@ -5841,20 +6729,8 @@ function bridgeTraeSource(source, model, log) {
 						delta["tool_calls"] = toolCalls;
 					}
 					if (Object.keys(delta).length > 0) controller.enqueue(chunk(delta));
-				} else if (decoded.type === "usage") {
-					const cacheRead = decoded.cacheReadTokens;
-					const cacheWrite = decoded.cacheWriteTokens;
-					const details = {
-						...cacheRead === void 0 ? {} : { cached_tokens: cacheRead },
-						...cacheWrite === void 0 ? {} : { cache_write_tokens: cacheWrite }
-					};
-					usage = {
-						...decoded.inputTokens === void 0 ? {} : { prompt_tokens: decoded.inputTokens },
-						...decoded.outputTokens === void 0 ? {} : { completion_tokens: decoded.outputTokens },
-						...decoded.totalTokens === void 0 ? {} : { total_tokens: decoded.totalTokens },
-						...Object.keys(details).length === 0 ? {} : { prompt_tokens_details: details }
-					};
-				} else if (decoded.type === "done") {
+				} else if (decoded.type === "usage") usage = normalizeUsageCache(JSON.parse(event.data));
+				else if (decoded.type === "done") {
 					upstreamEnded = true;
 					if (!emittedFinishReason) {
 						emittedFinishReason = true;
@@ -5906,15 +6782,71 @@ function bridgeTraeSource(source, model, log) {
 */
 const PEEK_MAX_CHUNKS = 64;
 const PEEK_MAX_BYTES = 262144;
+/**
+* How long the peek may keep waiting once Trae has acknowledged the request
+* (`queue` / `progress` / diagnostics) but has sent no output yet.
+*
+* Issue #85 needs the peek to hold on past a queue event, because the 3004
+* shared-queue rate limit arrives right after one — but a genuinely queued
+* request waits for MINUTES, and the loopback answering 200 is what starts the
+* kernel's own idle clock. So the extra wait is a budget, not an unbounded
+* block: inside it a refusal becomes a real HTTP status (which the account pool
+* can act on by switching accounts); past it the stream is handed over exactly
+* as it arrives, which is the behaviour every queue had before this change.
+*/
+const PEEK_SETTLE_MS = 2500;
+/**
+* Read with a deadline that does NOT abort the stream.
+*
+* `reader.read()` cannot be cancelled without cancelling the body, so a timed-out
+* read is returned to the caller as `pending` and handed on to
+* {@link replayTraeSource}: the bytes still arrive, they just arrive after the
+* peek gave up waiting for them. Without that handoff the first chunk of a slow
+* answer would sit in a discarded promise and be lost.
+*/
+async function readWithin(reader, waitMs) {
+	const pending = reader.read();
+	pending.catch(() => {});
+	if (waitMs === void 0) return {
+		kind: "chunk",
+		value: await pending
+	};
+	let timer;
+	const expired = new Promise((resolve) => {
+		timer = setTimeout(() => resolve({
+			kind: "timeout",
+			pending
+		}), Math.max(0, waitMs));
+	});
+	try {
+		return await Promise.race([pending.then((value) => ({
+			kind: "chunk",
+			value
+		})), expired]);
+	} finally {
+		clearTimeout(timer);
+	}
+}
 /** Replay the bytes the peek consumed, then drain the rest of the upstream. */
-function replayTraeSource(buffered, reader, ended) {
+function replayTraeSource(buffered, reader, ended, pending) {
 	let index = 0;
+	let waiting = pending;
 	return new ReadableStream({
 		async pull(controller) {
 			const chunk = buffered[index];
 			if (chunk !== void 0) {
 				index += 1;
 				controller.enqueue(chunk);
+				return;
+			}
+			if (waiting !== void 0) {
+				const settled = await waiting;
+				waiting = void 0;
+				if (settled.done) {
+					controller.close();
+					return;
+				}
+				controller.enqueue(settled.value);
 				return;
 			}
 			if (ended) {
@@ -5962,17 +6894,36 @@ async function openTraeSource(response) {
 	const buffered = [];
 	let bytes = 0;
 	let ended = false;
+	let pending;
+	/**
+	* Absolute deadline for the extra wait, fixed the FIRST time Trae
+	* acknowledges the request.
+	*
+	* A per-read timeout would not bound anything: Trae keeps a queued request
+	* alive with a `progress_notice` every few seconds, so a 2.5s-per-read budget
+	* would reset forever and hold the response headers for up to
+	* `PEEK_MAX_CHUNKS × PEEK_SETTLE_MS` (~160s) — the exact stall this change
+	* exists to avoid. Measured before the fix: a queue event followed by one
+	* progress notice per second kept the headers held for 6.0s. The deadline is
+	* therefore absolute and set once, so the total extra wait is one budget.
+	*/
+	let settleDeadline;
 	try {
 		while (buffered.length < PEEK_MAX_CHUNKS && bytes < PEEK_MAX_BYTES) {
-			const next = await reader.read();
-			if (next.done) {
+			const next = await readWithin(reader, settleDeadline === void 0 ? void 0 : settleDeadline - Date.now());
+			if (next.kind === "timeout") {
+				pending = next.pending;
+				break;
+			}
+			const value = next.value;
+			if (value.done) {
 				ended = true;
 				break;
 			}
-			buffered.push(next.value);
-			bytes += next.value.byteLength;
+			buffered.push(value.value);
+			bytes += value.value.byteLength;
 			let answered = false;
-			for (const event of sse.push(decoder.decode(next.value, { stream: true }))) {
+			for (const event of sse.push(decoder.decode(value.value, { stream: true }))) {
 				const decoded = decodeTraeEvent(event);
 				const failure = traeFailureOf(decoded);
 				if (failure !== void 0) {
@@ -5983,7 +6934,8 @@ async function openTraeSource(response) {
 						message: describeTraeFailure(failure)
 					};
 				}
-				if (decoded.type !== "unknown" && decoded.type !== "diagnostic") answered = true;
+				if (decoded.type === "delta" || decoded.type === "usage" || decoded.type === "done") answered = true;
+				else if (decoded.type !== "unknown" && settleDeadline === void 0) settleDeadline = Date.now() + PEEK_SETTLE_MS;
 			}
 			if (answered) break;
 		}
@@ -5998,7 +6950,7 @@ async function openTraeSource(response) {
 	}
 	return {
 		ok: true,
-		source: replayTraeSource(buffered, reader, ended)
+		source: replayTraeSource(buffered, reader, ended, pending)
 	};
 }
 /**
@@ -8523,13 +9475,56 @@ async function readTransferBody(req) {
 	if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new Error("body must be a JSON object");
 	return parsed;
 }
-/** Loopback browser origins only; other devices are refused until trusted origins exist. */
+/**
+* One hostname spelling: lowercased, IPv6 brackets dropped.
+*
+* `new URL('http://[::1]:3080').hostname` is the string `[::1]`, while a socket's
+* `localAddress` is `::1` — comparing the two without normalising means the
+* bracketed form never matches, which is why the old predicate listed both
+* spellings by hand.
+*/
+function bareHostname(value) {
+	const text = value.trim().toLowerCase();
+	return text.startsWith("[") && text.endsWith("]") ? text.slice(1, -1) : text;
+}
+/**
+* Whether a request's `Origin` may be honoured (ISSUE #78).
+*
+* This used to accept loopback hostnames ONLY, and that was wrong in a way that
+* hid from every non-browser test: a browser always sends `Origin` on a
+* same-origin POST, so `dsh web --host 100.64.0.2` served the page from an
+* address the HOST layer had already accepted (`--trusted-host`) while this
+* predicate called that page's own origin foreign. All six write routes 403'd
+* in the real UI, and `curl` — which sends no `Origin` — stayed green. The
+* plugin's own fetch does not send it either, so nothing on the plugin side
+* noticed.
+*
+* The rule is now "same origin, however this process is addressed": loopback, or
+* a hostname equal to the `Host` header's, or one equal to the socket's own
+* local address. Hostnames only — a reverse proxy that changes the PORT must
+* still be admitted, and the port says nothing about who is asking.
+*
+* The `Host` comparison is what the sibling dsh-connect-workbuddy predicate
+* lacks, and it is here deliberately: a front proxy can rewrite `Host` to a
+* different trusted spelling than the address the browser used, so neither
+* `Host` nor `localAddress` alone covers every arrangement.
+*
+* Exact equality, never `endsWith`/`startsWith`: a suffix test would admit
+* `evil-100.64.0.2`, and a prefix test would admit `100.64.0.20`.
+*/
 function loopbackOrigin(req) {
 	const origin = req.headers.origin;
-	if (origin === void 0) return true;
+	if (origin === void 0 || origin.trim() === "") return true;
 	try {
-		const { hostname } = new URL(origin);
-		return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]" || hostname === "::1";
+		const hostname = bareHostname(new URL(origin).hostname);
+		if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1") return true;
+		const rawHost = req.headers.host;
+		if (typeof rawHost === "string" && rawHost.trim() !== "") {
+			if (hostname === bareHostname(new URL(`http://${rawHost}`).hostname)) return true;
+		}
+		const local = req.socket?.localAddress;
+		if (typeof local === "string" && local.trim() !== "" && hostname === bareHostname(local)) return true;
+		return false;
 	} catch {
 		return false;
 	}
@@ -8660,6 +9655,18 @@ async function traeWebUsage(deps, panel, options = {}) {
 	const store = deps.store(panel);
 	const enabled = deps.regionEnabled(panel);
 	/**
+	* GLOBAL, read once per answer and repeated on every panel: the card polls
+	* one region at a time, so the sidebar switch has to be present on whichever
+	* tab is open. `=== true` for the same reason as every opt-in switch here —
+	* the row claims a seat every bundle shares, so an absent answer (an older
+	* Host that cannot answer) must never read as "the user asked for this".
+	*
+	* The signed-OUT branches below carry it too: the row is a property of the
+	* plugin, not of a signed-in account, and a signed-out card is exactly where
+	* a user may still want the page it opens.
+	*/
+	const sidebarPanelEnabled = deps.sidebarPanelEnabled?.() === true;
+	/**
 	* Accounts this panel may actually bill.
 	*
 	* Filtered ONCE, at the source, because this list is spliced into every
@@ -8704,6 +9711,7 @@ async function traeWebUsage(deps, panel, options = {}) {
 			status: "signed-out",
 			accounts,
 			enabled,
+			sidebarPanelEnabled,
 			quarantined,
 			...unsupportedRegion === void 0 ? {} : { unsupportedRegion },
 			searched: failures.map((failure) => ({
@@ -8725,6 +9733,7 @@ async function traeWebUsage(deps, panel, options = {}) {
 			status: "signed-out",
 			accounts,
 			enabled,
+			sidebarPanelEnabled,
 			quarantined,
 			...unsupportedRegion === void 0 ? {} : { unsupportedRegion },
 			...explained ? {} : { message: safeMessage(error) }
@@ -8737,6 +9746,7 @@ async function traeWebUsage(deps, panel, options = {}) {
 		...credential.refreshExpiresAtMs === void 0 ? {} : { refreshExpiresAtMs: credential.refreshExpiresAtMs },
 		region: regionOfPanel(panel),
 		enabled,
+		sidebarPanelEnabled,
 		...unsupportedRegion === void 0 ? {} : { unsupportedRegion },
 		accounts,
 		models: deps.displayModels(panel).map((model) => ({
@@ -8791,7 +9801,9 @@ async function traeWebUsage(deps, panel, options = {}) {
 		...poolSection,
 		creditsUnavailable: "enterprise"
 	};
-	const [snapshotResult, checkinResult] = await Promise.allSettled([client.snapshot(), client.checkinStatus()]);
+	const checkinProgress = await deps.autoCheckinProgress?.();
+	const checkinCompleted = checkinProgress?.day === checkinDay(Date.now()) && (checkinProgress.deviceBlocked || checkinProgress.done.includes(account.accountId));
+	const [snapshotResult, checkinResult] = await Promise.allSettled([client.snapshot(), checkinCompleted ? Promise.resolve(void 0) : client.checkinStatus()]);
 	const credits = snapshotResult.status === "fulfilled" ? toCredits(snapshotResult.value) : void 0;
 	const alternatives = credits !== void 0 && credits.workAvailable <= 0 && credits.generalAvailable <= 0 ? await creditAlternatives(deps, panel, accounts) : void 0;
 	return {
@@ -8799,7 +9811,7 @@ async function traeWebUsage(deps, panel, options = {}) {
 		...account,
 		...poolSection,
 		...credits === void 0 ? { creditsError: snapshotResult.status === "rejected" ? safeMessage(snapshotResult.reason) : "unknown" } : { credits },
-		...checkinResult.status === "fulfilled" ? { checkin: toCheckin(checkinResult.value) } : { checkinError: safeMessage(checkinResult.reason) },
+		...checkinResult.status === "fulfilled" ? checkinResult.value === void 0 ? {} : { checkin: toCheckin(checkinResult.value) } : { checkinError: safeMessage(checkinResult.reason) },
 		...alternatives === void 0 ? {} : { alternatives }
 	};
 }
@@ -8989,9 +10001,16 @@ async function traeWebPool(deps, panel, fast = false) {
 		else if (ranked.every((row) => row.excludedBy !== void 0)) noCandidate = new Set(ranked.map((row) => row.excludedBy)).size === 1 ? ranked[0]?.excludedBy ?? "unusable" : "unusable";
 	}
 	const effectiveMemberAccountIds = effectiveMembersOf(rows.filter((row) => row.member).map((row) => row.account.id), new Set(members.map((member) => member.account.id)));
+	const automatic = panel === "cn" && preferences.autoCheckin === true ? await readAutoCheckin() : void 0;
 	const copies = await deps.copiesOf?.(panel).catch(() => void 0);
 	return {
 		enabled: preferences.enabled === true,
+		autoCheckin: preferences.autoCheckin === true,
+		...automatic?.day === checkinDay(Date.now()) ? { autoCheckinState: {
+			done: automatic.done.length,
+			deviceBlocked: automatic.deviceBlocked,
+			failures: automatic.failures
+		} } : {},
 		checkinSupported: pool.checkin !== void 0 && regionOfPanel(panel) === "cn",
 		...deps.deleteAccountOf === void 0 ? {} : { deleteSupported: true },
 		...copies === void 0 ? {} : { copies },
@@ -9055,11 +10074,33 @@ async function traeAccountCredits(deps, panel) {
 	if (accounts.length === 0) return [];
 	return Promise.all(accounts.map(async (account) => {
 		let generalAvailable;
-		if (account.selected) try {
-			generalAvailable = toCredits(await deps.client(panel).snapshot()).generalAvailable;
-		} catch {}
-		else if (deps.creditsOfAccount !== void 0) try {
+		/**
+		* EVERY row goes through `creditsOfAccount`, INCLUDING the bound one.
+		*
+		* That is a correctness fix, not a simplification. The bound row used to
+		* take `deps.client(panel).snapshot()` — the shared client, which reads
+		* through `store.resolve()` and therefore whatever account is bound. The
+		* branch existed because the bound account's stored token is usually
+		* EXPIRED, and `creditsOfAccount` used to be a pure lookup that handed a
+		* stale token back as-is. `126faa9` removed that reason: `creditsOfAccount`
+		* now resolves each named account's credential, refreshing it first.
+		*
+		* What was left behind was a way to report the WRONG account's balance. The
+		* shared client answers for the binding, so if the store's binding moved
+		* between the `accounts()` read and the snapshot — or `resolve()` picked a
+		* different account than the `selected` flag names — this row carried the
+		* OTHER account's figure. The visible symptom was two rows showing the same
+		* number (issue #74 follow-up, 2026-11-03): both accounts read 644.29 while
+		* the upstream said 678.54 and 644.00.
+		*
+		* Reading by id is also what makes the rows independent: each request names
+		* its account, so no row can be answered by another row's credential.
+		*/
+		if (deps.creditsOfAccount !== void 0) try {
 			generalAvailable = (await deps.creditsOfAccount(panel, account.id))?.generalAvailable;
+		} catch {}
+		else if (account.selected) try {
+			generalAvailable = toCredits(await deps.client(panel).snapshot()).generalAvailable;
 		} catch {}
 		return {
 			id: account.id,
@@ -9166,80 +10207,6 @@ function registerTraeUsageRoute(ctx, deps) {
 			}
 		});
 		/**
-		* 本机 TraeDaddy 账号库：列出全部已保存的登录快照并可切换。
-		*
-		* GET  → `{ panel, accounts, selectedAccountId }`，只回身份 / 到期时间，
-		*        绝不下发 token。
-		* POST → `{ action: "sync" | "switch", accountId? }`
-		*   - `sync`   把库里所有账号合并进宿主 own 凭据文件（不切换）
-		*   - `switch` 合并 + 把选中账号排到 own 文件第一位 +
-		*              调用 `store.selectAccount(id)` 让本次会话立即生效
-		*
-		* 为什么 own 文件第一位就是「当前账号」：`preferred()` 在未显式绑定时
-		* 取 eligible[0]，own 记录全是 `dsh` source，所以第一位生效且重启后
-		* 依然成立。settings 的 `accounts.<panel>` 也会被写入（可用时），与
-		* 原生设置页的保存行为一致。
-		*/
-		const disposeLocalAccounts = ctx.webServer.register({
-			kind: "exact",
-			path: TRAE_LOCAL_ACCOUNTS_PATH,
-			handler: async (req, res) => {
-				if (!loopbackOrigin(req)) return json(res, 403, { error: "origin-not-trusted" });
-				const panel = requestRegion(req, res);
-				if (panel === void 0) return;
-				if (req.method === "GET") {
-					try {
-						const accounts = await listTraeLocalAccounts(panel);
-						let selectedAccountId;
-						try {
-							const offered = await deps.store(panel).accounts();
-							selectedAccountId = offered.find((account) => account.selected)?.id;
-						} catch {}
-						return json(res, 200, { panel, accounts, selectedAccountId });
-					} catch (error) {
-						return json(res, 500, { error: safeMessage(error) });
-					}
-				}
-				if (req.method !== "POST") return json(res, 405, { error: "method not allowed" });
-				let body;
-				try {
-					body = await readTransferBody(req);
-				} catch (error) {
-					return json(res, 400, { error: safeMessage(error) });
-				}
-				const action = typeof body.action === "string" ? body.action : "";
-				const accountId = typeof body.accountId === "string" ? body.accountId : "";
-				try {
-					if (action === "sync") {
-						const result = await syncTraeLocalAccounts(panel);
-						return json(res, 200, { action, ...result });
-					}
-					if (action === "switch") {
-						if (!isTraeLocalAccountId(accountId)) return json(res, 400, { error: "accountId is required and must be a Trae account id" });
-						const accounts = await listTraeLocalAccounts(panel);
-						const target = accounts.find((account) => account.id === accountId);
-						if (target === undefined) return json(res, 404, { error: "account not found in the local Trae library" });
-						const result = await syncTraeLocalAccounts(panel, accountId);
-						/* 立即生效：内存里的 store 从 own 文件重新解析该账号。 */
-						await deps.store(panel).selectAccount(accountId);
-						/* 持久化：与原生设置页一致写 accounts.<panel>（best-effort）。 */
-						try {
-							await deps.setAccountSelection?.(panel, accountId);
-						} catch {}
-						return json(res, 200, {
-							action,
-							accountId,
-							accountName: target.accountName,
-							...result
-						});
-					}
-					return json(res, 400, { error: "action is required (sync|switch)" });
-				} catch (error) {
-					return json(res, 409, { error: safeMessage(error) });
-				}
-			}
-		});
-		/**
 		* Batch credential export / import (issue #37).
 		*
 		* The Host owns every byte of the credential store; the browser only receives
@@ -9310,16 +10277,7 @@ function registerTraeUsageRoute(ctx, deps) {
 				const panel = requestRegion(req, res);
 				if (panel === void 0) return;
 				try {
-					const models = await deps.discoverModels(panel);
-					/* 持久化到 settings 的 lastCatalog：刷新结果不能只回浏览器，
-					   否则 usage 仍是旧目录、重启后全丢（「保存不下来」）。
-					   写入失败不吞掉本次发现的成果，仍然把新目录返回。 */
-					try {
-						await deps.persistModels?.(panel, models);
-					} catch (error) {
-						try { ctx.logger?.warn?.(`dsh-connect-trae: could not persist ${panel} model catalog`, error); } catch {}
-					}
-					json(res, 200, { models: models });
+					json(res, 200, { models: await deps.discoverModels(panel) });
 				} catch (error) {
 					failJson(res, error);
 				}
@@ -9585,7 +10543,6 @@ function registerTraeUsageRoute(ctx, deps) {
 			disposeRefresh();
 			disposeTransfer();
 			disposeModelsTest();
-			disposeLocalAccounts();
 			disposeAccounts();
 			disposeAccountCredits();
 			disposeAccountStatus();
@@ -10262,22 +11219,6 @@ function buildTraeFusionRawChatEnvelope(arg, config) {
 	};
 }
 //#endregion
-//#region src/upstream.ts
-/**
-* Safe first-stage upstream. Real Trae traffic stays disabled until one
-* edition-specific endpoint and wire codec are verified with fixtures.
-*/
-var UnconfiguredTraeUpstreamClient = class {
-	async chatStream(_bodyJson, _signal) {
-		return {
-			ok: false,
-			status: 503,
-			kind: "unconfigured",
-			message: "Trae upstream protocol is not configured; complete offline protocol verification first"
-		};
-	}
-};
-//#endregion
 //#region src/image-gen-trae.ts
 /**
 * Trae 文生图的纯逻辑层：请求体、响应解析、尺寸校验、取图地址解析、SSE 帧。
@@ -10929,6 +11870,41 @@ function creditPosition(config, region) {
 	return regionStateOf(config, region).creditPosition === "stats" ? "stats" : "composer";
 }
 /**
+* The user's thinking-level choices for one panel (model id -> DSH level).
+*
+* Read through `regionStateOf` so the region split, the legacy CN fallback and
+* the volatile unwrap all apply exactly once, in one place. Values are filtered
+* to non-empty strings: an empty string is not a level, and passing one on would
+* make the model report a default the kernel cannot name.
+*
+* A saved level is NOT validated against the model's current tier list here —
+* that belongs where the tiers are known (`default-effort.ts`
+* `defaultEffortFor`), which is also where a withdrawn tier is dropped instead
+* of being sent.
+*/
+function thinkingEffortsOf(config, region) {
+	const raw = regionStateOf(config, region).thinkingEfforts;
+	if (raw === void 0 || raw === null || typeof raw !== "object") return {};
+	const out = {};
+	for (const [id, level] of Object.entries(raw)) if (typeof level === "string" && level !== "") out[id] = level;
+	return out;
+}
+/**
+* Whether the OPTIONAL sidebar row is switched on (`Config.sidebarPanel`).
+*
+* `=== true` on purpose, exactly like the sibling workbuddy reader: the row
+* claims a GLOBAL sidebar seat every installed bundle shares, so an absent,
+* unreadable or hand-edited value must read as "the user did not ask for this",
+* never as consent. Only an explicit boolean `true` turns the row on.
+*
+* Read through `unwrapVolatile` because the field is volatile on 0.1.7: the
+* live `{get(): T}` reference would otherwise be a truthy non-boolean and every
+* config would look switched on.
+*/
+function sidebarPanelEnabled(config) {
+	return unwrapVolatile(config.sidebarPanel) === true;
+}
+/**
 * Mark a schema's field as volatile.
 *
 * `volatile()` exists from schemastery 3.18.3; since 2.3.0 the peer range
@@ -10970,8 +11946,10 @@ const regionStateConfig = z.object({
 	imageModelIds: z.array(z.string()).default([]),
 	drawImageEnabled: z.boolean().default(false).description("Allow the model to generate images with trae_draw_image on this panel (consumes credits; default off)"),
 	contextBudgets: z.dict(z.number().step(1).min(1)).default({}),
+	thinkingEfforts: z.dict(z.string()).default({}).description("每个模型的思考强度（模型 id → 档位）。留空 = 跟随该模型自己的默认档。"),
 	creditPosition: z.union([z.const("composer"), z.const("stats")]).default("composer").description("积分读数显示位置：\"composer\" = 输入框工具栏（默认），\"stats\" = 输入框下方（与「轮次 / 步数 / token」统计同一行）。装了别的插件后读数不显示时改成 stats。"),
 	pool: z.object({
+		autoCheckin: z.boolean().default(false).description("每日自动签到：仅国内个人账号，遵守设备每日奖励限制。"),
 		enabled: z.boolean().default(false).description("账号池：打开后本面板由池中可用账号轮流计费（关闭时按下面的绑定账号）"),
 		targetModelId: z.string().default("").description("账号池测速使用的模型 id（留空 = 自动选择免费模型）"),
 		memberAccountIds: z.array(z.string()).default([]).description("加入本面板账号池的账号 id（显式勾选，默认为空）"),
@@ -10994,6 +11972,8 @@ const Config = z.object({
 	]).default("auto").description("Trae edition hint")),
 	accountId: z.string().description("Deprecated: pre-split account selector, attributed to its own region"),
 	showPointsInMainUi: asVolatile(z.boolean().default(false).description("在输入框工具栏显示积分读数「Trae CN · <数值>」（仅当选中的模型属于本插件时出现，可点击查看账号与积分明细）")),
+	sidebarPanel: asVolatile(z.boolean().default(false).description("在 DSH 侧边栏显示「Trae」面板：点开是这张卡片的整页版。默认关闭——这一行占的是所有插件共用的全局侧边栏座位，而「插件」页本来就能看到同样的内容。点一下即生效，不用保存。")),
+	refreshIntervalMinutes: asVolatile(z.union(TRAE_REFRESH_INTERVAL_MINUTES).default(5).description("自动刷新间隔（分钟）：卡片与输入框读数共用。可选 1 / 5 / 10 / 30 / 60，默认 5。每次刷新会读取用量（两次只读的上游请求），间隔越短请求越频繁。")),
 	accounts: asVolatile(accountSelectionConfig.description("Per-panel account selections, keyed cn | enterprise | ai")),
 	regions: asVolatile(z.dict(regionStateConfig).default({}).description("Per-panel model directory and selection, keyed cn | enterprise | ai")),
 	lastCatalog: z.array(modelConfig).description("Deprecated: pre-region-split CN model directory"),
@@ -11037,56 +12017,6 @@ const POOL_OUTCOME_BY_KIND = {
 };
 function apply(ctx, config) {
 	const settingsNs = settingsNamespaceOf(ctx);
-	/** DSH settings service，供本地账号切换路由持久化 `accounts.<panel>`。 */
-	let settingsService;
-	/**
-	* 与原生设置页「保存选中账号」完全同构的写入。
-	*
-	* `accounts` 是 `{ cn, ai, enterprise }` 字典，这里整份合并后写回，
-	* 不会抹掉其它面板的选中。settings 尚未注入时抛错，由路由 best-effort
-	* 吞掉（own 文件排序已经保证重启后仍生效）。
-	*/
-	async function setAccountSelection(panel, accountId) {
-		if (settingsService === void 0) throw new Error("settings service not available");
-		const current = unwrapVolatileDeep(config.accounts) ?? {};
-		await settingsService.mutate(settingsNs, [{
-			op: "set",
-			path: ["accounts"],
-			value: { ...current, [panel]: accountId }
-		}], void 0);
-	}
-	/**
-	* 把一次「刷新模型」拉回来的实时目录**持久化**到 `regions.<panel>.lastCatalog`。
-	*
-	* 为什么必须写：宿主启动时会 discovery 并 `stack.catalog.set(...)`，但
-	* `/usage` 的 `displayModels()` 读的是 settings 里的 `lastCatalog`（用户上次
-	* 在原生设置页保存的旧快照）。刷新路由此前只把新目录返回给浏览器，既不写
-	* settings 也不重装 catalog，于是刷新完 `/usage` 仍是旧的 4/7 条，浏览器
-	* 刷新或重启后连那份临时结果都没了 —— 用户说的「保存不下来」。
-	*
-	* 写入形状与原生设置页「保存目录」完全一致：整份 `regions` 字典合并，只替换
-	* 目标 panel 的 `lastCatalog`，其余槽位与其它 panel 原样保留。随后重装内存
-	* catalog 并让适配器失效，保证同一次会话内 composer 也立刻看到新目录。
-	*/
-	async function persistDiscovery(panel, models) {
-		if (settingsService === void 0) throw new Error("settings service not available");
-		const value = current();
-		const slot = regionSlotOf(value, panel);
-		const regions = nextRegionSlots(unwrapVolatileDeep(value.regions) ?? {}, panel, {
-			...slot,
-			lastCatalog: models
-		});
-		await settingsService.mutate(settingsNs, [{
-			op: "set",
-			path: ["regions"],
-			value: regions
-		}], void 0);
-		/* 同时更新内存目录，避免等下一次 settings 回灌才生效。 */
-		try {
-			stacks[panel].catalog.set(derive(value, models, panel));
-			stacks[panel].invalidateAdapter();
-		} catch {}
-	}
 	let current = () => config;
 	const enabledSet = (value, panel) => new Set(regionStateOf(value, panel).enabledModelIds ?? []);
 	const imageSet = (value, panel) => new Set(regionStateOf(value, panel).imageModelIds ?? []);
@@ -11501,7 +12431,7 @@ function apply(ctx, config) {
 			discoverModels: async (signal) => {
 				const remote = await withDirectoryRetry(() => remoteCatalog.fetchModels(signal));
 				const [wireModels, roster] = await Promise.all([solo.fetchModels(signal), officialRoster.fetch(signal)]);
-				const merged = mergeTraeModelSources(remote, wireModels);
+				const merged = mergeTraeModelSources(remote, wireModels, { allowTenantConfigured: panel === "enterprise" });
 				const callable = withChatCallableFunctions(merged, TRAE_DIRECTORY_FUNCTIONS[region]);
 				const chatFunctions = TRAE_DIRECTORY_FUNCTIONS[region];
 				for (const model of merged) {
@@ -11881,7 +12811,7 @@ function apply(ctx, config) {
 	* The bag is built per REQUEST, so it captures the panel and never has to be
 	* told which tab asked.
 	*/
-	const poolDepsOf = (panel) => {
+	const poolDepsOf = (panel, checkinDone = []) => {
 		const bridges = /* @__PURE__ */ new Map();
 		const chatBridgeFor = (accountId) => {
 			const existing = bridges.get(accountId);
@@ -11953,7 +12883,7 @@ function apply(ctx, config) {
 			},
 			catalog: (stored) => poolCatalogOf(stored),
 			checkinSupported: (stored) => regionOfPanel(stored) === "cn",
-			checkin: async (stored) => checkinAllAccounts(await poolTargetsOf(stored), probeDeps()),
+			checkin: async (stored) => checkinAllAccounts((await poolTargetsOf(stored)).filter((target) => !checkinDone.includes(target.accountId)), probeDeps()),
 			checkinState: async (stored) => {
 				const state = cachedCheckinStateOf(stored);
 				const nowMs = Date.now();
@@ -12013,13 +12943,13 @@ function apply(ctx, config) {
 		};
 	};
 	ctx.inject(["webServer"], (webCtx) => registerTraeUsageRoute(webCtx, {
+		autoCheckinProgress: readAutoCheckin,
 		store: (panel) => stacks[panel].store,
-		setAccountSelection,
-		persistModels: persistDiscovery,
 		client: (panel) => stacks[panel].usageClient,
 		displayModels: (panel) => displayModels(current(), panel),
 		enabledModelIds: (panel) => regionStateOf(current(), panel).enabledModelIds ?? [],
 		regionEnabled: (panel) => regionEnabled(current(), panel),
+		sidebarPanelEnabled: () => sidebarPanelEnabled(current()),
 		discoverModels: (panel, signal) => stacks[panel].discoverModels(signal),
 		probeModels: async (panel, ids) => {
 			await warmWireMap(panel);
@@ -12086,6 +13016,64 @@ function apply(ctx, config) {
 		registration.cn.directory?.();
 		delete registration.cn.directory;
 	};
+	/**
+	* The last catalog announced to the host, per region.
+	*
+	* DSH 0.2.2-rc.1 added `llm/models-updated(provider)`: "a provider's advertised
+	* models or display metadata changed; consumers reload `listModels()`". The
+	* model picker listens for it next to the payload-free `llm/adapters-updated`
+	* — and the latter only fires when a route's TOPOLOGY changes, which is not
+	* the same event as "the models behind an unchanged route changed". The live
+	* directory this plugin refreshes from upstream is exactly the second kind:
+	* the same provider, a different roster.
+	*
+	* The map is the dedupe ledger. Every settings write rebuilds the catalog
+	* object even when the served rows are identical, so an unconditional emit
+	* would make every picker (and every other consumer) re-read the catalog on
+	* each card keystroke.
+	*/
+	const announcedCatalog = /* @__PURE__ */ new Map();
+	/**
+	* What a picker can tell apart about one catalog.
+	*
+	* Must cover every field the host exposes for a model — id, display name,
+	* context window, output cap, input modalities, reasoning tiers, and the
+	* credit multiplier the display name is derived from — or a refresh that
+	* changed only one of them would stay stale in the picker. Order and
+	* omission are both meaningful, so `null` marks an absent key instead of it
+	* collapsing into the empty string.
+	*/
+	function catalogSignature(models) {
+		return models.map((model) => JSON.stringify([
+			model.id,
+			model.name,
+			model.contextWindow ?? null,
+			model.maxTokens ?? null,
+			model.input ?? null,
+			model.reasoningEfforts ?? null,
+			model.creditMultiplier ?? null
+		])).join("\n");
+	}
+	/**
+	* Tell the host that one region's catalog changed, once per change.
+	*
+	* Called from `invalidateAdapter` — the single seam every `catalog.set` path
+	* already ends with (a settings write through `applySelection`, and the
+	* startup discovery) — so a new catalog-set path cannot forget to announce.
+	* A switched-off region advertises nothing: its route is withdrawn and
+	* `syncRegionRegistration` announces that topology change itself, so this
+	* only records the signature.
+	*
+	* Emitting on a host older than 0.2.2 is deliberately harmless: cordis
+	* dispatches events by name and simply has no listener for this one.
+	*/
+	function announceCatalog(panel) {
+		const signature = catalogSignature(stacks[panel].catalog.current());
+		if (announcedCatalog.get(panel) === signature) return;
+		announcedCatalog.set(panel, signature);
+		if (!regionEnabled(current(), panel)) return;
+		ctx.emit("llm/models-updated", providerOfPanel(panel));
+	}
 	/**
 	* Publish each region's on/off state to the harness (issue #11). Both swaps
 	* are single synchronous sections, so no request can observe a half-applied
@@ -12161,7 +13149,6 @@ function apply(ctx, config) {
 	})();
 	ctx.inject(["settings"], (settingsCtx) => {
 		const settings = settingsCtx.settings;
-		settingsService = settings;
 		ctx.effect(() => settings.configure({ auto: true }, ctx.fiber));
 	});
 	const drawImageClient = new TraeImageClient({ logger: ctx.logger });
@@ -12227,6 +13214,23 @@ function apply(ctx, config) {
 		applySelection(current());
 		syncTraeDrawImageTool(current());
 	});
+	const automaticCheckin = createAutoCheckin({
+		enabled: () => poolPreferencesOf("cn").autoCheckin === true,
+		read: readAutoCheckin,
+		write: writeAutoCheckin,
+		run: async (done) => await poolDepsOf("cn", done).checkin?.("cn") ?? []
+	});
+	ctx.effect(() => {
+		const tick = () => {
+			automaticCheckin.tick().catch(() => ctx.logger.warn("无法读取或保存 Trae 自动签到进度，请检查本地数据目录的访问权限。"));
+		};
+		const timer = setInterval(tick, 3e4);
+		tick();
+		return () => {
+			clearInterval(timer);
+			automaticCheckin.stop();
+		};
+	});
 	let stopped = false;
 	ctx.effect(() => () => {
 		stopped = true;
@@ -12248,10 +13252,12 @@ function apply(ctx, config) {
 					provider,
 					displayName: displayNameOfTraeProvider(provider),
 					secret: entry.secret,
-					resolveAttachments: () => ctx.get("attachments")
+					resolveAttachments: () => ctx.get("attachments"),
+					defaultEfforts: () => thinkingEffortsOf(current(), panel)
 				});
 				stack.invalidateAdapter = () => {
 					trae.invalidate();
+					announceCatalog(panel);
 				};
 				registration[panel].adapters.push({
 					provider,
@@ -12311,4 +13317,4 @@ function apply(ctx, config) {
 	});
 }
 //#endregion
-export { Config, FALLBACK_CONTEXT_WINDOW, FALLBACK_TRAE_MODELS, FALLBACK_TRAE_MODELS_AI, MAX_PROBE_INPUT_TOKENS, REGION_GATEWAYS, SseDecoder, TRAE_ACCOUNT_STATUS_PATH, TRAE_AI_PROVIDER, TRAE_CHANNEL_PRIORITY, TRAE_CHECKIN_PATH, TRAE_CN_AGENT_TASK_PATH, TRAE_CN_TITLE_PATH, TRAE_COMMON_FUNCTIONS, TRAE_ENTERPRISE_PROVIDER, TRAE_MODELS_TEST_PATH, TRAE_MODEL_DETAIL_FUNCTIONS, TRAE_MODEL_DETAIL_PATH, TRAE_OFFICIAL_ROSTER_PATH, TRAE_PANELS, TRAE_PAY_BASE, TRAE_PROBE_TIMEOUT_MS, TRAE_PROVIDER, TRAE_PROVIDERS, TRAE_PROVIDER_DISPLAY_NAMES, TRAE_PROVIDER_IDS, TRAE_PROVIDER_ID_DISPLAY_NAMES, TRAE_PROVIDER_ROUTES, TRAE_RAW_CHAT_V1_PATH, TRAE_RAW_CHAT_V2_PATH, TRAE_REASONING_EFFORTS, TRAE_REGIONS, TRAE_REGION_PARAM, TRAE_SETTINGS_NS, TRAE_SOLO_CHAT_PATH, TRAE_SOLO_FUNCTION, TRAE_SOLO_MODELS_PATH, TRAE_SOLO_REMOTE_BASE, TRAE_STATE_DB_FILENAME, TRAE_STREAM_IDLE_TIMEOUT_MS, TRAE_USAGE_PATH, TRAE_VERSION_CODE_FALLBACK, TraeCatalog, TraeCredentialStore, TraeDelegatingUpstreamClient, TraeFallbackUpstreamClient, TraeGatedUpstreamClient, TraeOfficialRosterClient, TraeRawCapabilityController, TraeRawCapabilityState, TraeRawChatUpstreamClient, TraeSoloBridge, TraeSoloRemoteCatalogClient, TraeSoloUpstreamClient, TraeUsageClient, UnconfiguredTraeUpstreamClient, adaptLegacyPiAiContext, adaptModernPiAiContext, apply, applyContextBudgets, applyImageSelection, applyOfficialRoster, applyReasoningEffort, asVolatile, bridgeTraeSoloStream, buildTraeAgentTaskBody, buildTraeCnHeaders, buildTraeFusionRawChatEnvelope, buildTraeModelDetailRequest, buildTraeRawChatDraft, buildTraeRawChatRuntimeConfig, classifyProbeError, classifyProbeResult, classifyTraeRawChatFailure, configuredAccountsOf, createTraeAdapter, createTraeRawGateway, createTraeShim, creditPosition, decidePiAiGeneration, decodeRawChatChunk, decodeTraeEvent, decryptTraeStorageValue, deriveCatalog, describeIdShape, describeNameShape, describeTraeFailure, discoveredCatalog, displayNameOfTraeProvider, fallbackModelsFor, filterTraeModels, generationOf, groupTraeModels, hashTraeRawChatArg, identityHeaders, inject, isEnterpriseAccount, isPromotableWireModel, legacyTraeOwnAuthPath, maskUserPath, mergeTraeModelSources, name, nextRegionCreditPosition, nextRegionEnabled, nextRegionSlots, normalizeTraeCredential, normalizeTraeToolSchema, normalizeTraeToolSchemas, normalizeTraeVersionCode, officialVerdictOf, orderTraeModels, panelOfKey, panelOfProvider, parseObservedModelConfig, parseReasoningCapability, parseTraeAuthValue, parseTraeCachedModel, parseTraeModelExtraConfigLogLine, parseTraeOfficialRoster, parseTraeRawChatBehaviorConfig, parseTraeRemoteModel, parseTraeStorageDocument, piAiRuntimeInfo, pickTraeStorageIdentity, prepareSoloBody, probeBody, probeModelsSequentially, probeOneModel, probeTraeRawChatCapability, providerOfPanel, rawCapabilityDiagnostic, rawCapabilityFingerprint, readTraeCachedModel, readTraeCliIdentity, readTraeIdentity, refreshTraeCredential, regionCreditPositionOf, regionEnabled, regionEnabledOf, regionOfCredential, regionOfEdition, regionOfHost, regionOfPanel, regionOfTraeProvider, regionOfTraeStatusUrl, regionOfUserRegion, regionStateOf, registerTraeUsageRoute, resolveTraeIdentity, resolveTraeRawRuntime, routeOfTraeProvider, sanitizeCatalog, scopeTraeModels, servedContextWindow, settingsNamespaceOf, traeEndpoint, traeInputModalities, traeModelCallChannel, traeModelDisplayName, traeModelInView, traeModelMatchesQuery, traeOwnAuthPath, traeRawChatExtraInfo, traeStateDatabaseCandidates, traeStorageCandidates, traeWebUsage, traeWindowsAppNames, unwrapVolatile, unwrapVolatileDeep, wireTargetsOf, withChatCallableFunctions, withContextAdaptation, withTraeRegion };
+export { Config, FALLBACK_CONTEXT_WINDOW, FALLBACK_TRAE_MODELS, FALLBACK_TRAE_MODELS_AI, MAX_PROBE_INPUT_TOKENS, REGION_GATEWAYS, SseDecoder, TRAE_ACCOUNT_STATUS_PATH, TRAE_AI_PROVIDER, TRAE_BADGE_TONES, TRAE_CHANNEL_PRIORITY, TRAE_CHECKIN_PATH, TRAE_CN_AGENT_TASK_PATH, TRAE_CN_TITLE_PATH, TRAE_COMMON_FUNCTIONS, TRAE_ENTERPRISE_PROVIDER, TRAE_MODELS_TEST_PATH, TRAE_MODEL_DETAIL_FUNCTIONS, TRAE_MODEL_DETAIL_PATH, TRAE_OFFICIAL_ROSTER_PATH, TRAE_PANELS, TRAE_PAY_BASE, TRAE_PROBE_TIMEOUT_MS, TRAE_PROVIDER, TRAE_PROVIDERS, TRAE_PROVIDER_DISPLAY_NAMES, TRAE_PROVIDER_IDS, TRAE_PROVIDER_ID_DISPLAY_NAMES, TRAE_PROVIDER_ROUTES, TRAE_RAW_CHAT_V1_PATH, TRAE_RAW_CHAT_V2_PATH, TRAE_REASONING_EFFORTS, TRAE_REGIONS, TRAE_REGION_PARAM, TRAE_SETTINGS_NS, TRAE_SOLO_CHAT_PATH, TRAE_SOLO_FUNCTION, TRAE_SOLO_MODELS_PATH, TRAE_SOLO_REMOTE_BASE, TRAE_STATE_DB_FILENAME, TRAE_STREAM_IDLE_TIMEOUT_MS, TRAE_USAGE_PATH, TRAE_VERSION_CODE_FALLBACK, TraeCatalog, TraeCredentialStore, TraeDelegatingUpstreamClient, TraeFallbackUpstreamClient, TraeGatedUpstreamClient, TraeOfficialRosterClient, TraeRawCapabilityController, TraeRawCapabilityState, TraeRawChatUpstreamClient, TraeSoloBridge, TraeSoloRemoteCatalogClient, TraeSoloUpstreamClient, TraeStreamFailure, TraeUsageClient, UnconfiguredTraeUpstreamClient, adaptLegacyPiAiContext, adaptModernPiAiContext, apply, applyContextBudgets, applyImageSelection, applyOfficialRoster, applyReasoningEffort, asVolatile, bridgeTraeSoloStream, buildTraeAgentTaskBody, buildTraeCnHeaders, buildTraeFusionRawChatEnvelope, buildTraeModelDetailRequest, buildTraeRawChatDraft, buildTraeRawChatRuntimeConfig, classifyProbeError, classifyProbeResult, classifyTraeRawChatFailure, configuredAccountsOf, createTraeAdapter, createTraeRawGateway, createTraeShim, creditPosition, decidePiAiGeneration, decodeRawChatChunk, decodeTraeEvent, decryptTraeStorageValue, deriveCatalog, describeIdShape, describeNameShape, describeTraeFailure, discoveredCatalog, displayNameOfTraeProvider, fallbackModelsFor, filterTraeModels, generationOf, groupTraeModels, hashTraeRawChatArg, identityHeaders, inject, isEnterpriseAccount, isPromotableWireModel, legacyTraeOwnAuthPath, maskUserPath, mergeTraeModelSources, name, nextRegionCreditPosition, nextRegionEnabled, nextRegionSlots, normalizeTraeCredential, normalizeTraeToolSchema, normalizeTraeToolSchemas, normalizeTraeVersionCode, officialVerdictOf, orderTraeModels, panelOfKey, panelOfProvider, parseObservedModelConfig, parseReasoningCapability, parseTraeAuthValue, parseTraeCachedModel, parseTraeModelExtraConfigLogLine, parseTraeOfficialRoster, parseTraeRawChatBehaviorConfig, parseTraeRemoteModel, parseTraeStorageDocument, piAiRuntimeInfo, pickTraeStorageIdentity, prepareSoloBody, probeBody, probeModelsSequentially, probeOneModel, probeTraeRawChatCapability, providerOfPanel, rawCapabilityDiagnostic, rawCapabilityFingerprint, readTraeCachedModel, readTraeCliIdentity, readTraeIdentity, refreshTraeCredential, regionCreditPositionOf, regionEnabled, regionEnabledOf, regionOfCredential, regionOfEdition, regionOfHost, regionOfPanel, regionOfTraeProvider, regionOfTraeStatusUrl, regionOfUserRegion, regionStateOf, registerTraeUsageRoute, resolveTraeIdentity, resolveTraeRawRuntime, routeOfTraeProvider, sanitizeCatalog, scopeTraeModels, servedContextWindow, settingsNamespaceOf, sidebarPanelEnabled, thinkingEffortsOf, traeEndpoint, traeInputModalities, traeModelBadge, traeModelCallChannel, traeModelDisplayName, traeModelInView, traeModelMatchesQuery, traeOwnAuthPath, traeRawChatExtraInfo, traeStateDatabaseCandidates, traeStorageCandidates, traeWebUsage, traeWindowsAppNames, unwrapVolatile, unwrapVolatileDeep, wireTargetsOf, withChatCallableFunctions, withContextAdaptation, withTraeRegion };

@@ -1,4 +1,4 @@
-import { $ as WorkBuddyCredentialRejectedError, A as WORKBUDDY_AUTH_FILENAME, At as VIDEO_TAG_TEXT_TO_VIDEO, B as isEncryptedCredentialError, Bt as imageDataUrl, C as FALLBACK_WORKBUDDY_MODELS_GLOBAL, Cn as writeFileAtomic, Ct as defaultOffModelIds, D as fallbackModelsFor, Dt as recordRefusal, E as deriveCatalog, Et as offRefused, F as authFileName, Ft as DEFAULT_IMAGE_SIZE, G as workbuddyAccountId, Gt as sniffImageMime, H as legacyWorkbuddyOwnAuthPath, Ht as isBareBase64Image, I as defaultDesktopAuthCandidates, It as IMAGE_TAG_IMAGE_TO_IMAGE, J as APP_VERSION, Jt as pruneTempDir, K as workbuddyOwnAuthPath, Kt as parseQueueAnswer, L as defaultDesktopAuthDirs, Lt as IMAGE_TAG_TEXT_TO_IMAGE, Mt as parseSupportedSecondsRange, N as WorkBuddyCredentialStore, Nt as pickVideoModel, O as withoutRouters, Ot as withEffectiveOff, P as WorkBuddyEncryptedCredentialError, Pt as resolveVideoParams, Q as WORKBUDDY_FALLBACK_SYSTEM_PROMPT, R as defaultDesktopAuthPath, Rt as MAX_INPUT_IMAGE_BYTES, S as FALLBACK_WORKBUDDY_MODELS, Sn as withFileLock, St as REFUSES_OFF_MODEL_IDS, T as applyContextBudgets, Tt as offDefaultFor, U as parseWorkBuddyAuth, Ut as parseImageDataUrl, V as isVaultAccountId, Vt as imageMimeForPath, W as preferredAccountName, Wt as pickMediaModel, X as CREDENTIAL_REJECTED_CODE, Xt as imageDefaultFor, Y as CONTEXT_OVERFLOW_MARKER, Yt as NATIVE_MODALITY_BY_MODEL_ID, Zt as nativeModalityOf, _ as isDeviceMode, _n as openEncryptedField, _t as prepareChatBody, a as readHostHeartbeat, at as forceNeutralHead, b as saveDeviceSdkSettings, bt as rewriteSessionTitleModel, c as WORKBUDDY_CONNECT_VERSION, cn as deriveAtRestKey, ct as isCredentialRejectedError, dn as findWorkbuddyAppExecutable, dt as modelIdOfBody, et as WorkBuddyUpstreamClient, f as piAiRuntimeInfo, ft as openingEvidenceOfBody, g as describeDerivedDevices, gn as macosNestedAppBundles, gt as perturbChannelFingerprints, h as createDeviceProfileLookup, hn as macosBundleExecutable, ht as parseUpstreamModel, i as processStartTimeMs, j as WORKBUDDY_AUTH_FILE_ENV, jt as WorkBuddyVideoError, k as ENCRYPTED_CREDENTIAL_CODE, kt as VIDEO_TAG_IMAGE_TO_VIDEO, l as createFileRosterSeenStore, ln as deriveAtRestKeyId, lt as isFirstMessageGateBody, m as createTuringSdk, mn as isWorkbuddyBundle, mt as parseReasoning, n as clearHostHeartbeat, nt as classifyUpstreamError, o as workbuddyHostHeartbeatPath, on as WORKBUDDY_APP_EXECUTABLE_ENV, ot as isContextTooLongBody, p as createDeviceSdkPort, pn as isEncryptedFieldWrapper, pt as parseCreditMultiplier, qt as queueNoticeText, r as isHeartbeatProcessAlive, rn as isDeviceId, rt as declaredTools, s as writeHostHeartbeat, sn as clearAtRestKeyCache, st as isConversationIdGateBody, t as WORKBUDDY_HOST_HEARTBEAT_FILENAME, tt as channelGateMemberOf, un as fetchAtRestKeyPayload, ut as knownRegionOf, v as readDeviceSettings, vn as readAtRestKey, vt as regionOf, w as WorkBuddyCatalog, wt as lastRefusalFor, x as setDeviceMode, xn as resolveDshHome, xt as attachBusyLevels, y as saveDeviceProfile, yn as workbuddyAppExecutableCandidates, yt as requestEvidenceOf, z as hasEncryptedCredentialFields, zt as WorkBuddyImageError } from "./host-heartbeat-09tOJATV.js";
+import { $ as CREDENTIAL_REJECTED_CODE, $t as imageSizeLimitsOf, A as withoutRouters, An as openEncryptedField, At as promoBadgeTone, B as defaultDesktopAuthPath, Bt as VIDEO_TAG_TEXT_TO_VIDEO, C as setDeviceMode, Cn as fetchAtRestKeyPayload, Ct as perturbChannelFingerprints, D as applyContextBudgets, Dn as isWorkbuddyBundle, Dt as rewriteSessionTitleModel, E as WorkBuddyCatalog, En as isEncryptedFieldWrapper, Et as requestEvidenceOf, F as WorkBuddyCredentialStore, Fn as withFileLock, Ft as offDefaultFor, G as parseWorkBuddyAuth, Gt as IMAGE_SIZE_LIMITS_WIDE, H as isEncryptedCredentialError, Ht as parseSupportedSecondsRange, I as WorkBuddyEncryptedCredentialError, In as writeFileAtomic, It as offRefused, J as workbuddyOwnAuthPath, Jt as MAX_INPUT_IMAGE_BYTES, K as preferredAccountName, Kt as IMAGE_TAG_IMAGE_TO_IMAGE, L as authFileName, Lt as recordRefusal, M as WORKBUDDY_AUTH_FILENAME, Mn as workbuddyAppExecutableCandidates, Mt as REFUSES_OFF_MODEL_IDS, N as WORKBUDDY_AUTH_FILE_ENV, Nt as defaultOffModelIds, O as deriveCatalog, On as macosBundleExecutable, Ot as toolSchemaRejectAdvice, Pn as resolveDshHome, Pt as lastRefusalFor, Q as CONTEXT_OVERFLOW_MARKER, Qt as imageModelChoices, R as defaultDesktopAuthCandidates, Rt as withEffectiveOff, S as saveDeviceSdkSettings, Sn as deriveAtRestKeyId, St as parseUpstreamModel, T as FALLBACK_WORKBUDDY_MODELS_GLOBAL, Tt as regionOf, U as isVaultAccountId, Ut as pickVideoModel, V as hasEncryptedCredentialFields, Vt as WorkBuddyVideoError, W as legacyWorkbuddyOwnAuthPath, Wt as resolveVideoParams, X as APP_VERSION, Xt as imageDataUrl, Yt as WorkBuddyImageError, Z as BODY_OVERSIZE_MARKER, Zt as imageMimeForPath, _ as createDeviceProfileLookup, _t as knownRegionOf, a as readHostHeartbeat, an as parseQueueAnswer, at as classifyUpstreamError, b as readDeviceSettings, bn as clearAtRestKeyCache, bt as parseCreditMultiplier, c as WORKBUDDY_CONNECT_VERSION, cn as NATIVE_MODALITY_BY_MODEL_ID, ct as deriveStableConversationId, dt as isBodyOversizeRefusal, en as isBareBase64Image, ft as isContextTooLongBody, g as createTuringSdk, gn as isDeviceId, gt as isToolSchemaRejectBody, h as createDeviceSdkPort, ht as isFirstMessageGateBody, i as processStartTimeMs, in as sniffImageMime, it as channelGateMemberOf, j as ENCRYPTED_CREDENTIAL_CODE, jn as readAtRestKey, jt as selectPromoBadge, k as fallbackModelsFor, kn as macosNestedAppBundles, kt as attachBusyLevels, l as createFileRosterSeenStore, ln as imageDefaultFor, m as piAiRuntimeInfo, mt as isCredentialRejectedError, n as clearHostHeartbeat, nn as parseImageDataUrl, nt as WorkBuddyCredentialRejectedError, o as workbuddyHostHeartbeatPath, on as queueNoticeText, ot as conversationIdFromSessionId, p as resolveCnGateway, pt as isConversationIdGateBody, q as workbuddyAccountId, qt as IMAGE_TAG_TEXT_TO_IMAGE, r as isHeartbeatProcessAlive, rn as pickMediaModel, rt as WorkBuddyUpstreamClient, s as writeHostHeartbeat, sn as pruneTempDir, st as declaredTools, t as WORKBUDDY_HOST_HEARTBEAT_FILENAME, tn as isWatermarkFreeImageModel, tt as WORKBUDDY_FALLBACK_SYSTEM_PROMPT, un as nativeModalityOf, ut as forceNeutralHead, v as describeDerivedDevices, vt as modelIdOfBody, w as FALLBACK_WORKBUDDY_MODELS, wn as findWorkbuddyAppExecutable, wt as prepareChatBody, x as saveDeviceProfile, xn as deriveAtRestKey, xt as parseReasoning, y as isDeviceMode, yn as WORKBUDDY_APP_EXECUTABLE_ENV, yt as openingEvidenceOfBody, z as defaultDesktopAuthDirs, zt as VIDEO_TAG_IMAGE_TO_VIDEO } from "./host-heartbeat-BqK7yBp2.js";
 import z from "@deepseek-ai/schemastery";
 import { appendFile, mkdir, open, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
@@ -248,7 +248,7 @@ function isUnconfiguredFallbackSnapshot(saved, region) {
 	const fallbackIds = fallback.map((model) => model.id);
 	const savedIds = saved.map((model) => model.id);
 	if (!fallbackIds.every((id, index) => id === savedIds[index])) return false;
-	return saved.every((model) => model.reasoning === void 0);
+	return saved.every((model) => model.reasoning === void 0 && model.creditMultiplier === void 0);
 }
 /**
 * The roster the runtime serves for a region.
@@ -389,16 +389,45 @@ const WORKBUDDY_DEVICE_PROFILE_PATH = "/plugins/dsh-connect-workbuddy/device-pro
 /**
 * 真实设备参数（本机安装的桌面端 Turing Shield SDK）的状态与取值。
 *
-* - `GET` → `{ tier, sdk, token }`，`token` 只有掩码与长度。
+* - `GET` → `{ tier, sdk, token }`，`token` 只有掩码与长度；另带 `sdkEnabled`
+*   （总开关的当前值），供卡片画出那个勾选框。
 * - `POST ?action=refresh` → 强制重取一次，再返回同一形状。
 * - `POST ?action=reveal` → `{ token }`，完整值，**只在用户显式点击时**。
+* - `POST ?action=enable|disable` → 写总开关。
 *
 * 为什么把"完整值"单独做成一个动作：这是一枚能代表这台机器的凭据，卡片是
 * 一个会被截图、被贴进 issue 的界面。默认只给掩码，复制/查看各要一次显式动作。
 */
 const WORKBUDDY_DEVICE_SDK_PATH = "/plugins/dsh-connect-workbuddy/device-sdk";
-/** Query parameter selecting it. */
+/** Query parameter selecting the POST action. */
 const WORKBUDDY_DEVICE_SDK_ACTION_PARAM = "action";
+/**
+* The refresh intervals the card offers, in milliseconds.
+*
+* SHARED between the Host (which validates the saved value) and the browser
+* (which renders the dropdown), so the control and its validation cannot drift:
+* a value the dropdown can produce is always a value the Host accepts, and the
+* Host's fallback is always a value the dropdown can show.
+*
+* A CLOSED SET rather than a free number because this interval decides the
+* plugin's upstream request volume — one credits read plus one check-in read per
+* pooled account, per refresh.
+*/
+const WORKBUDDY_POLL_INTERVALS_MS = [
+	6e4,
+	3e5,
+	6e5,
+	18e5,
+	36e5
+];
+/**
+* The default refresh interval: 5 minutes.
+*
+* Moved off the old hard-coded 60 s. A 4-account pool at 60 s costs ~11,520
+* requests a day for figures that move slowly; 5 minutes is a fifth of that and
+* still five times finer than the 30-minute auto check-in heartbeat.
+*/
+const WORKBUDDY_DEFAULT_POLL_INTERVAL_MS = 3e5;
 /** Read the OAuth action off a request URL; unknown/absent means undefined. */
 function oauthActionOf(url) {
 	const at = url.indexOf("?");
@@ -590,6 +619,7 @@ const REGION_MAP_FOREIGN_KEYS = /* @__PURE__ */ new Set([
 	"enabledModelIds",
 	"imageModelIds",
 	"imageToolEnabled",
+	"preferredImageModel",
 	"offModelIds",
 	"contextBudgets",
 	"defaultThinkingEfforts",
@@ -640,6 +670,7 @@ function slotConfigWeight(slot) {
 	if (slot["enabled"] === false) weight += 1;
 	if (slot["showCreditsInMainUi"] === false) weight += 1;
 	if (slot["imageToolEnabled"] === true) weight += 1;
+	if (typeof slot["preferredImageModel"] === "string" && slot["preferredImageModel"] !== "") weight += 1;
 	return weight;
 }
 /**
@@ -1182,10 +1213,13 @@ const THINKING_LEVELS$1 = [
 /**
 * The tier this bundle assumed before issue #179, and the last-resort fallback.
 *
-* Kept as the final fallback rather than becoming dead: a model that declares
-* `canDisableThinking` only (no tier list) still needs an explicit tier the way
-* it always did, and #83's fix — never leave the choice to pi-ai — must survive
-* this feature.
+* Kept alive as the ROUTE-WIDE dispatch fallback in `profileFor` (issue #83's
+* fix — never leave the choice to pi-ai — must survive this feature). It is
+* deliberately NOT part of `defaultEffortFor` any more: it is a single constant
+* for a roster whose vocabularies disagree, so as a per-model default it can
+* name a tier a model does not declare (host: UNSUPPORTED_REASONING_EFFORT), or
+* one that is NOT the tier the upstream declared as that model's default. The
+* per-model answer is resolved by `defaultEffortFor` instead.
 */
 const WORKBUDDY_DEFAULT_EFFORT = "high";
 /**
@@ -1205,7 +1239,8 @@ function declaredEfforts(reasoning) {
 *
 * @param model - the catalog entry, carrying the upstream's own declaration.
 * @param saved - the user's per-model choice, keyed by model id; an absent (or
-*   unsupported, or stale) entry falls through to the upstream default.
+*   unsupported, or stale) entry falls through to the upstream default, then to
+*   this model's own MIDDLE tier (never its weakest one).
 * @returns a tier the model declares, or `undefined` when it declares none — in
 *   which case the adapter's existing `off` normalization (issue #90) is still
 *   the right answer and this module must not invent one.
@@ -1217,8 +1252,7 @@ function defaultEffortFor(model, saved = {}) {
 	if (typeof asked === "string" && declared.includes(asked)) return asked;
 	const upstreamDefault = model.reasoning?.defaultEffort;
 	if (typeof upstreamDefault === "string" && declared.includes(upstreamDefault)) return upstreamDefault;
-	if (declared.includes("high")) return WORKBUDDY_DEFAULT_EFFORT;
-	return declared[0];
+	return declared[Math.floor(declared.length / 2)];
 }
 //#endregion
 //#region src/adapter.ts
@@ -1253,13 +1287,18 @@ const WORKBUDDY_PROVIDERS = {
 *
 * pi-ai keeps a historical thinking block as `thinking` only when the message
 * that carried it names the SAME provider, api and model id as the request in
-* flight (`transform-messages.js:68`); every other block is downgraded to plain
-* `text` (`:88–96`) — downgraded, not dropped, which is why no byte count ever
-* explained the 1.94× regional jump. The two gateways are two provider STRINGS
-* for ONE model, so a transcript recorded in one region was replayed as text in
-* the other, and issue #59's reporter measured exactly that: 708K → 1.374M on
-* byte-identical history, and a compression request that could then never fit
-* the window it was computed for.
+* flight (`transform-messages.js`, `isSameModel`); every other block is
+* downgraded to plain `text` — downgraded, not dropped, which is why no byte
+* count ever explained the 1.94× regional jump. The two gateways are two
+* provider STRINGS for ONE model, so a transcript recorded in one region was
+* replayed as text in the other, and issue #59's reporter measured exactly
+* that: 708K → 1.374M on byte-identical history, and a compression request
+* that could then never fit the window it was computed for.
+*
+* (pi-ai 1.3 changed the second half: a foreign block is now DISCARDED rather
+* than rewritten as text. The identity stamp is unaffected — it is what makes
+* the block count as same-model in the first place, and that comparison is
+* unchanged in every generation this plugin declares.)
 *
 * The stamp is NOT inert, and reading it as inert is what broke issue #75.
 * `provider` is the KEY pi-ai dispatches on: `requireProvider` resolves
@@ -1337,10 +1376,42 @@ const WORKBUDDY_PROVIDER_DISPLAY_NAMES = {
 /** Provider idle ceiling while one stream read is outstanding. */
 const WORKBUDDY_STREAM_IDLE_TIMEOUT_MS = 3e5;
 /**
-* Image-request budgets at the dsh-llm-pi-ai defaults; the profile type made
-* them required in 0.1.1-rc.2.
+* Image-request budgets for the route's `ResolvedPiAiProviderProfile`.
+*
+* The three byte/pixel budgets are the dsh-llm-pi-ai defaults (`0.1.1-rc.2`
+* made them required on the resolved profile).
+*
+* The two COUNT fields arrived with DSH 0.2.2 (`0.2.2-rc.1`), where
+* `dsh-llm-pi-ai` began enforcing a per-request image OCCURRENCE limit
+* (`maxRequestImages`, its own default 50) and the offload step that trims it
+* (`imageOffloadCountQuantum`, default `min(10, maxRequestImages)`). Both are
+* REQUIRED on the resolved profile, so this route must state a value; the
+* value is the plugin's decision, not a copy of the host's.
+*
+* WHY NOT 50. Until 0.2.2 this route had NO occurrence limit at all: the
+* adapter only ever passed the byte budget down (`toPiContextWithImages`
+* spreads `maxImages` only when it is defined), so a long session could carry
+* any number of images as long as the base64 payload fit. Adopting the host's
+* default would therefore NARROW this plugin's behaviour as a silent side
+* effect of a dependency bump — the kind of change that shows up as a user's
+* image-heavy session suddenly failing with `IMAGE_OFFLOAD_REQUIRED`.
+*
+* So both values are deliberately pinned far above any real request: they are
+* a TYPE requirement satisfied with "no practical limit", which keeps today's
+* behaviour byte-identical. `maxRequestImages` is a count of image
+* occurrences and the upstream gateway caps a request far below this on its
+* own; `imageOffloadCountQuantum` must not exceed `maxRequestImages`
+* (`dsh-llm-pi-ai` validates exactly that), so it is pinned to the same
+* giant value rather than to 10.
+*
+* If the gateway's real per-request image cap ever gets measured, THAT is the
+* number to put in `maxRequestImages` — with a comment saying where it came
+* from. Do not "borrow" the host's 50: it belongs to the host's own pi-ai
+* routes, not to WorkBuddy.
 */
 const REQUEST_IMAGE_BUDGETS = {
+	maxRequestImages: 1e6,
+	imageOffloadCountQuantum: 1e6,
 	maxRequestImageBytes: 20971520,
 	requestImagePixelBudget: 4194304,
 	requestImageMaxBytes: 1048576
@@ -1446,8 +1517,18 @@ function workBuddyThinkingLevelMap(info) {
 * stamped field is what pi-ai resolves the provider BY (issue #75) — so every
 * key in {@link modelIdentityKeysOf} must be a key this route registers.
 */
-function toPiModel(info, baseUrl, identity = WORKBUDDY_MODEL_IDENTITY) {
+function toPiModel(info, baseUrl, identity = WORKBUDDY_MODEL_IDENTITY, midConvoSystemMessages = false, sessionAffinity = false) {
 	const thinkingLevelMap = workBuddyThinkingLevelMap(info);
+	const compat = {
+		...midConvoSystemMessages ? {
+			supportsReasoningEffort: thinkingLevelMap !== void 0,
+			supportsMidConvoSystemMessages: true
+		} : { supportsReasoningEffort: thinkingLevelMap !== void 0 },
+		...sessionAffinity ? {
+			sendSessionAffinityHeaders: true,
+			sessionAffinityFormat: "openai"
+		} : {}
+	};
 	return {
 		id: info.id,
 		name: workBuddyDisplayName(info),
@@ -1460,7 +1541,7 @@ function toPiModel(info, baseUrl, identity = WORKBUDDY_MODEL_IDENTITY) {
 		maxTokens: info.maxTokens,
 		reasoning: thinkingLevelMap !== void 0,
 		...thinkingLevelMap === void 0 ? {} : { thinkingLevelMap },
-		compat: { supportsReasoningEffort: thinkingLevelMap !== void 0 }
+		compat
 	};
 }
 /**
@@ -1698,7 +1779,8 @@ function transcript(context) {
 * ISSUE #102. pi-ai replays a thinking block as `thinking` only when the message
 * that produced it names the same `provider` / `api` / `model` as the request in
 * flight (`utils/transform-messages.js`, the `isSameModel` branch); everything
-* else is flattened to `{type:'text', text: thinking}`.
+* else is flattened to `{type:'text', text: thinking}` — or, since pi-ai 1.3,
+* discarded outright. Either way the block stops being reasoning.
 *
 * The durable transcript the HOST hands back does not carry the identity. The
 * agent loop writes `source.provider = request.provider`, and `request.provider`
@@ -1793,8 +1875,8 @@ function blocksOf$1(message) {
 *
 * `requestModelId` closes the THIRD leg of pi-ai's own predicate. `isSameModel`
 * is `provider === … && api === … && model === model.id`
-* (`transform-messages.js:68–70`); this function used to compare only the first
-* two. The consequence was a blind spot the size of one whole route: a session
+* (`transform-messages.js`, and its line numbers move between releases, so this
+* file names the symbol); this function used to compare only the first two. The consequence was a blind spot the size of one whole route: a session
 * that switches MODELS inside one region — `hy3` → `deepseek-v4.1-flash`, both
 * served by this bundle, both stamped `provider: workbuddy` — keeps the provider
 * and api legs equal, so nothing here noticed, while pi-ai flattened every
@@ -1853,12 +1935,12 @@ function isCrossProviderAssistant(message, identity, ownedRoutes) {
 * Every foreign thinking block pi-ai would turn into visible prose (issue #147).
 *
 * THE DEFECT. pi-ai keeps a historical `thinking` block only while
-* `isSameModel` holds — provider AND api AND model id all equal to the request
-* (`transform-messages.js:68`). For everything else it does NOT drop the block:
-* `:87–90` rewrites it to `{type:'text', text: thinking}`, which is the answer
-* channel. A session that moved between providers therefore arrives with its
-* other provider's working notes already spelled as prose, and the model reads
-* that shape and copies it.
+* `isSameModel` holds — provider AND api AND model id all equal to the request.
+* For everything else, up to pi-ai 1.2, it did NOT drop the block: it rewrote
+* it to `{type:'text', text: thinking}`, which is the answer channel. A session
+* that moved between providers therefore arrives with the other provider's
+* working notes already spelled as prose, and the model reads that shape and
+* copies it.
 *
 * Issue #147 measured the consequence on a real 80-step turn: 56 assistant
 * messages carried an answer while their own `reasoning` was ≤ 1 character,
@@ -1871,6 +1953,14 @@ function isCrossProviderAssistant(message, identity, ownedRoutes) {
 * WHY THIS IS READ-ONLY. Nothing here rewrites the transcript:
 * {@link dropForeignThinking} does, and the split keeps the DIAGNOSIS available
 * to surfaces that must not change bytes (the card, the reply notice).
+*
+* WHY IT STILL RUNS ON pi-ai 1.3+. That library now discards a foreign block
+* itself, so on paper this repair has nothing left to do. It stays because the
+* resolved pi-ai is a PER-PROCESS fact, not a package-level one: a nested copy
+* shadows the host's (issue #24 proved it), so the plugin cannot assume any
+* particular generation for the user in front of it. The repair is this
+* bundle's own guarantee — "another model's reasoning never reaches this
+* request" — and it is cheaper than reasoning about which copy is loaded.
 *
 * @param context - a pi-ai context, before or after `alignAssistantIdentities`.
 * @param identity - the identity this adapter stamps on its own models.
@@ -1902,6 +1992,64 @@ function foreignThinkingOf(context, identity = WORKBUDDY_MODEL_IDENTITY, request
 				variant
 			});
 		}
+	}
+	return found;
+}
+/**
+* EVERY thinking block in the transcript, whoever produced it (issue #213).
+*
+* The narrow repairs above (`foreignThinkingOf`, `crossProviderThinkingOf`) exist
+* so a different model's reasoning is never replayed as this one's. This one
+* answers a different question: the WorkBuddy CHANNEL GATE scans the request
+* text, and a reporter matched every banned opening in a 11128 failure against
+* the session log's `reasoning` blocks character for character. The gate reads
+* what we send, and one of the things we send is our own past reasoning
+* (`reasoning_content`, emitted whenever a thinking block carries a signature).
+*
+* So this is not a repair of a mislabelled turn — it is a REDACTION, and it is
+* why it is a user switch rather than a default: dropping the model's own
+* reasoning from history changes what the model can see about its earlier work,
+* which is a real cost paid to get past the gate. The official client's history
+* very likely carries no thinking text at all, which is the reporter's point and
+* the reason this is worth offering.
+*
+* `variant` is 'flattened' for every block, and that is an APPROXIMATION this
+* function cannot refine: the real outcome depends on the block's signature,
+* which only pi-ai's request builder can see.
+*
+*   - a block whose `thinkingSignature` is one of the three reasoning field names
+*     is REPLAYED as that field (`reasoning_content` for this vendor), not
+*     flattened;
+*   - a block with NO signature is never emitted at all - it is dropped from the
+*     request, not turned into prose;
+*   - a block whose message fails `isSameModel` IS flattened into assistant prose
+*     (`transform-messages.js`, the `isSameModel` else-branch), and that is the
+*     only real 'flattened' case — up to pi-ai 1.2. From 1.3 such a block is
+*     discarded instead, which moves it into the second bullet's outcome.
+*
+* So the field is deliberately not surfaced to the user: `variant` reaches
+* nothing but the diagnostic callback, and a label that is wrong for two of the
+* three cases would mislead whoever finally does display it. The count is what
+* the user is told ("N blocks were removed"), which is true for all three.
+*/
+function allThinkingOf(context) {
+	const messages = context.messages;
+	if (!Array.isArray(messages)) return [];
+	const found = [];
+	for (const [messageIndex, message] of messages.entries()) for (const [blockIndex, block] of blocksOf$1(message).entries()) {
+		if (typeof block !== "object" || block === null) continue;
+		const fields = block;
+		if (fields["type"] !== "thinking") continue;
+		if (fields["redacted"] === true) continue;
+		const thinking = fields["thinking"];
+		const characters = typeof thinking === "string" ? thinking.length : 0;
+		if (characters === 0) continue;
+		found.push({
+			messageIndex,
+			blockIndex,
+			characters,
+			variant: "flattened"
+		});
 	}
 	return found;
 }
@@ -1949,16 +2097,33 @@ function dropThinkingBlocks(context, affected) {
 		messages: next
 	};
 }
+/**
+* Pick the repair this request needs and apply it.
+*
+* EXTRACTED so the choice itself is testable. When the selection lived inline in
+* `prepare`, the only thing a test could assert was what each PREDICATE returns —
+* and a mutation that deleted the `dropAllThinking` branch entirely still left
+* every test green, because no test ever asked "which predicate ran". That is a
+* decoration, not a guard (AGENTS.md: a test that stays green when you break the
+* code is not a test).
+*
+* The order is load-bearing: `dropAllThinking` is checked FIRST because it is the
+* broadest. A user who turned it on has decided the gate matters more than the
+* model seeing its own past reasoning, so the narrow "is this block foreign?"
+* question is no longer the one to ask.
+*/
+function applyTranscriptRepair(context, repair, identity = WORKBUDDY_MODEL_IDENTITY, requestModelId, ownedRoutes = [WORKBUDDY_PROVIDER, WORKBUDDY_GLOBAL_PROVIDER]) {
+	const affected = repair?.dropAllThinking === true ? allThinkingOf(context) : repair?.dropForeignThinking === true ? foreignThinkingOf(context, identity, requestModelId) : crossProviderThinkingOf(context, identity, ownedRoutes);
+	if (affected.length === 0) return context;
+	try {
+		repair?.onForeignThinking?.(affected);
+	} catch {}
+	return dropThinkingBlocks(context, affected);
+}
 function withLegacyContext(api, generation, identity = WORKBUDDY_MODEL_IDENTITY, ownedRoutes = [WORKBUDDY_PROVIDER, WORKBUDDY_GLOBAL_PROVIDER], repair) {
 	/** One place so both branches and both entry points agree on the order. */
 	const prepare = (context, requestModelId) => {
-		const aligned = alignAssistantIdentities(generation === "modern" ? foldModernContext(context) : adaptLegacyPiAiContext(context), identity, ownedRoutes);
-		const affected = repair?.dropForeignThinking === true ? foreignThinkingOf(aligned, identity, requestModelId) : crossProviderThinkingOf(aligned, identity, ownedRoutes);
-		if (affected.length === 0) return aligned;
-		try {
-			repair?.onForeignThinking?.(affected);
-		} catch {}
-		return dropThinkingBlocks(aligned, affected);
+		return applyTranscriptRepair(alignAssistantIdentities(generation === "modern" ? foldModernContext(context) : adaptLegacyPiAiContext(context), identity, ownedRoutes), repair, identity, requestModelId, ownedRoutes);
 	};
 	if (generation === "modern") return {
 		...api,
@@ -1970,6 +2135,28 @@ function withLegacyContext(api, generation, identity = WORKBUDDY_MODEL_IDENTITY,
 		stream: (model, context, options) => api.stream(model, transcript(prepare(context, model.id)), options),
 		streamSimple: (model, context, options) => api.streamSimple(model, transcript(prepare(context, model.id)), options)
 	};
+}
+/**
+* Which rescue, if any, an error event calls for (issue #258).
+*
+* ALL of an error message's text is searched, in the shapes pi-ai hands over:
+* `errorMessage` on the assistant message is the one that matters, but a
+* provider that fills only `content` or throws a bare string has been measured,
+* so the reader is deliberately tolerant. The scan never throws: a message with
+* no strings in it simply calls for no rescue.
+*
+* `'window'` wins when both readings somehow apply, because the token overflow
+* is the one this rescue was originally written for and its target is the more
+* conservative of the two.
+*/
+function rescueCauseOf(error) {
+	if (isContextOverflow(error)) return "window";
+	const text = [
+		typeof error.errorMessage === "string" ? error.errorMessage : "",
+		typeof error.content === "string" ? error.content : "",
+		...Array.isArray(error.content) ? error.content.map((part) => typeof part === "object" && part !== null && typeof part.text === "string" ? part.text : "") : []
+	].join(" ");
+	return isBodyOversizeRefusal(text) ? "body-bytes" : void 0;
 }
 /**
 * Layer the host-side context-overflow rescue onto a provider's streams.
@@ -2000,7 +2187,10 @@ function withContextRescue(api, resolve) {
 				for await (const event of source) {
 					if (event.type === "done") final = event.message;
 					if (event.type === "error") final = event.error;
-					if (event.type === "error" && isContextOverflow(event.error)) await rescue.rescue(sessionId, window);
+					if (event.type === "error") {
+						const cause = rescueCauseOf(event.error);
+						if (cause !== void 0) await rescue.rescue(sessionId, window, cause);
+					}
 					out.push(event);
 				}
 				out.end(final);
@@ -2092,10 +2282,54 @@ var EffortNormalizingAdapter = class extends PiAiAdapter {
 	* the `off`-only shape `advertiseOffOnly` below depends on.
 	*/
 	defaultEffort;
-	constructor(config, effortCapable, defaultEffort = () => void 0) {
+	/**
+	* The selector badge for one exact model, or `undefined` when it carries none.
+	*
+	* Read LIVE on every `listModels()` call, like {@link effortCapable}: the
+	* answer depends on the clock (a night window opens and closes), and the host
+	* re-reads the catalog rather than caching this for the session.
+	*
+	* @see listModels for why the badge lives here at all.
+	*/
+	modelBadge;
+	constructor(config, effortCapable, defaultEffort = () => void 0, modelBadge = () => void 0) {
 		super(config);
 		this.effortCapable = effortCapable;
 		this.defaultEffort = defaultEffort;
+		this.modelBadge = modelBadge;
+	}
+	/**
+	* The catalog, with this plugin's selector badge attached to each model.
+	*
+	* WHY THIS OVERRIDE EXISTS (issue #138). `conversation.input.model.label` is a
+	* `single` slot, so whichever plugin wins it draws EVERY provider's rows — and
+	* the host's own badge fallback only runs when the cell has NO occupant. A
+	* sibling's chip therefore survives only if it travels as DATA rather than as
+	* a component. From 0.2.2 the host's directory carries exactly such a field
+	* (`LlmModelInfo.badge`), and the only way an adapter can fill it is here:
+	* `resolveModel()` is normalized by the registry, which drops `badge`, so a
+	* value returned from there never reaches the picker.
+	*
+	* WHY THE SPREAD AND NOT AN OBJECT LITERAL. This plugin's peer range still
+	* starts at `0.1.7-rc.1`, where `LlmModelInfo` has no `badge` field — an
+	* object literal naming it would fail to compile against that declaration.
+	* The spread compiles against both, and on 0.1.x the extra property is simply
+	* not read by anything. No runtime version check is needed or wanted.
+	*
+	* WHAT IS DELIBERATELY NOT HERE: the live load level. A catalog refresh costs
+	* one `resolveModelInfo()` per model, so a per-minute fact would have to be
+	* republished by emitting `llm/models-updated` on every probe — and a stale
+	* 🚦 is worse than no 🚦. The load level stays on this plugin's own rows,
+	* where the component can re-read a snapshot per render.
+	*/
+	async listModels(provider) {
+		return (await super.listModels(provider)).map((model) => {
+			const badge = this.modelBadge(model.id);
+			return {
+				...model,
+				...badge === void 0 ? {} : { badge }
+			};
+		});
 	}
 	async resolveModel(provider, model, signal) {
 		return this.advertiseDefaultEffort(this.advertiseOffOnly(await super.resolveModel(provider, model, signal)));
@@ -2173,7 +2407,9 @@ function createWorkBuddyAdapter(options) {
 	const generation = options.piAiGeneration ?? piAiRuntimeInfo().generation;
 	const buildModels = () => {
 		const baseUrl = `${shim.baseUrl()}/v1`;
-		return catalog.current().map((info) => toPiModel(info, baseUrl, modelIdentity));
+		const midConvoSystemMessages = regionOfProvider(providerId) === "cn";
+		const sessionAffinity = options.sessionConversationId?.() === true;
+		return catalog.current().map((info) => toPiModel(info, baseUrl, modelIdentity, midConvoSystemMessages, sessionAffinity));
 	};
 	const provider = {
 		...createProvider({
@@ -2193,6 +2429,9 @@ function createWorkBuddyAdapter(options) {
 			api: withContextRescue(withLegacyContext(openAICompletionsApi(), generation, modelIdentity, void 0, {
 				get dropForeignThinking() {
 					return options.dropForeignThinking?.() === true;
+				},
+				get dropAllThinking() {
+					return options.dropAllThinking?.() === true;
 				},
 				...options.onForeignThinking === void 0 ? {} : { onForeignThinking: options.onForeignThinking }
 			}), options.resolveContextRescue)
@@ -2257,13 +2496,51 @@ function createWorkBuddyAdapter(options) {
 		if (info === void 0) return void 0;
 		return defaultEffortFor(info, options.defaultThinkingEfforts?.() ?? {});
 	};
+	/**
+	* The selector badge for one model: whatever promotion holds RIGHT NOW.
+	*
+	* WHY THE CLOCK IS READ HERE. `promos` rides along UNRESOLVED on the model
+	* entry precisely so the decision can be made where it is drawn (`src/promo.ts`
+	* explains why freezing it at parse time would leave "夜间折扣" on the row the
+	* next morning). `listModels()` is called when the host builds the catalog, so
+	* this is that "where it is drawn" moment on the host side.
+	*
+	* WHY A TABLE, AND WHEN IT COLLAPSES TO A STRING. The host resolves
+	* `badge.text` against the READER's locale (`ctx.locale.resolveText`), and this
+	* function runs in the host process, where the browser's language is not
+	* knowable. A table lets the host pick; a bare string forces one language on
+	* every user. `en` is mandatory in a table — one without it resolves to
+	* `undefined` and the chip disappears entirely.
+	*
+	* Most CN promotions publish NO English wording, so `en = labelEn ?? label`
+	* makes both entries identical and the value collapses to a bare string. That
+	* is deliberate: inventing English copy would be worse than showing the
+	* upstream's own Chinese wording to an English reader.
+	*
+	* ONLY THE PROMOTION GOES IN. The load level is a per-minute fact; see
+	* `listModels` for why it deliberately stays on this plugin's own rows.
+	*/
+	const resolveModelBadge = (model) => {
+		const info = catalog.current().find((entry) => entry.id === model);
+		if (info === void 0) return void 0;
+		const promo = selectPromoBadge(info.promos, Date.now());
+		if (promo === void 0) return void 0;
+		const en = promo.badge.labelEn ?? promo.badge.label;
+		return {
+			text: promo.badge.label === en ? en : {
+				en,
+				zh: promo.badge.label
+			},
+			tone: promoBadgeTone(promo)
+		};
+	};
 	return {
 		adapter: new EffortNormalizingAdapter({
 			profiles: () => profiles,
 			auth: INERT_AUTH,
 			resolveApiKey: async () => shim.token(),
 			...resolveAttachments === void 0 ? {} : { resolveAttachments }
-		}, effortCapable, resolveDefaultEffort),
+		}, effortCapable, resolveDefaultEffort, resolveModelBadge),
 		invalidate: () => {
 			profiles = buildProfiles();
 		}
@@ -2275,6 +2552,30 @@ function createWorkBuddyAdapter(options) {
 const CHUNK_FRACTION = .35;
 /** Post-fold measurement target: comfortably below the window the route allows. */
 const TARGET_FRACTION = .6;
+/**
+* Post-fold target for a BYTE refusal, as a fraction of the CURRENT measurement
+* (issue #258).
+*
+* WHY NOT THE WINDOW. The ceiling that refuses these requests is in BYTES; the
+* measurement this rescue reads is in TOKENS. A reporter measured the crossing
+* point at roughly 150k tokens for an 8 MiB ceiling — while the model declares a
+* 1,000,000-token window, so `window * 0.6` is 600,000. The first measurement
+* then already satisfies `totalTokens <= target`, the loop returns on its first
+* pass, and the identical oversized body is re-sent: a rescue that reports
+* success while doing nothing is worse than one that reports failure.
+*
+* Deriving the target from the measurement itself avoids needing to know the
+* ceiling at all: one fold always removes at least 10% of what is there, so the
+* loop cannot be trivially satisfied, and repeated rounds converge on whatever
+* the ceiling happens to be.
+*
+* 0.9 rather than something smaller on purpose: the ceiling is unknown, so
+* folding aggressively would throw away far more history than necessary on a
+* request that only just crossed it. 10% per round, up to {@link MAX_ROUNDS},
+* covers a 57% reduction — enough for a body that overshot by a few percent,
+* which is the measured shape (8,401,132 B against a 8,388,608 B ceiling).
+*/
+const BODY_OVERSIZE_TARGET_FRACTION = .9;
 /** A session is never folded more than this many times by one rescue. */
 const MAX_ROUNDS = 8;
 /** How many times one chunk may shrink its tail edge before giving up. */
@@ -2289,11 +2590,11 @@ const FOLD_TIMEOUT_MS = 18e4;
 */
 function createContextRescue(resolve) {
 	const inflight = /* @__PURE__ */ new Set();
-	return { async rescue(sessionId, window) {
+	return { async rescue(sessionId, window, cause = "window") {
 		if (inflight.has(sessionId)) return false;
 		inflight.add(sessionId);
 		try {
-			return await foldUntilFits(resolve(), sessionId, window);
+			return await foldUntilFits(resolve(), sessionId, window, cause);
 		} catch (error) {
 			resolve().log?.("dsh-connect-workbuddy: context rescue failed", error);
 			return false;
@@ -2302,16 +2603,29 @@ function createContextRescue(resolve) {
 		}
 	} };
 }
-async function foldUntilFits(deps, sessionId, window) {
+/**
+* The fold target for one rescue, in the MEASUREMENT's own unit (tokens).
+*
+* Split out and pure so the unit mismatch that caused issue #258 is testable
+* without a host: the two causes derive the same number from two different
+* quantities, and only one of them can be trivially satisfied by the first
+* measurement.
+*/
+function rescueTargetOf(cause, window, measuredTokens) {
+	if (cause === "body-bytes") return Math.max(1, Math.floor(measuredTokens * BODY_OVERSIZE_TARGET_FRACTION));
+	return Math.max(1, Math.floor(window * TARGET_FRACTION));
+}
+async function foldUntilFits(deps, sessionId, window, cause) {
 	const { meter, compaction, agents } = deps;
 	if (meter === void 0 || compaction === void 0 || agents === void 0) return false;
 	const agent = agents.get(sessionId);
 	if (agent === void 0) return false;
-	const target = Math.max(1, Math.floor(window * TARGET_FRACTION));
+	let target = NaN;
 	let foldedAny = false;
 	let previous = Number.POSITIVE_INFINITY;
 	for (let round = 0; round < MAX_ROUNDS; round += 1) {
 		const measurement = meter.measure(agent.session);
+		if (round === 0) target = rescueTargetOf(cause, window, measurement.totalTokens);
 		if (measurement.totalTokens <= target) return foldedAny;
 		if (measurement.totalTokens >= previous) return foldedAny;
 		previous = measurement.totalTokens;
@@ -2751,16 +3065,19 @@ function installChannelContinue(mount) {
 * history was labelled differently on the two sides.
 *
 * The labelling is pi-ai's replay — which assistant messages it lets survive as
-* thinking at all. `transform-messages.js:68` (1.1.0, the version the host
-* bundles) computes
+* thinking at all. `transform-messages.js` (1.1.0, the version the host bundled
+* when this report was written) computes
 *
 *     isSameModel = assistantMsg.provider === model.provider
 *                && assistantMsg.api      === model.api
 *                && assistantMsg.model    === model.id;
 *
-* and for a message that fails it, `:88–96` returns the surviving thinking as
-* `{ type: "text", text: block.thinking }` — downgraded, not dropped — while
-* `:76` drops redacted thinking and `:103` strips tool-call `thoughtSignature`.
+* and for a message that fails it, it returned the surviving thinking as
+* `{ type: "text", text: block.thinking }` — downgraded, not dropped — while it
+* dropped redacted thinking and stripped tool-call `thoughtSignature`. The
+* comparison is what this report explains and it is unchanged in every pi-ai
+* generation this plugin declares; only the ELSE branch moved, and pi-ai 1.3
+* now discards the block instead of rewriting it.
 * `buildParams` runs that transform at `openai-completions.js:896`, before
 * anything is assembled, so a thinking block only stays a thinking block when
 * its message was recorded under the same provider AND the same model id as the
@@ -2770,7 +3087,8 @@ function installChannelContinue(mount) {
 * vendor, uniformly — 790 replay records in one real session held that value
 * and no other). Non-survivors are text by the time `:964–971` collects
 * `assistantText`, so they land in `assistantMsg.content` instead. This plugin
-* sets only `compat.supportsReasoningEffort` (`src/adapter.ts:200`), which
+* sets `compat.supportsReasoningEffort` and `compat.supportsMidConvoSystemMessages`
+* (`src/adapter.ts`), neither of which touches `requiresThinkingAsText`, which
 * leaves `requiresThinkingAsText` at its `false` default (`:1270`), so the raw
 * field route is the live one rather than the fold-into-content route at `:983`.
 *
@@ -3196,8 +3514,8 @@ function attachUsage(directory, report, onError) {
 * live here rather than being re-derived per route. A previous version kept the
 * Host check inside `shim.ts` and only the Origin check inside `web-status.ts`,
 * which meant the shim's chat route had both guards while the settings card's
-* thirteen routes (ten POST + three GET) had one — the asymmetry was invisible
-* because each file looked internally consistent.
+* routes had one — the asymmetry was invisible because each file looked
+* internally consistent.
 *
 * - **Host** answers "is this request addressed to the interface it landed on?".
 *   A DNS-rebinding page sends requests whose `Host` is the *attacker's* domain
@@ -3212,12 +3530,39 @@ function attachUsage(directory, report, onError) {
 * the minimum for these surfaces, not a substitute for a secret when a route
 * spends credit.
 *
+* ## The deployment-declared authority (issue #261)
+*
+* Behind a reverse proxy both questions break for a reason the two callers
+* cannot see: the harness's webserver is bound to a loopback address, so the
+* socket ALWAYS lands on 127.0.0.1, while the browser (and the proxy forwarding
+* its Host unchanged) addresses the public authority — e.g. `192.168.1.250`.
+* `isLocalHostname` says no, and the Host-vs-`localAddress` comparison can never
+* equal, so EVERY card route answers 403 `host-not-trusted` even though the
+* harness's own `/api` fence accepts exactly that Host (it has a `trustedHosts`
+* allow-list, `dsh web --trusted-host 192.168.1.250`).
+*
+* The fix is a third, opt-in source of "this machine": a list of authorities the
+* DEPLOYER declared trusted, threaded into both predicates as one
+* {@link TrustedHosts} value so Host and Origin cannot disagree. This does not
+* weaken rebinding defense: an attacker page's Host is its own domain, which is
+* not on the list; loopback and the listener's own address are still accepted
+* before it, and `0.0.0.0` / `[::]` are still refused. It only aligns the
+* plugin's notion of "ours" with the harness's for the same request.
+*
+* We deliberately do NOT read the harness's own `trustedHosts` off the
+* `connection` service: in the DSH line this plugin runs against that field is
+* private on `HostConnectionService`, and depending on another service being
+* mounted would make the card disappear when it is absent. Keeping the allow-list
+* in this plugin's own Config is self-contained and version-independent; see
+* `docs/ISSUE-261-REPLY.md`.
+*
 * ## Two callers, two strictnesses (deliberate)
 *
 * - `src/web-status.ts` serves the settings card over the HOST's webserver, which
 *   the harness may configure to bind a concrete non-loopback address. It uses
-*   `hostMatchesListener` / `originIsLoopback(origin, localAddress)`, i.e. "is
-*   this addressed to / coming from the interface the connection landed on".
+*   `hostMatchesListener` / `originIsLoopback(origin, localAddress, trustedHosts)`,
+*   i.e. "is this addressed to / coming from the interface the connection landed
+*   on, OR from an authority the deployer explicitly declared trusted".
 * - `src/shim.ts` binds `listen(0, '127.0.0.1')` itself, so no LAN request can
 *   ever reach it. It uses the stricter `hostIsLoopback`, which is not a
 *   different notion of "local" but the same one narrowed to the only case that
@@ -3291,6 +3636,80 @@ function hostnameOfHost(host) {
 	return hostname;
 }
 /**
+* Reduce a bare `host[:port]` authority to its WHATWG-normalized parts.
+*
+* `new URL` is the authority on spelling, for the same reason the harness's own
+* `/api` fence uses it: it lowercases the host, brackets IPv6, strips a
+* scheme-default port and rejects shapes a browser would never put in Host.
+* The scheme matters because WHATWG strips DIFFERENT default ports for http:
+* (80) and https: (443): the Origin path parses each entry under the Origin's
+* OWN scheme, exactly as the harness's `isSameAuthorityOrigin` re-parses the
+* Host under the Origin's scheme. Without that, an entry `host:443` would match
+* the Host half (`http://host:443` keeps `:443`) but never an https Origin
+* (`https://host:443` drops it) — a split in the wrong direction, and the very
+* thing this module exists to prevent.
+*
+* Returns `undefined` for anything with a path, userinfo, whitespace or a
+* dangling colon — a configured entry like `harness.internal/path` or one
+* carrying embedded credentials before the hostname must never grant the
+* hostname buried inside it.
+*/
+function authorityParts(authority, scheme = "http:") {
+	try {
+		const url = new URL(`${scheme}//${authority}`);
+		if (url.pathname !== "/" || url.username !== "" || url.password !== "" || url.search !== "" || url.hash !== "") return void 0;
+		return {
+			hostname: url.hostname,
+			host: url.host
+		};
+	} catch {
+		return;
+	}
+}
+/**
+* Fail loudly on a `trustedHosts` entry that is not a canonical bare authority.
+*
+* A typo (`host/path`, embedded credentials, `host :80`, `0x7f.0.0.1`,
+* percent-encoding)
+* must fail the LOAD, not sit in the list silently authorizing a hostname prefix
+* — the harness's own `assertTrustedAuthority` has the same boundary. Canonical
+* means WHATWG parsing did not rewrite it (case / default-port aside), so an
+* entry never grants a different authority than the operator wrote.
+*/
+function assertTrustedAuthority(entry) {
+	const parsed = authorityParts(entry);
+	if (parsed === void 0 || parsed.host.toLowerCase() !== entry.toLowerCase()) throw new Error(`dsh-connect-workbuddy: trustedHosts entry ${JSON.stringify(entry)} is not a bare host[:port] authority`);
+}
+/**
+* Whether a normalized authority is one of the deployer-declared ones.
+*
+* Comparison is on the WHOLE authority (host + explicit port), not on the bare
+* hostname. That distinction is the whole reason this helper exists: a request
+* behind a proxy carries BOTH `Host: 192.168.1.250:8443` and
+* `Origin: https://192.168.1.250:8443`, while `hostnameOfHost` and `URL.hostname`
+* have already stripped the port for the loopback / listener checks. Comparing a
+* `host:port` entry against those bare hostnames would never match, so the
+* Origin half would stay 403 after the Host half was fixed — the exact split
+* this module exists to prevent.
+*
+* An entry with an explicit port matches that exact authority; a port-less entry
+* (its `host` equals its `hostname`) matches the hostname on any port. Both
+* sides went through `authorityParts` under the SAME scheme, so case, a
+* redundant scheme-default port and IPv6 brackets never decide trust.
+*/
+function matchesTrustedAuthority(parts, trustedHosts, scheme = "http:") {
+	return trustedHosts.some((entry) => {
+		const configured = authorityParts(entry, scheme);
+		if (configured === void 0) return false;
+		if (configured.host === configured.hostname) return configured.hostname === parts.hostname;
+		return configured.host === parts.host;
+	});
+}
+/** Read the trust list once per decision; an absent getter means "no grants". */
+function trustedList(getter) {
+	return getter === void 0 ? [] : getter();
+}
+/**
 * Whether a Host header names the loopback interface.
 *
 * An absent Host is treated as NOT loopback. HTTP/1.1 requires the header, so
@@ -3338,12 +3757,23 @@ function isLocalHostname(hostname) {
 * `Host: 127.0.0.1` anyway. It is stated first so the answer does not depend on
 * how the platform spells its own loopback, and so an undefined `localAddress`
 * (a proxy, a test double) still admits genuine local traffic.
+*
+* BEHIND A REVERSE PROXY the comparison cannot succeed: the harness binds a
+* loopback address, so `localAddress` is always `127.0.0.1` while the browser
+* addresses the public authority. That is what `trustedHosts` is for (issue
+* #261) — a deployer-declared authority is checked BEFORE the `localAddress`
+* comparison, so a proxied request is admitted without touching the rebinding
+* defense (loopback and wildcard refusal are still first, and an attacker's
+* domain is by construction not on the list). An absent trust set leaves the
+* pre-#261 answer for every request.
 */
-function hostMatchesListener(host, localAddress) {
+function hostMatchesListener(host, localAddress, trustedHosts) {
 	if (host === void 0 || host.trim() === "") return false;
 	const hostname = hostnameOfHost(host);
 	if (isLocalHostname(hostname)) return true;
 	if (hostname === "0.0.0.0" || hostname === "[::]") return false;
+	const parts = authorityParts(host.trim());
+	if (parts !== void 0 && matchesTrustedAuthority(parts, trustedList(trustedHosts))) return true;
 	if (localAddress === void 0 || localAddress.trim() === "") return false;
 	const local = localAddress.trim().toLowerCase();
 	if (!isIpLiteral(local) && !isIpLiteral(`[${local}]`)) return false;
@@ -3373,13 +3803,28 @@ function hostMatchesListener(host, localAddress) {
 * running on this machine), and treating it as one would break legitimate
 * setups behind a proxy that terminates on a different port than it forwards to.
 * That intentional limit is recorded rather than silently assumed.
+*
+* A DEPLOYER-DECLARED authority (issue #261) is different: a proxied browser
+* sends `Origin: https://192.168.1.250:8443` while the socket lands on
+* 127.0.0.1, so neither the loopback branch nor the `localAddress` comparison
+* can ever admit it. It is checked on the Origin's WHOLE authority (`host`,
+* port included) via the SAME `matchesTrustedAuthority` the Host path uses —
+* that is what keeps the two halves from diverging again. Both halves parse the
+* entries under the Origin's scheme (see `authorityParts`), so an entry with an
+* explicit scheme-default port (`:443`) still matches an https Origin whose URL
+* dropped that port, and a port-less entry matches on any port. Only http(s)
+* Origins can name this listener; every other scheme fails the check below.
 */
-function originIsLoopback(origin, localAddress) {
+function originIsLoopback(origin, localAddress, trustedHosts) {
 	if (origin === void 0 || origin.trim() === "") return true;
 	try {
-		const { hostname } = new URL(origin);
+		const { protocol, hostname, host } = new URL(origin);
+		const scheme = protocol === "https:" ? "https:" : protocol === "http:" ? "http:" : void 0;
+		if (scheme === void 0) return false;
 		if (isLocalHostname(hostname)) return true;
-		return hostMatchesListener(hostname, localAddress);
+		const parts = authorityParts(host, scheme);
+		if (parts !== void 0 && matchesTrustedAuthority(parts, trustedList(trustedHosts), scheme)) return true;
+		return hostMatchesListener(hostname, localAddress, trustedHosts);
 	} catch {
 		return false;
 	}
@@ -3417,6 +3862,9 @@ const BLOCK_TAGS = ["tool_calls", "invoke"];
 * should also remove everything up to its matching close. An INVENTED name is
 * not here on purpose: `<｜DSML｜ validate>` brackets nothing, so removing it
 * means removing the tag and nothing else.
+*
+* `calls` is here because a REAL capture wrote the wrapper's closer that way.
+* See {@link CANONICAL_TAG_NAMES} for the defect that disagreement caused.
 */
 const KEYWORD_TAGS = [
 	"tool_calls",
@@ -3427,11 +3875,31 @@ const KEYWORD_TAGS = [
 	"calls",
 	"tool"
 ];
-/** Tag names normalised to their canonical spelling. */
+/**
+* Tag names normalised to their canonical spelling.
+*
+* WHY `calls` IS MAPPED HERE (issue #207). Pairing is decided by comparing the
+* NORMALISED names ({@link findMatchingClose}: `tag.name === open.name`), so a
+* closer spelled `calls` could never match an opener spelling `tool_calls`:
+* the block read as never closed, was held to end of stream, and gate 4 then
+* rolled the whole thing back into visible prose.
+*
+* That is not a hypothetical spelling. `docs/DSML-LEAK-RESEARCH.md` records a
+* REAL captured block whose closing tag is `</｜DSML｜｜ calls>` — the document
+* knew the closer could be abbreviated while this table did not. The two
+* spellings are also inconsistent WITHIN this file: {@link KEYWORD_TAGS}
+* already lists `calls`, because {@link stripMarkup} has to know it is markup,
+* while pairing did not. Two tables disagreeing about one spelling was the
+* whole defect.
+*
+* `git log -S"'calls', 'tool_calls'"` is empty: this mapping never existed, so
+* no release ever behaved differently.
+*/
 const CANONICAL_TAG_NAMES = /* @__PURE__ */ new Map([
 	["tool_calls", "tool_calls"],
 	["tool-calls", "tool_calls"],
 	["toolcalls", "tool_calls"],
+	["calls", "tool_calls"],
 	["invoke", "invoke"],
 	["parameter", "parameter"]
 ]);
@@ -3440,8 +3908,17 @@ const CANONICAL_TAG_NAMES = /* @__PURE__ */ new Map([
 *
 * `<toolcalls>` without the marker is somebody's HTML, not the model's markup;
 * the marker is what makes the misspelling meaningful.
+*
+* `calls` belongs here for the same reason, and more strongly: it is an ordinary
+* English word that also appears in HTML (`<calls>`) and in prose about
+* telephones, so normalising a BARE `<calls>` would turn somebody's own text
+* into the model's protocol and start deleting what follows it.
 */
-const MARKER_ONLY_TAG_NAMES = /* @__PURE__ */ new Set(["tool-calls", "toolcalls"]);
+const MARKER_ONLY_TAG_NAMES = /* @__PURE__ */ new Set([
+	"tool-calls",
+	"toolcalls",
+	"calls"
+]);
 /** Fence markers at the start of a line. */
 const FENCE_MARKERS = ["```", "~~~"];
 /**
@@ -4023,6 +4500,77 @@ function stripStray(text, seen) {
 	return cleaned;
 }
 /**
+* Drop lone marker CLOSERS from a response that never opened a block
+* (issue #207).
+*
+* THE DEFECT. `stripStray` runs only behind {@link DsmlStreamBuffer.debris()},
+* and that flag means "this response WITHHELD a block". A response that never
+* opened one therefore never reached the sweep, so the shape below — captured
+* in the wild, and quoted verbatim in the issue — went out as prose:
+*
+* ```text
+* </｜DSML｜ parameter>
+* </｜DSML｜ invoke>
+* </｜DSML｜ calls>
+* ```
+*
+* The inconsistency was inside the module: {@link hasProse} already classified
+* those bytes as NON-prose (it goes through `stripMarkup`), so the classifier
+* said "residue" and the writer printed it.
+*
+* WHY PRESENCE, NOT DEPTH PAIRING. The first two attempts at this (both
+* recorded in the issue) counted depth by tag name, and both deleted the
+* CLOSER OF A BLOCK THAT WAS ONLY BEING SHOWN: a gate-4-refused block's opener
+* can be a forged name (`<｜DSML｜ validate>`), which by name never matches its
+* own `</｜DSML｜ calls>` closer, so the depth hit zero early. A presence flag
+* cannot make that mistake: if ANY marked opener appeared in the response, not
+* one lone closer is touched, and the whole gate-4 verbatim guarantee is kept.
+*
+* THE RESULT IS STRICTER THAN BEFORE, not looser. The old rule was "once a
+* block was withheld, delete every stray tag afterwards"; this one is "delete
+* nothing if any opener was ever seen". In the overlap — withheld block, then
+* lone tags — the old code deleted and this one does not.
+*
+* Fences and code spans are still skipped (through `stripMarkup`), because a
+* user asking what this markup means is quoting it on purpose.
+*/
+function stripLoneClosers(text, seen, openerSeen) {
+	if (openerSeen) return text;
+	const cleaned = stripMarkup(text);
+	if (cleaned !== text) seen.reason ??= "stray-markup";
+	return cleaned;
+}
+/**
+* Does `text` contain any MARKED OPENING tag, whatever it is called?
+*
+* The question behind issue #207's presence flag. Keyed on the marker rather
+* than on {@link BLOCK_TAGS}, because the shape that motivated it —
+* `<｜DSML｜ validate>` — wears an invented name and is not a block opener, yet
+* it opens a construct whose closer must survive.
+*
+* Scans outside fenced/inline-code spans, so a user quoting the markup inside a
+* code block does not set the flag (and therefore does not disable the cleaning
+* of real debris elsewhere in the same response).
+*/
+function hasMarkedOpener(text) {
+	const spans = ignoredSpans(text);
+	const cursor = { at: 0 };
+	let index = 0;
+	while (index < text.length) {
+		const skipped = skipIgnored(spans, index, cursor);
+		if (skipped !== index) {
+			index = skipped;
+			continue;
+		}
+		if (text.charAt(index) === "<") {
+			const tag = scanTag(text, index);
+			if (tag !== void 0 && tag.marked && !tag.closing) return true;
+		}
+		index += 1;
+	}
+	return false;
+}
+/**
 * Drop a marker-bearing tag fragment that the stream held and can never finish.
 *
 * {@link holdFrom} keeps back a tail that could still become a block opener, so
@@ -4195,9 +4743,51 @@ var DsmlStreamBuffer = class {
 	withheldOnce = false;
 	/** Whether the one notice allowed per response has gone out. See `takeWithheld`. */
 	noticeSent = false;
+	/**
+	* Whether this response has produced any MARKED opening tag, at any point
+	* (issue #207).
+	*
+	* Deliberately NOT the same flag as {@link withheldOnce}. `withheldOnce` means
+	* "a block was removed", and the debris sweep used it as a PROXY for "this
+	* response's marker text is protocol debris rather than the answer". The two
+	* are not the same question, and a response that leaked lone closers without
+	* ever withholding a block was the case that fell between them:
+	* `hasProse()` already counted those closers as non-prose (it runs
+	* `stripMarkup`), while the output path forwarded them — the classifier said
+	* "residue" and the writer said "text".
+	*
+	* Deliberately ANY marked opener rather than a {@link BLOCK_TAGS} one: the
+	* captured shape `<｜DSML｜ validate>` wears an invented name, so it is not a
+	* block opener and would not set a block-only flag — yet it is precisely the
+	* tag whose closer a name-based sweep would mutilate. "The model started
+	* writing protocol markup" is the question, and that is answered by the
+	* MARKER, not by the name.
+	*
+	* Tracked across chunks because a chunk boundary is not a response boundary.
+	*/
+	openerSeen = false;
 	constructor(gate) {
 		this.gate = gate;
 	}
+	/**
+	* Stop recovering calls, but keep cleaning the text (issue #207).
+	*
+	* Called when the upstream has already produced a STRUCTURED call. The reason
+	* to stand down is sound — recovering markup into a second call channel after
+	* the client already got a real one hands it two answers to the same question
+	* — but the shim used to implement it by bypassing this buffer entirely, so
+	* "no more calls" silently became "no more cleaning either" and every marker
+	* after the native call went out as prose.
+	*
+	* Scrub mode keeps the text half: blocks are still located and removed, but
+	* {@link parseBlock} is never consulted, so no call can be produced. Removal
+	* is reported as debris rather than tallied as a withheld invocation — see
+	* {@link scrubPending}.
+	*/
+	standDown() {
+		this.nativeCalls = true;
+	}
+	nativeCalls = false;
 	/** Feed one `delta.content` chunk; returns text and any call it completed. */
 	add(chunk) {
 		this.pending += chunk;
@@ -4212,9 +4802,18 @@ var DsmlStreamBuffer = class {
 				withheld: false
 			};
 		}
+		this.openerSeen ||= hasMarkedOpener(this.pending);
 		for (;;) {
 			const found = findFirstOpener(this.pending, ignoredSpans(this.pending));
 			if (found === void 0) break;
+			this.openerSeen = true;
+			if (this.nativeCalls) {
+				const head = stripMarkup(this.pending.slice(0, found.open.start)).trimEnd();
+				if (head !== "") parts.push(head);
+				this.pending = this.pending.slice(found.close === void 0 ? found.open.start : found.close.end + 1);
+				if (found.close === void 0) return finish(parts, calls, this.takeWithheld());
+				continue;
+			}
 			const head = this.stripDebris(this.pending.slice(0, found.open.start));
 			if (head !== "") parts.push(head);
 			if (found.close === void 0) {
@@ -4243,9 +4842,9 @@ var DsmlStreamBuffer = class {
 			this.withHeld.reason ??= "unnamed-invoke";
 			text = "";
 		}
-		if (this.debris()) {
-			text = dropUnfinishedMarkerTail(text, this.withHeld);
-			text = stripStray(text, this.withHeld);
+		if (this.openerSeen || this.debris()) {
+			text = dropUnfinishedMarkerTail(text, this.nativeCalls ? {} : this.withHeld);
+			text = this.nativeCalls ? stripMarkup(text) : stripLoneClosers(text, this.withHeld, this.openerSeen);
 		}
 		const state = this.takeWithheld();
 		const outcome = {
@@ -4257,13 +4856,26 @@ var DsmlStreamBuffer = class {
 		return outcome;
 	}
 	/**
-	* Apply the debris sweep, but only to a response that has withheld something.
+	* Apply the debris sweep, but only where it is provably debris.
 	*
-	* See {@link withheldOnce}: before the first withhold, marker text in the
-	* prose is the caller's to show, not this layer's to delete.
+	* Three states, in order:
+	*
+	*   - SCRUB MODE (issue #207): nothing is being recovered, so every
+	*     marker-bearing tag is debris by definition.
+	*   - A block was withheld: the text left around removed blocks is residue by
+	*     construction, so the full sweep applies.
+	*   - Nothing was withheld AND no opener ever appeared: only lone CLOSERS are
+	*     unambiguously debris — this is the case the issue reports, where the
+	*     old proxy (`debris()`) could never be true and the bytes went out raw.
+	*
+	* A response that never withheld anything but DID open a block keeps its text
+	* untouched: gate 4 promises the refused block is shown verbatim, and its
+	* forged-name opener is exactly the shape a name-based sweep would mutilate.
 	*/
 	stripDebris(text) {
-		return this.debris() ? stripStray(text, this.withHeld) : text;
+		if (this.nativeCalls) return stripMarkup(text);
+		if (this.debris()) return stripStray(text, this.withHeld);
+		return stripLoneClosers(text, this.withHeld, this.openerSeen);
 	}
 	/** Has anything been withheld from this response, yet or already? */
 	debris() {
@@ -4832,6 +5444,7 @@ var RecoveryStream = class {
 		const nativeCalls = delta["tool_calls"];
 		if (Array.isArray(nativeCalls) && nativeCalls.length > 0) {
 			this.nativeCallsSeen = true;
+			this.buffer?.standDown();
 			this.windowOpened = true;
 			this.flushNotice();
 			this.send(frame, false);
@@ -4846,7 +5459,7 @@ var RecoveryStream = class {
 			this.send(frame, reason !== "");
 			return;
 		}
-		if (this.buffer === void 0 || this.nativeCallsSeen) {
+		if (this.buffer === void 0) {
 			this.windowOpened = true;
 			this.flushNotice();
 			this.closeWindow();
@@ -4993,17 +5606,26 @@ function callsFrame(chunk, choice, calls) {
 	return `data: ${JSON.stringify(next)}\n\n`;
 }
 /**
-* How to name a pool account in a sentence the USER reads.
+* How to name a pool account in a sentence the USER reads (issue #234).
 *
-* Prefers the phone number (`uin`) because that is what the pool table shows and
-* what a person recognises; the nickname and the opaque account id are fallbacks
-* so this can never render an empty name. Deliberately NOT the hashed account id
-* on its own: a 24-character hex digest identifies an account to the plugin, but
-* to the person reading the answer it identifies nothing.
+* The NAME comes first, in the very order the card and the pool table use —
+* `preferredAccountName` (display name, then the enterprise-side name, then the
+* login alias). The notice used to lead with `uin`, which is the phone number:
+* a reporter read 「330135985725」 and could not tell whether that was an
+* account at all, let alone which one. Every other surface names an account by
+* its name, so this one must too.
+*
+* The identifier survives only as a LAST resort, for the account the desktop
+* app published no name for — an unnamed account still has to be pointed at,
+* and a number the user can match against a row beats a sentence that names
+* nobody. Deliberately NOT the hashed account id while a `uin` exists: a
+* 24-character hex digest identifies an account to the plugin, but to the
+* person reading the answer it identifies nothing.
 */
 function describeAccount(credential) {
+	const name = preferredAccountName(credential);
+	if (name !== "") return name;
 	if (credential.uin !== void 0 && credential.uin !== "") return credential.uin;
-	if (credential.nickname !== void 0 && credential.nickname !== "") return credential.nickname;
 	return workbuddyAccountId(credential);
 }
 /**
@@ -5118,9 +5740,20 @@ function clippedUpstreamText(text, limit) {
 * later turn will fail the same way until that line is changed.
 *
 * Each entry also says whether the plugin's own neutralisation already covers
-* it. An entry marked "not in the plugin's list" is the actionable one: that
-* opening goes on the wire verbatim, so either the host wrote it or the
-* gateway's list grew.
+* it. An entry marked "not in the plugin's list" is the actionable one: either
+* the host wrote it or the gateway's list grew.
+*
+* WHAT THAT MARKER MAY NOT SAY (issue #213). It used to read 「网关可能新增了
+* 词条」, and a reporter read it as "this opening went out verbatim" — then
+* reported that the three `assistant` openings the gate had named were never
+* neutralised at all. They were: `forceNeutralHead` puts the head in front of
+* every scanned opening regardless of the list (since 4.15.1), so the request
+* that was refused for the third time had heads on all of them. The marker
+* describes the FIRST attempt and only the opening's FIRST LINE; the gateway
+* matches an exact substring anywhere in the text, so a first line that is
+* absent from the snapshot says nothing about the message as a whole. Both of
+* those are stated in the reply's closing sentence, which is the part a
+* reporter actually quotes back at us.
 *
 * Capped at {@link CHANNEL_EVIDENCE_LIMIT} entries: a session can carry dozens
 * of system/assistant messages, and a wall of them would bury the one that
@@ -5131,7 +5764,7 @@ function channelEvidenceText(bodyJson) {
 	if (entries.length === 0) return "（请求里没有可读的 system 或 assistant 消息开头。）";
 	const shown = entries.slice(0, CHANNEL_EVIDENCE_LIMIT);
 	const rendered = shown.map((entry) => {
-		const label = entry.neutralized ? "（插件已加中性头）" : "（不在插件已知名单里，网关可能新增了词条）";
+		const label = entry.neutralized ? "（插件已加中性头）" : "（不在插件已知名单里，仅指首行）";
 		const span = entry.closing === void 0 ? `，共 ${entry.textLength} 字` : `，首尾为「${entry.closing}」，共 ${entry.textLength} 字`;
 		return `「${entry.role}：${entry.opening}${span}」${label}`;
 	}).join("、");
@@ -5341,6 +5974,20 @@ function createWorkBuddyShim(options) {
 	const keepPromptLastEnabled = options.keepPromptLast === true;
 	const extraInjectedPrefixes = Array.isArray(options.extraInjectedPrefixes) ? options.extraInjectedPrefixes.filter((entry) => typeof entry === "string" && entry !== "") : [];
 	const sessionTitleOptions = options.sessionTitle ?? {};
+	/**
+	* Route B (opt-in), read LIVE so the card toggle works without a reload.
+	* pi-ai stamps the host session id on the loopback request as
+	* `x-session-affinity`; we read ONLY that trusted, loopback+bearer-gated
+	* header and map it to a domain-separated digest. The id is never logged,
+	* never forwarded verbatim, and an absent/oversized value is ignored.
+	*/
+	const sessionConversationIdEnabled = options.sessionConversationId;
+	const readSessionConversationId = (req) => {
+		if (sessionConversationIdEnabled?.() !== true) return void 0;
+		const raw = req.headers["x-session-affinity"];
+		const value = typeof raw === "string" ? raw : Array.isArray(raw) ? raw[0] : void 0;
+		return value === void 0 ? void 0 : conversationIdFromSessionId(value);
+	};
 	const SHARED_SECRET = randomBytes(32).toString("base64url");
 	/**
 	* Whether this process's prompts have been PROVEN to need the invisible
@@ -5485,9 +6132,12 @@ function createWorkBuddyShim(options) {
 			writeOpenAIError(res, 415, "unsupported_media_type", "Content-Type must be application/json");
 			return;
 		}
-		await prepareAccount?.().catch((error) => {
+		const controller = new AbortController();
+		res.on("close", () => controller.abort());
+		await prepareAccount?.(controller.signal).catch((error) => {
 			logger?.warn("dsh-connect-workbuddy: pool account selection failed", error);
 		});
+		if (controller.signal.aborted) return;
 		let credential;
 		try {
 			credential = await store.resolve();
@@ -5495,6 +6145,7 @@ function createWorkBuddyShim(options) {
 			writeOpenAIError(res, 401, "not_signed_in", String(error));
 			return;
 		}
+		const sessionConversationId = readSessionConversationId(req);
 		const raw = (await readBody(req)).toString("utf8");
 		const prepared = rewriteSessionTitleModel(prepareChatBody(raw, {
 			keepPromptLast: keepPromptLastEnabled,
@@ -5506,14 +6157,12 @@ function createWorkBuddyShim(options) {
 		} catch (error) {
 			logger?.warn("dsh-connect-workbuddy: body report failed", error);
 		}
-		const controller = new AbortController();
-		res.on("close", () => controller.abort());
 		const preferred = channelPerturbation === "always" || channelNeedsPerturbation ? perturbChannelFingerprints(prepared, channelPerturbation === "always") ?? prepared : prepared;
-		let result = await client.chatStream(credential, preferred, controller.signal);
+		let result = await client.chatStream(credential, preferred, controller.signal, sessionConversationId);
 		if (channelNeedsPerturbation && !result.ok && result.kind === "channel_reject") {
 			channelNeedsPerturbation = false;
 			logger?.warn("dsh-connect-workbuddy: a perturbed body was refused too; clearing the learned preference and retrying from the plain form");
-			result = await client.chatStream(credential, prepared, controller.signal);
+			result = await client.chatStream(credential, prepared, controller.signal, sessionConversationId);
 		}
 		/**
 		* The retry ladder that does not depend on knowing the fingerprint
@@ -5554,14 +6203,14 @@ function createWorkBuddyShim(options) {
 			const forced = forceNeutralHead(prepared);
 			if (forced !== void 0) {
 				logger?.warn("dsh-connect-workbuddy: the channel gate refused the body; retrying once with the neutral head forced in front of every opening");
-				result = await client.chatStream(credential, forced, controller.signal);
+				result = await client.chatStream(credential, forced, controller.signal, sessionConversationId);
 				retriedWithForcedHead = true;
 			}
 			if (!result.ok && result.kind === "channel_reject" && !controller.signal.aborted) {
 				const rescued = perturbChannelFingerprints(forced ?? prepared);
 				if (rescued !== void 0) {
 					logger?.warn("dsh-connect-workbuddy: the channel gate refused the body again; retrying once with an invisible perturbation of the scanned text");
-					result = await client.chatStream(credential, rescued, controller.signal);
+					result = await client.chatStream(credential, rescued, controller.signal, sessionConversationId);
 					retriedWithPerturbation = true;
 					if (result.ok) channelNeedsPerturbation = true;
 				}
@@ -5570,7 +6219,7 @@ function createWorkBuddyShim(options) {
 				const dense = perturbChannelFingerprints(forced ?? prepared, true);
 				if (dense !== void 0) {
 					logger?.warn("dsh-connect-workbuddy: the channel gate refused the sparse perturbation too; retrying once with a dense word-boundary perturbation");
-					result = await client.chatStream(credential, dense, controller.signal);
+					result = await client.chatStream(credential, dense, controller.signal, sessionConversationId);
 					retriedWithDensePerturbation = true;
 					if (result.ok && channelPerturbation === "failure") channelNeedsPerturbation = true;
 				}
@@ -5645,7 +6294,7 @@ function createWorkBuddyShim(options) {
 			switchedFrom ??= describeAccount(credential);
 			switchedBecause ??= failoverReasonText(result);
 			credential = next;
-			result = await client.chatStream(credential, prepared, controller.signal);
+			result = await client.chatStream(credential, prepared, controller.signal, sessionConversationId);
 		}
 		if (failures.length === 0 || failures[failures.length - 1]?.accountId !== workbuddyAccountId(credential)) recordAttempt(credential, result);
 		reportFailures();
@@ -5706,7 +6355,7 @@ function createWorkBuddyShim(options) {
 				const said = detail?.rawMsg ?? detail?.displayMsg;
 				const echo = said === void 0 ? "" : `上游的 msg 是「${said}」，`;
 				const memberNote = member === "headers" ? `${echo}但本次请求已经带上了会话 id 三件套（X-Conversation-ID / -Request-ID / -Message-ID），所以这条措辞是上游误报；` : member === "first_message" ? `${echo}但本次请求的首条消息就是 system；` : member === "prompt" ? isConversationIdGateBody(result.message) ? `${echo}但本次请求已经带上了会话 id 三件套（X-Conversation-ID / -Request-ID / -Message-ID），所以这条措辞是上游误报，实际被拒的是请求内容；` : isFirstMessageGateBody(result.message) ? `${echo}但本次请求的首条消息就是 system，所以这条措辞是上游误报，实际被拒的是请求内容；` : "" : `${echo}它属于 11128 这一族但没点名是哪一道门，插件按渠道校验统一处理；`;
-				const message = `workbuddy 上游失败：${failoverReasonText(result)}（http ${result.status}）${note}${stamp}。${memberNote}${evidence}该请求被 WorkBuddy 网关的渠道校验拦截，上游把它描述成「不是官方客户端发出的」，但那是误导性文案：网关匹配的是每一条 system 与 assistant 消息的开头，与账号、积分、额度、网络都无关，换账号或换区域也不会改变结果。插件已对已知的第三方 agent 指纹做归一化` + retryNote + "；若上面标着「不在插件已知名单里」的开头来自宿主或其他插件，请修改该提示；新的指纹可反馈到 issue 里";
+				const message = `workbuddy 上游失败：${failoverReasonText(result)}（http ${result.status}）${note}${stamp}。${memberNote}${evidence}该请求被 WorkBuddy 网关的渠道校验拦截，上游把它描述成「不是官方客户端发出的」，但那是误导性文案：网关扫描每一条 system 与 assistant 消息（开头做前缀匹配，正文做精确子串匹配），与账号、积分、额度、网络都无关，换账号或换区域也不会改变结果。插件已对已知的第三方 agent 指纹做归一化` + retryNote + (retriedWithForcedHead ? "；这次重试里每一条被扫描消息都已经加了中性头，仍然被拒，说明卡点不在这些开头本身" : "") + "。上面标着「不在插件已知名单里」的，只说明该消息的首行不是已知指纹，既不表示这条消息没被处理，也不表示它一定有问题；如果这些消息确实有问题，命中的更可能是中段的某一句。请把这条报错整段反馈到 issue 里——首行之外的线索只能从完整请求里找";
 				writeOpenAIError(res, KIND_STATUS[result.kind], result.kind, message, hostErrorCode(result.kind));
 				return;
 			}
@@ -5716,9 +6365,11 @@ function createWorkBuddyShim(options) {
 			if (detail?.requestId !== void 0) meta.push(`requestId ${detail.requestId}`);
 			const stamp = meta.length === 0 ? "" : `（${meta.join("，")}）`;
 			const refusedTier = reasoningTierRefusal(result);
-			const receipt = refusedTier ?? detail?.tips ?? detail?.displayMsg ?? clippedUpstreamText(result.message, 400);
-			const advice = refusedTier !== void 0 ? "这不是账号或网络问题：该模型实测拒绝「off」推理档位，请到模型卡片里取消该行的「可关闭思考」勾选后重试" : result.kind === "client" ? "该请求被上游按参数拒绝：与网络、账号、额度都无关，换账号也不会改变结果，请按上面的提示调整后重试" : shortfall === void 0 ? "" : "建议换一个模型继续，或稍后等待该账号的额度恢复";
-			const body = `${isContextTooLongBody(result.message) ? `${CONTEXT_OVERFLOW_MARKER}。` : ""}${advice === "" ? receipt : `${receipt.replace(/[。.]$/u, "")}。${advice}`}`;
+			const toolSchemaRefused = result.kind === "client" && isToolSchemaRejectBody(result.message);
+			const receipt = refusedTier ?? (toolSchemaRefused ? toolSchemaRejectAdvice() : void 0) ?? detail?.tips ?? detail?.displayMsg ?? clippedUpstreamText(result.message, 400);
+			const advice = refusedTier !== void 0 ? "这不是账号或网络问题：该模型实测拒绝「off」推理档位，请到模型卡片里取消该行的「可关闭思考」勾选后重试" : toolSchemaRefused ? "按上面列出的写法检查工具定义；换模型只是绕开，不会修好它" : result.kind === "client" ? "该请求被上游按参数拒绝：与网络、账号、额度都无关，换账号也不会改变结果，请按上面的提示调整后重试" : shortfall === void 0 ? "" : "建议换一个模型继续，或稍后等待该账号的额度恢复";
+			const bodyOversize = isBodyOversizeRefusal(result.message);
+			const body = `${isContextTooLongBody(result.message) ? `${CONTEXT_OVERFLOW_MARKER}。` : bodyOversize ? `${BODY_OVERSIZE_MARKER}。` : ""}${advice === "" ? receipt : `${receipt.replace(/[。.]$/u, "")}。${advice}`}`;
 			writeOpenAIError(res, KIND_STATUS[result.kind], result.kind, `workbuddy 上游失败：${failoverReasonText(result)}（http ${result.status}）${note}${why}${stamp}。${body}`, hostErrorCode(result.kind));
 			return;
 		}
@@ -5745,7 +6396,7 @@ function createWorkBuddyShim(options) {
 			const retryTried = [...triedAccountIds, workbuddyAccountId(credential)];
 			let retryCredential = credential;
 			for (;;) {
-				const attempt = await client.chatStream(retryCredential, prepared, controller.signal);
+				const attempt = await client.chatStream(retryCredential, prepared, controller.signal, sessionConversationId);
 				if (attempt.ok) {
 					writer.discard();
 					const retried = new RecoveryStream(res, gate, logger);
@@ -5805,11 +6456,210 @@ const IMAGE_TOOL_TIMEOUT_MS = 18e4;
 const IMAGE_INPUT_TIMEOUT_MS = 3e4;
 /** 失败后的冷却：生图按张扣积分，连续重试会在几秒内烧掉几十积分。 */
 const FAILURE_COOLDOWN_MS$1 = 3e4;
+/**
+* 选这次真正要用的模型。
+*
+* 优先级只有三级，且第二级「谁写的」决定写错了谁负责：
+*
+*   1. 调用方显式传的 `model`——写错就报错（`pickMediaModel` 会列出可用项）。
+*   2. 用户在卡片上选的偏好（`preferredImageModel`）——**只在没显式传时**生效，
+*      而且失效时静默回落，因为目录可能已经变过，一个过期偏好不该卡住一次生成。
+*   3. 组内第一个，也就是上游目录今天给的那条（默认 `hunyuan-image-alpha`）。
+*
+* 偏好只落在软约束这一侧，是因为它和 `model` 参数的区别是**谁写的**：参数是这次
+* 的调用者写的，偏好是用户上一次在卡片上点的。这与视频工具 `preferredVideoModel`
+* 的判据完全一致，两个工具不该有两套说法。
+*/
+function resolveImageModel(models, requested, tag, deps, credential, region) {
+	const choices = region === "cn" ? imageModelChoices(models, tag) : models.filter((model) => model.tags.includes(tag));
+	const pinned = requested === void 0 ? deps.preferredImageModel?.(credential, tag) : void 0;
+	try {
+		return pickMediaModel(choices, requested ?? pinned, tag);
+	} catch (error) {
+		if (requested !== void 0 || pinned === void 0) throw error;
+		return pickMediaModel(choices, void 0, tag);
+	}
+}
 function asRecord$1(value) {
 	return typeof value === "object" && value !== null ? value : {};
 }
 function asNonEmptyString$1(value) {
 	return typeof value === "string" && value.trim() !== "" ? value.trim() : void 0;
+}
+/**
+* 把工具参数 `image` 规整成输入图列表。
+*
+* 返回 undefined 表示「没给图」（文生图）；字符串数组 → 多张（上游
+* `/v2/images/edits` 的 `image` 字段本来就收数组）。
+*
+* 只收数组：一张图也写成 `["/abs/path.png"]`。早先的 schema 是
+* `type: ['string', 'array']`，联合类型在只认单 type 的 function-calling 上游
+* 会被压平或整段丢掉，模型也会写出 `image: "a.png"` 这种半对半错的值；
+* 现在统一成数组，类型不对就明说，不去猜调用方想表达什么。
+*
+* 畸形输入（字符串 / 数字 / 对象 / 布尔、空数组，或数组里混了非字符串 / 空串）抛
+* INVALID_ARGS——绝不能像更早那样把「不是单个字符串」当「没给图」，那会让
+* 参考图被悄悄丢掉、工具静默退回文生图，生成的画面跟 prompt 毫无关系。
+*/
+function asImageList(value) {
+	if (value === void 0 || value === null) return void 0;
+	if (Array.isArray(value)) {
+		if (value.length === 0) throw inputImageError("workbuddy image: image 收到了空数组。纯文生图请把 image 字段整个省略，不要传 []；要改图就给至少一张，如 [\"/abs/a.png\"]。");
+		const items = [];
+		for (const item of value) {
+			if (typeof item !== "string" || item.trim() === "") throw inputImageError("workbuddy image: image 数组的每个元素都必须是非空字符串（本地路径 / file:// / http(s) / data URL / 裸 base64）。");
+			items.push(item.trim());
+		}
+		return items;
+	}
+	if (typeof value === "string") throw inputImageError(`workbuddy image: image 必须是字符串数组，一张图也要写成数组。收到的是字符串 ${JSON.stringify(value.slice(0, 40))}，请改写成 ["${value.slice(0, 40)}"]。`);
+	throw inputImageError("workbuddy image: image 必须是字符串数组（如 [\"/abs/a.png\"] 或 [\"/abs/a.png\", \"/abs/b.png\"]），元素是本地路径 / file:// / http(s) / data URL / 裸 base64。");
+}
+/**
+* 可选字符串参数（size / model）：undefined/null/空串 → 未提供；其它类型
+* （数字 / 数组 / 对象 / 布尔）→ INVALID_ARGS。
+*
+* 旧行为把类型不对的值静默丢掉、回落到默认值：`model: ["hy-image-3.0"]`
+* 会安静地用默认模型扣积分，`size: 1024` 安静地用默认尺寸——与 image 数组
+* 被静默丢掉切回文生图是同一族错误，只是后果轻些。类型写错就明说，
+* 不要替调用方猜一个默认值。
+*
+* size 还要再过一道格式关（见 {@link parseSizeSpec}）：schema 里的 pattern
+* 只是给模型的提示，宿主不代校验，真正拦住「2K」「1024」「1024*1024」的是这里。
+*/
+function strictString$1(value, name) {
+	if (value === void 0 || value === null) return void 0;
+	if (typeof value !== "string") throw inputImageError(`workbuddy image: 参数 ${name} 必须是字符串（或不填），实际是${Array.isArray(value) ? "数组" : typeof value}。`);
+	return value.trim() === "" ? void 0 : value.trim();
+}
+/** 「宽x高」——允许 `x` / `X` / 全角 `×`；不接受 `*`、空格、带单位。 */
+const SIZE_PATTERN = /^[0-9]+[xX×][0-9]+$/;
+IMAGE_SIZE_LIMITS_WIDE.maxPixels;
+IMAGE_SIZE_LIMITS_WIDE.minEdge;
+IMAGE_SIZE_LIMITS_WIDE.maxEdge;
+/** 实测被上游拒绝的尺寸，报错时直接点出来，省得模型反复试。 */
+const KNOWN_BAD_SIZES = /* @__PURE__ */ new Set([
+	"2560x2560",
+	"3072x3072",
+	"4096x4096"
+]);
+/** 本工具真正认的参数——与 `parameters.properties` 一一对应。 */
+const ALLOWED_ARGS$1 = /* @__PURE__ */ new Set([
+	"prompt",
+	"size",
+	"image",
+	"model"
+]);
+/**
+* 拒掉 schema 里没有的参数。
+*
+* `additionalProperties: false` 只是写在 schema 里给模型看的，宿主把
+* `parameters` 原样投影、不代校验，execute 照样会收到 `ratio: '16:9'` 这种
+* 从别的生图工具（agnes 那边就叫 ratio / n / return_base64）串过来的字段。
+* 静默忽略的后果是模型以为改的比例生效了、其实出的是默认方图，所以这里明说。
+*/
+function rejectUnknownArgs$1(record) {
+	const unknown = Object.keys(record).filter((key) => !ALLOWED_ARGS$1.has(key));
+	if (unknown.length === 0) return;
+	throw inputImageError(`workbuddy image: 本工具没有 ${unknown.map((key) => `「${key}」`).join("、")} 参数，只有 prompt、size、image、model 四个。比例 / 横竖用 size 的「宽x高」（size 必填）；要几张图就调用几次（一次一张）。`);
+}
+/**
+* 解析 size：必填、必须写成「宽x高」或 `auto`。
+*
+* **必填**是因为以前不填就静默按 1024x1024 出方图，模型于是学会了「什么都不写、
+* 让它自己猜」——要竖版壁纸也出方图，用户还看不出是哪一步丢的。
+*
+* 这里只管**格式**，不管范围：越界不报错，交给 {@link planImageSize} 等比收进
+* 范围（那条路要等输入图量过宽高，见那边的说明）。
+*
+* `parameters.pattern` 只是写给模型看的，宿主把 `parameters` 原样投影、不代校验，
+* execute 收到的可能是 `"2K"` / `1024`（已由 {@link strictString} 拦下）/ `"1024*1024"`。
+* 这些猜不出调用方到底想要多大的输入仍然直接 INVALID_ARGS（本地免费）。
+*/
+function parseSizeSpec(value) {
+	const raw = strictString$1(value, "size");
+	if (raw === void 0) throw inputImageError("workbuddy image: 参数 size 必填，写成「宽x高」的像素数，改图也可以写 auto。方图 1024x1024、竖图 1024x1536、横图 1536x1024、16:9 桌面 2560x1440、9:16 手机壁纸 1440x2560。比例由它决定，不填不会替你猜。");
+	const normalized = raw.toLowerCase();
+	if (normalized === "auto") return { kind: "auto" };
+	if (!SIZE_PATTERN.test(normalized)) throw inputImageError(`workbuddy image: 参数 size 必须写成「宽x高」的像素数或 auto，收到的是 ${JSON.stringify(raw)}。例如 1024x1024（方图）、1024x1536（竖图）、1536x1024（横图）、2560x1440（16:9）。不要写「2K」「4K」「高清」这类档位，也不要只写一个边长。`);
+	const [widthPart = "", heightPart = ""] = normalized.split(/[xX×]/);
+	const width = Number(widthPart);
+	const height = Number(heightPart);
+	if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1) throw inputImageError(`workbuddy image: 参数 size 的宽高必须是正整数，收到的是 ${JSON.stringify(raw)}。`);
+	return {
+		kind: "fixed",
+		width,
+		height,
+		normalized
+	};
+}
+/**
+* 把解析好的尺寸规格落成一个真正要发给上游的值。
+*
+* 与 {@link parseSizeSpec} 分开，是因为这两件事的**时机**不同：格式错误要在收到
+* 参数的第一时间就报（本地免费），而 `auto` 与越界缩放都要等输入图量过宽高、
+* 也要等**模型定下来**——两个模型的合法范围不一样（见 `imageSizeLimitsOf`）。
+*
+* 越界为什么由工具收、而不是让模型自己算：两条边（512–2560）与总像素
+* （≤4,194,304）是两个约束，手算要取「2560/长边」与「√(4194304/面积)」里更小的
+* 那个**再复查一遍**。要求模型在参数里做这种算术，实测会算出仍然越界的值
+* （2480x3508 → 1810x2560，边长合规但乘积 4,633,600 仍超）。收完之后把「动过什么」
+* 写进 hint，模型得据实转告用户，不能假装按用户给的尺寸出图。
+*
+* `limits` 来自**这一次选中的模型**，不是全局常量：v3.0 的边更短、像素更少，
+* 用 alpha 的范围替它算会得到上游 400（实测 `1024x1025` 就被拒）。
+*/
+/**
+* `size: auto` 但量不出输入图 —— 这一步**不需要模型**，所以单独提出来。
+*
+* 报错时机是这里唯一的理由：模型的失败（目录里没这条模型）要花一次目录请求
+* 才能知道，而「你写了 auto 却没给图」在本地就能判。把它压到模型解析之后，
+* 一个纯参数错误就会被「目录里没有模型」盖掉，用户改完一处还得再撞第二处。
+*/
+function missingAutoSizeInput() {
+	throw inputImageError("workbuddy image: size 写了 auto，但这一次量不出输入图的宽高（没有给 image，或给的图格式认不出来），没法替你挑画布。请直接写具体尺寸：方图 1024x1024、竖图 1024x1536、横图 1536x1024。");
+}
+/** `auto` 必须配一张量得出宽高的图；没有就报那条错误，否则原样返回。 */
+function requireAutoInput(input) {
+	return input ?? missingAutoSizeInput();
+}
+function planImageSize(spec, input, limits) {
+	if (spec.kind === "auto") {
+		const source = requireAutoInput(input);
+		const canvas = canvasForInput(source, limits);
+		const size = `${canvas.width}x${canvas.height}`;
+		return {
+			size,
+			requested: "auto",
+			note: canvas.exact ? `size 写的是 auto，已按输入图 ${source.width}x${source.height} 的比例取画布 ${size}（${ORIENTATION_LABEL[orientationOf(source)]}）` : `输入图 ${source.width}x${source.height} 太细长，等比缩不出合法的画布，已改用${ORIENTATION_LABEL[orientationOf(source)]}常用档 ${size}，比例有变化`
+		};
+	}
+	const { width, height, normalized } = spec;
+	if (isSizeInRange(width, height, normalized, limits)) return { size: `${width}x${height}` };
+	const fitted = fitIntoRange(width, height, limits);
+	if (fitted === void 0) throw inputImageError(`workbuddy image: 参数 size ${normalized} 的比例太极端，等比缩放放不进 ${describeLimits(limits)} 的范围内。请改成接近的常用档位：` + sampleSizesFor(limits) + "。");
+	const direction = fitted.direction === "up" ? "放大" : "缩小";
+	return {
+		size: `${fitted.width}x${fitted.height}`,
+		requested: normalized,
+		note: `你给的尺寸 ${normalized} 超出${describeLimits(limits)}，已等比${direction}到 ${fitted.width}x${fitted.height}`
+	};
+}
+/**
+* 一句话说清这次的上限，用在两条错误/提示里。
+*
+* 说「419 万」而不是「4,194,304」：hint 是要模型原样转述给用户的，像素数写全
+* 数字没人读得进去，而「约 419 万像素」既准确又够用。v3.0 的 104 万同理
+* （1048576/1e4 = 104.9 → 105，不是 1）。
+*/
+function describeLimits(limits) {
+	const wan = (limits.maxPixels / 1e4).toFixed(0);
+	return ` ${limits.minEdge}–${limits.maxEdge} 边长或约 ${wan} 万像素上限`;
+}
+/** 这个范围内拿得出手的档位例子——按半径给出，别举一个会被拒的。 */
+function sampleSizesFor(limits) {
+	if (limits.maxPixels <= 1048576) return "方图 1024x1024、竖图 768x1024、横图 1280x720";
+	return "方图 1024x1024、竖图 1024x1536、横图 1536x1024、16:9 桌面 2560x1440、9:16 手机壁纸 1440x2560";
 }
 /**
 * 这些失败说明请求真的打到了上游、可能已经扣了积分，才值得进冷却。
@@ -5863,6 +6713,209 @@ function inputImageError(message) {
 }
 const INLINE_BASE64_LABEL = "（内联 base64）";
 const INLINE_DATA_URL_LABEL = "（内联 data URL）";
+/** 方图容差：长短边之差不到长边的 5% 就算方图（比如 1000x1010）。 */
+const SQUARE_TOLERANCE = .05;
+const ORIENTATION_LABEL = {
+	landscape: "横图",
+	portrait: "竖图",
+	square: "方图"
+};
+/** `size: "auto"` 的输出长边：够 1080P 用，又离 419 万像素上限还远。 */
+const AUTO_LONG_EDGE = 1536;
+/** 方向兜底档位：改图写了 auto 但比例极端到算不出画布、或干脆量不出宽高时用。 */
+const DEFAULT_SIZE_BY_ORIENTATION = {
+	landscape: {
+		width: 1536,
+		height: 1024
+	},
+	portrait: {
+		width: 1024,
+		height: 1536
+	},
+	square: {
+		width: 1024,
+		height: 1024
+	}
+};
+/**
+* 从图片字节里读像素宽高。
+*
+* 为什么值得自己解析：改图时 `size` 是**输出画布**，最合理的默认值由输入图的
+* 方向决定；但上游不回传输入尺寸，模型也读不到本地文件。早几版的描述要求模型
+* 「按原图比例挑一档」——那是在要求它猜，两个评审子代理都判这条不可执行。
+* 现在在把输入图读成字节的同一处顺手解出宽高，模型直接被告知真实方向。
+*
+* 只读文件头里的两个整数：不解码像素、不校验 CRC。认不出（或头不完整）就返回
+* undefined，让调用方退回方向兜底——「量不出尺寸」不该变成一次失败。
+*
+* 覆盖 PNG（IHDR）、JPEG（任一 SOF 段）、GIF（逻辑屏幕描述符）、WEBP
+* （VP8 / VP8L / VP8X 三种子格式）。
+*/
+function parseImageDimensions(bytes) {
+	const at = (index) => bytes[index] ?? 0;
+	const u16be = (index) => at(index) << 8 | at(index + 1);
+	const u16le = (index) => at(index) | at(index + 1) << 8;
+	const u24le = (index) => at(index) | at(index + 1) << 8 | at(index + 2) << 16;
+	const u32be = (index) => at(index) * 16777216 + (at(index + 1) << 16) + (at(index + 2) << 8) + at(index + 3);
+	const u32le = (index) => (at(index) | at(index + 1) << 8 | at(index + 2) << 16) + at(index + 3) * 16777216;
+	const positive = (width, height) => width > 0 && height > 0 ? {
+		width,
+		height
+	} : void 0;
+	if (bytes.length >= 24 && at(0) === 137 && at(1) === 80 && at(2) === 78 && at(3) === 71) return positive(u32be(16), u32be(20));
+	if (at(0) === 255 && at(1) === 216) {
+		let offset = 2;
+		while (offset + 8 < bytes.length) {
+			if (at(offset) !== 255) {
+				offset += 1;
+				continue;
+			}
+			const marker = at(offset + 1);
+			if (marker === 1 || marker === 216 || marker >= 208 && marker <= 215) {
+				offset += 2;
+				continue;
+			}
+			const length = u16be(offset + 2);
+			if (length < 2) return void 0;
+			if (marker >= 192 && marker <= 207 && marker !== 196 && marker !== 200 && marker !== 204) return positive(u16be(offset + 7), u16be(offset + 5));
+			offset += 2 + length;
+		}
+		return;
+	}
+	if (at(0) === 71 && at(1) === 73 && at(2) === 70) return positive(u16le(6), u16le(8));
+	if (bytes.length >= 30 && at(0) === 82 && at(1) === 73 && at(2) === 70 && at(3) === 70 && at(8) === 87 && at(9) === 69 && at(10) === 66 && at(11) === 80) {
+		const chunk = String.fromCharCode(at(12), at(13), at(14), at(15));
+		if (chunk === "VP8 ") {
+			if (at(23) !== 157 || at(24) !== 1 || at(25) !== 42) return void 0;
+			return positive(u16le(26) & 16383, u16le(28) & 16383);
+		}
+		if (chunk === "VP8L") {
+			const bits = u32le(21);
+			return positive((bits & 16383) + 1, (bits >> 14 & 16383) + 1);
+		}
+		if (chunk === "VP8X") return positive(u24le(24) + 1, u24le(27) + 1);
+		return;
+	}
+}
+/** 由宽高判方向——改图据此挑输出画布。 */
+function orientationOf(dimensions) {
+	const longest = Math.max(dimensions.width, dimensions.height);
+	if (longest - Math.min(dimensions.width, dimensions.height) <= longest * SQUARE_TOLERANCE) return "square";
+	return dimensions.width > dimensions.height ? "landscape" : "portrait";
+}
+/**
+* 取第一张**量得出宽高**的输入图的尺寸。
+*
+* 用第一张不是因为「第一张最重要」，而是因为多张横竖混用时必须有个确定的判据：
+* 描述里已经写着「多张按第一张定」，这里就跟它对齐。第一张解析不出来就顺延到
+* 下一张，总比直接放弃好——认不出格式的图（比如上游还没见过的）不该让整次改图
+* 失去参照。
+*/
+function firstDimensions(inputs) {
+	for (const input of inputs) if (input.dimensions !== void 0) return input.dimensions;
+}
+/**
+* 按输入图的比例定输出画布（`size: "auto"`）。
+*
+* 长边固定 {@link AUTO_LONG_EDGE}、短边同比算——这是「改图别改版式」的落点：模型
+* 看不到原图多大，让它自己按比例挑档等于让它猜（1600x900 该写 2560x1440 还是
+* 1536x864？）。方图走 1024x1024：1536x1536 会顶到 235 万像素，比上游常用档大，
+* 方图的短边也没有信息增益。
+*
+* 极端比例（比 5:1 还细长）等比缩放放不进范围时，退回按方向的常用档——宁可换
+* 比例，也不能报错让用户无从下手；`exact: false` 就是用来把这句实话写进 hint 的。
+*/
+function canvasForInput(input, limits) {
+	const orientation = orientationOf(input);
+	if (orientation === "square") return {
+		...DEFAULT_SIZE_BY_ORIENTATION.square,
+		exact: true
+	};
+	const longest = Math.max(input.width, input.height);
+	const shortest = Math.min(input.width, input.height);
+	const short = Math.max(1, Math.round(shortest * AUTO_LONG_EDGE / longest));
+	const width = orientation === "landscape" ? AUTO_LONG_EDGE : short;
+	const height = orientation === "landscape" ? short : AUTO_LONG_EDGE;
+	if (isSizeInRange(width, height, `${width}x${height}`, limits)) return {
+		width,
+		height,
+		exact: true
+	};
+	const fitted = fitIntoRange(width, height, limits);
+	if (fitted !== void 0) return {
+		width: fitted.width,
+		height: fitted.height,
+		exact: true
+	};
+	return {
+		...DEFAULT_SIZE_BY_ORIENTATION[orientation],
+		exact: false
+	};
+}
+/** 两个上限（长边 2560、总像素 419 万）同时满足时，把宽高按比例收进范围。 */
+function shrinkProduct(width, height, limits) {
+	let w = width;
+	let h = height;
+	for (let round = 0; round < 4 && w * h > limits.maxPixels; round += 1) {
+		const scale = Math.sqrt(limits.maxPixels / (w * h));
+		w = Math.floor(w * scale);
+		h = Math.floor(h * scale);
+	}
+	return {
+		width: w,
+		height: h
+	};
+}
+/**
+* 把一个越界尺寸等比缩/放到合法范围。
+*
+* 两条边（512–2560）与总像素（≤4,194,304）是两个约束，必须同时满足：只按长边缩
+* 会把 2480x3508 变成 1810x2560（边长都对、乘积 4,633,600 仍越界）。所以缩放比取
+* 「2560/长边」与「√(4194304/(宽×高))」里更小的那个。
+*
+* 返回 undefined 表示等比缩放解不出来（比例比 5:1 还极端：缩到长边 2560 时短边
+* 已经小于 512，抬到 512 时长边又超过 2560），交给调用方按方向换档。
+*/
+function fitIntoRange(width, height, limits) {
+	const { minEdge, maxEdge, maxPixels } = limits;
+	const longest = Math.max(width, height);
+	const shortest = Math.min(width, height);
+	if (!(longest > maxEdge || width * height > maxPixels) && shortest < minEdge) {
+		const scale = minEdge / shortest;
+		if (longest * scale <= maxEdge) return {
+			...shrinkProduct(Math.round(width * scale), Math.round(height * scale), limits),
+			direction: "up"
+		};
+		return;
+	}
+	const scale = Math.min(maxEdge / longest, Math.sqrt(maxPixels / (width * height)));
+	const scaled = shrinkProduct(Math.floor(width * scale), Math.floor(height * scale), limits);
+	if (scaled.width >= minEdge && scaled.height >= minEdge) return {
+		...scaled,
+		direction: "down"
+	};
+	const extreme = minEdge / shortest;
+	if (longest * extreme <= maxEdge) {
+		const lifted = shrinkProduct(Math.round(width * extreme), Math.round(height * extreme), limits);
+		if (lifted.width * lifted.height <= maxPixels) return {
+			...lifted,
+			direction: "up"
+		};
+	}
+}
+/**
+* 一个尺寸能否**原样**发给这次选中的模型。
+*
+* 三个判据都跟着 `limits` 走，不是全局常量：v3.0 的边 2048 / 像素 1,048,576，
+* alpha 才是 2560 / 4,194,304。`KNOWN_BAD_SIZES` 是那个宽档下实测被拒的档位，
+* 窄档的边界由 `limits` 本身就够判，不必再叠一份。
+*/
+function isSizeInRange(width, height, normalized, limits) {
+	if (KNOWN_BAD_SIZES.has(normalized)) return false;
+	if (width < limits.minEdge || height < limits.minEdge) return false;
+	if (width > limits.maxEdge || height > limits.maxEdge) return false;
+	return width * height <= limits.maxPixels;
+}
 /**
 * 体积与空文件闸门——四种输入形态都从这里过，所以「空文件」和「超过 8 MB」的
 * 文案只有一份。
@@ -5889,8 +6942,13 @@ async function resolveImageInput(value, signal) {
 	if (text.startsWith("data:")) {
 		const parsed = parseImageDataUrl(text);
 		if (parsed === void 0) throw inputImageError("workbuddy image: image 看起来是 data URL，但格式不对（需要 data:image/*;base64,...）。");
-		assertInputImageBytes(Buffer.from(parsed.base64, "base64").byteLength, INLINE_DATA_URL_LABEL);
-		return text;
+		const bytes = Buffer.from(parsed.base64, "base64");
+		assertInputImageBytes(bytes.byteLength, INLINE_DATA_URL_LABEL);
+		const dimensions = parseImageDimensions(new Uint8Array(bytes));
+		return dimensions === void 0 ? { dataUrl: text } : {
+			dataUrl: text,
+			dimensions
+		};
 	}
 	if (/^https?:\/\//i.test(text)) {
 		let response;
@@ -5900,9 +6958,9 @@ async function resolveImageInput(value, signal) {
 			throw inputImageError(`workbuddy image: 下载输入图失败（${text}）：` + (error instanceof Error ? error.message : String(error)));
 		}
 		if (!response.ok) throw inputImageError(`workbuddy image: 下载输入图失败（HTTP ${response.status}）：${text}`);
-		return encodeInputImage(new Uint8Array(await response.arrayBuffer()), response.headers.get("content-type") ?? void 0, text);
+		return encodeResolvedImage(new Uint8Array(await response.arrayBuffer()), response.headers.get("content-type") ?? void 0, text);
 	}
-	if (isBareBase64Image(text)) return encodeInputImage(new Uint8Array(Buffer.from(text, "base64")), void 0, INLINE_BASE64_LABEL);
+	if (isBareBase64Image(text)) return encodeResolvedImage(new Uint8Array(Buffer.from(text, "base64")), void 0, INLINE_BASE64_LABEL);
 	const path = text.startsWith("file:") ? fileURLToPath(text) : text;
 	let bytes;
 	try {
@@ -5910,14 +6968,19 @@ async function resolveImageInput(value, signal) {
 	} catch (error) {
 		throw inputImageError(`workbuddy image: 读不到输入图「${path}」：` + (error instanceof Error ? error.message : String(error)));
 	}
-	return encodeInputImage(new Uint8Array(bytes), void 0, path);
+	return encodeResolvedImage(new Uint8Array(bytes), void 0, path);
 }
-/** 校验体积、定出 mime，再把字节编成 data URL。 */
-function encodeInputImage(bytes, contentType, source) {
+/** 校验体积、定出 mime，把字节编成 data URL，并顺手量宽高。 */
+function encodeResolvedImage(bytes, contentType, source) {
 	assertInputImageBytes(bytes.byteLength, source);
 	const declared = contentType?.split(";")[0]?.trim().toLowerCase();
 	const mime = declared !== void 0 && declared.startsWith("image/") ? declared : imageMimeForPath(source) ?? sniffImageMime(bytes);
-	return imageDataUrl(mime, Buffer.from(bytes).toString("base64"));
+	const dataUrl = imageDataUrl(mime, Buffer.from(bytes).toString("base64"));
+	const dimensions = parseImageDimensions(bytes);
+	return dimensions === void 0 ? { dataUrl } : {
+		dataUrl,
+		dimensions
+	};
 }
 /**
 * 造出工具定义。
@@ -5940,28 +7003,32 @@ function createImageTool(deps) {
 	};
 	return {
 		name: WORKBUDDY_IMAGE_TOOL_NAME,
-		description: "用当前账号的 WorkBuddy 生图能力画一张图。不填 image 是文生图（用该区带 text-to-image 标签的模型）；填了 image 是改图（用带 image-to-image 标签的模型）。国内区与国际区都可用，模型取自该区产品配置（国内区文生图 hunyuan-image-alpha、改图 hunyuan-image-alpha-edit；国际区 hy-image-3.5 同时带这两个标签，以该区目录为准）。每张图会真实消耗 WorkBuddy 积分，单价随区域与模型不同，以返回结果里的 credit 为准；不要在没必要时调用，也不要为了试错连续调用。返回的是 COS 签名 URL，约 24 小时后失效；需要展示给用户时，用 markdown 图片语法引用该 URL。",
+		description: "用 WorkBuddy 生图或改图：一次调用只出一张图，要几张就调几次，每张单独计费。本工具没有 seed、不存历史、不能重放：同一段 prompt 重调不保证张张一样。所以先判一件事，跟要几张无关——用户要的是「一样」还是「不同」：(i) 要「一样」「同款」「同一张」「复制几张」「跟上一张一样」→ 做不到，说明原因，让他只出一张自己复制；不报价、不调用。要几张「都一样」就走这一条，不是「出 N 张」。(ii) 要「不同风格」「各来一张」→ 按 (b) 的口径报张数和总价（「4 张：国内版约 22.8、国际版约 0.12 积分」）→ 等他明确同意 → 连着调 N 次，每次换 prompt（换姿态、视角、光位）。(iii) 要「挑一张」「先看一张」→ 先出 1 张给他看，满意再按张补后面的，补之前重新报一次总价。没说同异、只问张数价钱（「4 张要多少钱」）→ 先问「要一样的还是各不相同的」，问完再报。这三条用 (i)(ii)(iii) 编号，(d) 里的 ①②③④⑤⑥⑦⑧ 是 size 的台阶，两套编号别混。什么时候必须先停下等用户点头，只看这七条：要出超过一张、这次调用会改变原图版式（裁切/留白）、文生图且主体还没定、用户把某个超过 2560 的像素当验收标准（原话里有「必须」「正好」「就是要」「不能改」）、用户要求硬排除某个元素（「绝对不能有 XX」）、要自己按表外比例算像素（见 ⑥）、用户本轮或上一轮里说过嫌贵、或正要你改区设置（(c)）。七条都不成立（单张文生图、size 用现成档位）就直接调，不用等点头；但单张仍要按 (b) 报一次两档价——那是告知，不是请示。成立两条以上时合成一次问完。「同意」只算用户明确说同意，沉默、反问、换话题都不算。\n(a) 画什么：prompt 写主体、风格、构图、光线。用户给了主体、只是没给风格和光线，就由你补，别为这个反问他；只有 text-to-image 才受这条限制：用户连主体都没给（只说了尺寸、比例、档位、用途、方向或风格）就先问「想画什么」，不要自己编一个主体去扣积分。改图（给了 image）不算没主体——参考图本身就是主体，别拿着图还问「想画什么」。主体＝画面上要出现的人、物、景（「一只猫」「一束向日葵」）；只说「主题」「氛围」「风格」不算给了主体（「秋季新品」是主题，「一束向日葵」才是主体）；风格、流派、季节、情绪只说明怎么画，不说明画什么（「赛博朋克」「极简」「水彩」「秋天」「高级感」都不算主体）。可以写「不要出现 XX」来排除元素，但那是弱提示、不保证生效。用户说「绝对不能有 XX」「必须没有 XX」时，先用这句话说明做不到硬排除、问他要不要接受「写了但不保证」——他接受才画（就是上面七条的第五条）。要让图上出现文字就写明确切文字和位置，10 个字以内；整段控制在 300 字以内（按汉字算）——超了不会报错，但后半段容易被忽略，所以用户给的长描述先由你压到 300 字以内，压完直接调，并在回复里附上实际用的那版 prompt。改图时用相对的说法——「保持第一张图的主体、构图、光线不变，只把 X 改成 Y」——不要描述你没看到的具体细节；这次 size 换了比例时别写「构图不变」也别写「只换画布」：工具实际会裁切或留白，画面内容会变，只写「保持主体和光线不变」。用户只说改尺寸或方向、没说改内容时，prompt 就写「保持主体和光线不变，按新的画布重新构图」，不要另编画面内容。\n(b) 花多少：按张计费，国内版约 5.71 积分/张，国际版约 0.03 积分/张，相差约 190 倍；文生图和改图同价。报价按这个口径：还没拿到 credit 就两个区各报一个数（如「每张：国内版约 5.71、国际版约 0.03 积分」），说清「2 张就是国内约 11.4 / 国际约 0.06」，并说明走哪个区这一次定不了、以返回的 credit 为准。本次调用返回过 credit 的（同一张图、同一次请求）就直接按那个数报；没拿到过 credit 就报两档，别拿上一次的 credit 报这一次——换区、换模型都会变价。实扣和你报的「约」对不上（差一个量级通常说明这次走了另一个区）就照实说实际扣了多少，别替它圆。积分不等于人民币、也没有汇率，问折合多少照实说给不出。单张也要先把这两档价说一句，然后在同一轮里接着调——先说后调，不等回应；这是告知，不是请示（改图会改版式、要出多张这些仍在七条里，得等同意）。但用户这一句只是在问价（「多少钱」「先别画」）就只报、不调。用户要锁定金额只有一条路：按 (c) 关掉一个区的开关，让下一次只可能走另一个区。国内区还有第二条路：卡片上把生图模型选成 hunyuan-image-v3.0，出图不带水印，但约 11.1 积分/张（贵约一倍）、尺寸上限也小得多；用户抱怨水印时就把这条如实告诉他，并说明上游没有「关水印」的开关——只能换模型；不要承诺能去掉水印，也不要自己替他换。\n(c) 走哪个区：只看账号的配置，不看这次调用——插件里两个区可以分别登录、分别打开「允许模型自主生图」，本次走的是「开着且打开了那个开关」的区；两个区都满足时走国内版（贵的那一档），只开国际版时才走国际版。本次走哪个区调用前查不到，以返回的 region 为准（cn=国内版、global=国际版），回复里翻译成中文。用户嫌贵或问「能不能走便宜的那个区」，就告诉他去插件设置把不想用的那个区的「允许模型自主生图」关掉，下一次调用才生效；改设置之前这一张先别调，等改完再调，否则照样按国内版扣。用户问价就按 (b) 的两个数报，不要为了问价去出图；多张且没说同异时先问同异再报总价。要拿到真实单价就得真调一次，那就先说清「这一次会真扣一次积分」，用户同意再调。报 NOT_LOGGED_IN 时你看不出卡在哪个区，让用户把两个区都查一遍：登录了没、那个开关开了没——报这个错时还没发请求，不扣积分。\n(d) size 怎么填（必填）：写「宽x高」的像素数（例如 1024x1536），改图也可以写 auto。**先过 (a) 的主体门槛**：主体没给、还在问「想画什么」的时候，后面的推导一条都不要走，更不要为了尺寸先出一张。主体确认之后，按顺序匹配，命中一条就停（比例词和方向词都算「用户提了」）：\n① 用户对输出图给了具体像素 → 先改写成「数字 + x」再传（1024*1024、1024 by 1024 都写成 1024x1024；带空格、*、by 的写法宿主会直接拒掉，改写必须你自己做；大小写和 × 不用管）；越界也别自己缩，工具会缩——唯一的例外是比 5:1 还细长的比例，那种缩不出合法值，见下面的范围段。改图时这是输出画布，不等于原图尺寸：输入图的宽高永远不是 size 的值——用户说「我这张图是 1600x900」是在交代输入图，照 ④ 处理。\n② 比例词各对应唯一一档：「16:9」2560x1440、「9:16」1440x2560、「4:3」2048x1536、「3:4」1536x2048、「3:2」1536x1024、「2:3」1024x1536、「1:1」1024x1024。比例词压过档位词和方向词——「2K 的 16:9 壁纸」还是 2560x1440（不是方图 2048x2048），「16:9 横图」也是 2560x1440，不是 3:2 的 1536x1024。比例词一旦命中，就不再因为用户又加了 2K / 4K / 高清 / 大图而改值，唯一例外是「1:1」：只说 1:1 是 1024x1024，同时说了 2K / 4K / 高清 / 大图才写 2048x2048（别的比例词没有这个例外）。比例词和方向词打架时按比例词，并把这件事说出来——「9:16 横图」写 1440x2560（竖的），回复里要说明「按 9:16 出的是竖图，和您说的横版不一致」。\n③ 档位词只在用户没提比例词时生效，一词一档：「2K」横 2560x1440、竖 1440x2560、方 2048x2048；「4K」不设独立档，直接用上面 2K 那组值（横的 2560x1440 就填这个）。别按常识换成 3840x2160 或 4096x2160：本工具最长边只有 2560，写大了会被等比缩回 2K 档，尺寸一样、描述还多一句换算；「高清」按 2K；「1080P」横 1920x1080、竖 1080x1920，「720P」横 1280x720、竖 720x1280——方向统一这么定：用户明说了横/竖/方就按他说的；没说就看用途（桌面壁纸算横，手机壁纸、竖版海报、开屏算竖）；用途也没说就用方。1080P / 720P 没有方档，这两个落到「用途也没说」时按横的给（「1080P 的竖版海报」：海报算竖，给 1080x1920）。同一句里既说了档位词又说了用途时，尺寸按本阶（档位词）走，用途只用来定方向——「4K 配图」是 2048x2048，不是 ⑤ 的 1024x1024。只有用户提的档位超出本工具上限（说「4K」「8K」「原图那么大」）时，才在回复里补一句「本工具最长边 2560，出的是这一档」；说 2K / 高清 / 1080P 的不必提 4K 这回事。\n④ 有输入图（改图）时：先把「用户说的到底是输出尺寸还是输入图尺寸」分清楚——「改成 1200x800」「要 9:16」是输出；「我这张是 1600x900」是输入，输入尺寸永远不填进 size，这种情况直接写 auto。同一句里既有输入图尺寸又有比例时（「这张 4000x1000 的图改成 4:5」），输入那个数不参与匹配，按比例走：4000x1000 只是输入尺寸，size 填 ⑥ 算出来的 4:5 那组。分完之后按这个顺序定：提了输出像素 → 用 ①；提了比例 → 用 ②；提了档位词 → 用 ③；提了用途 → 用 ⑤；只提了方向 → 见 ⑦；只说了「保持原比例」「版式别动」「就按这张的比例」，或什么都没提、或只是交代了输入图多大（「我这张是 1600x900」）→ 写 auto。改图只要 size 的比例可能和原图不一样（写了具体比例，或按档位词 / 方向 / 用途给了某个档），工具就按 size 裁切或留白原图，版式会变——调用前先说一句「会按这个比例裁切/留白，原版式可能被切」，他同意再调，别等出完图才说。他不接受裁切就改用 auto——auto 会保住原版式；只有原图比 5:1 还细长时 auto 也会换比例（见下面的范围段），那种要提前说。\n⑤ 用户说了用途（一样先过 (a)：只有用途没有主体，先问「想画什么」，别拿用途当主体）→ 配图、插图、封面、头像、表情包 1024x1024；要「大一点的方图」或「大图」单独出现 → 2048x2048；桌面壁纸 2560x1440；手机壁纸、竖版海报（要说到「海报」才算）、手机开屏 1440x2560；只说「竖版」「横版」「方图」是方向词，走 ⑦，不算用途。表里每行都自带方向，命中一行就用它；用户另外说的方向与这一行冲突就交换宽高：横的行他要竖 → 1024x1536，竖的行他要横 → 1536x1024，方的行他要横 → 1536x1024、要竖 → 1024x1536（「给这篇文章配张图，要横的」→ 1536x1024，不是 1024x1024）；方向与这一行相同就照这一行走（「做张手机壁纸，要竖的」→ 仍是 1440x2560）。比例词已命中的到不了这一阶（「1:1 的配图，要横的」按 ② 走）。用途不在表里，且用户另外说了方向 → 见 ⑦；连方向也没说 → 1024x1024。\n⑥ 用户说的是表里没有的比例（4:5、21:9、5:4 等）→ 就按这个比例写一组像素：两个上限取更严的那个（长边 2560、面积 4,194,304），按比例算完取整、再把宽高乘一遍验算（21:9 → 2560x1097；4:5 → 1831x2289，再多一号就超面积）。这一阶只在你需要自己算像素时用，而算出来的比例不能比 5:1 更细长（8:1 这种长边算到 2560 时短边只剩 320，固定像素在本地必被拒，见下面的范围段）——遇到这种比例：改图就改用 auto，文生图没有 auto 可退（auto 要量输入图，没图会在本地报错），只能先跟用户说最细到 5:1、让他换个不那么细长的比例。算出来的宽高先按 ④ 说给用户（改图时尤其要说会被裁切），同意后再调用；调用完把实际填的宽高写进回复。\n⑦ 只提了方向、比例档位用途都没提 → 取 ② 表里同方向那一档：横 1536x1024、竖 1024x1536、方 1024x1024。这一阶管所有方向词：④ 里「只提了方向」、③ 里定方向、⑤ 里表外用途，都落到这里。\n⑧ 以上全都没命中、也看不出方向 → 1024x1024（默认档），回复里说一句是按默认档出的。⑧ 只管尺寸，不给主体发通行证：「随便画一张」没有主体，先按 (a) 问清想画什么，再回来走这一阶。改图有输入图时走不到这一阶——「什么都没提」在 ④ 已经派给 auto 了，别把原图裁成方图。\n范围：两条边各 512–2560，宽乘高不超过 4,194,304（这是工具的上限；① 里说「别自己缩」是因为工具会替你缩，⑤ 里那几档本身都在范围内）。写超了、或某条边小于 512，都不用你换算：工具会等比缩/放后照常出图，并把「按你给的 X 缩放成 WxH」写进 hint，同时回带 requestedSize——这句必须转告用户，别把缩过的尺寸说成用户要的。比例极端到缩不进这个范围（比 5:1 还细长）时：写了固定像素就在本地报错、不扣积分；写 auto（只有改图能写）则会改用该方向的常用档、照常出图，并在 hint 里说明比例有变化——能出图，但不是原比例，这一句同样要转告用户。\nimage 是改图用的参考图，写成数组，一张也写 [\"/abs/a.png\"]；数组长度只表示参考图张数，不影响出图张数（永远一张）。多张按顺序全部生效，第一张当主参考，主体冲突以第一张为准。纯文生图把这个字段整个省掉，不要传空数组（[] 会被拒）。格式与 8 MB 上限见 image 参数的说明。用户只说「这张图」却没给路径时先问他要路径，别猜一个；前面哪一轮给过就沿用那一张，调用前把文件名说出来确认。\nmodel 一般留空（或空字符串）：留空就用该区目录里第一个带对应 tag 的模型（文生图 text-to-image、改图 image-to-image）。用户点名要某个模型就照他给的 id 填（区域和目录查不到不影响填），填了不存在或没有对应 tag 的 id 会直接报错并列出可用 id——别自己编 id。用户说「用上次那个模型」这类指代、没给 id 时，留空按目录第一个，并告诉他这次实际用的是哪个。用户说「用便宜的那个」是在说区、不是模型，按 (c) 回答。用户明确说「不要水印」「去掉水印」时才填 hunyuan-image-v3.0（只有国内区有），并当场说明代价：约 11.1 积分/张、最大约 104 万像素（1024x1024 顶格；1024x1536 这类竖版会等比缩成 836x1254，比例不变但更小）；用户没提水印就别主动换，默认那条更便宜、尺寸档位也全。\n计费边界分三种说法：返回带 url 又带 credit → 按 credit 说实扣了多少；带 url 但没 credit → 按 (b) 的两档估，并说明以账单为准；没拿到图、但请求已经发到上游（超时、审核拒绝、上游报错）→ 只能说「这一次没拿到图、可能已扣费」，不得断言没扣费、不得自己重发，由用户决定要不要再花一次。清单里这些是「请求根本没发到上游」，确定不扣积分，可以改完直接重试：宿主把参数挡下来（size 不是「宽x高」也不是 auto、image 空数组、多传了别的字段）、size 写了 auto 但这次没给输入图（文生图）、写了固定像素但比例比 5:1 还细长、model 不存在、图读不出来或超过 8 MB、没登录或没开那个开关。判据：本地拒一定带 INVALID_ARGS 或 NOT_LOGGED_IN 这种错误码；抛的不是这两个码、又没拿到图，一律按「可能已扣费」讲。重试等于新的一次计费决策：本地拒那种改完直接重试；其余情况重试前按 (b) 重新报价并取得同意。\n返回：url（COS 签名 URL，约 24 小时后失效；只有 path 那种情况下 url 是 file:// 本地地址、不过期）、mode（generate 或 edit）、region（cn/global）、size（实际出图宽高）、model、prompt、hint（可直接转述给用户）、credit（上游结算的实际积分，没给就没这个字段）、requestedSize（尺寸被缩/放过时才回带，是你原本写的值）、path（上游返回内联 base64 时本工具落盘才有，此时也有一份 url 是 file:// 地址）。展示给用户时用 markdown 图片语法：有 path 就用 path（本地文件，不过期）；只有 url 时引用它并提醒尽快转存——本工具不负责下载或转存，要长期保存得用户自己点开链接另存。",
 		parameters: {
 			type: "object",
 			properties: {
 				prompt: {
 					type: "string",
-					description: "画面描述（中文或英文都可以）。写清楚主体、风格、构图、光线。"
+					minLength: 1,
+					description: "画面描述（中文或英文都可以）。写清楚主体、风格、构图、光线；改图时还要写明哪些要保持原样、哪些要改。这里只写「画什么」，比例交给 size。"
 				},
 				size: {
 					type: "string",
-					description: `图片尺寸，写成「宽x高」（像素）。比例由宽高决定，不限于方图。常用三档：方图 1024x1024、竖图 1024x1536、横图 1536x1024。要大图就按「总像素 419 万以内」放，出的是真实像素不是插值放大：2048x2048（4.19MP，方形上限）、2048x1536、2560x1440（16:9 桌面壁纸）、2560x1600。竖版同理，把长边放到 2048–2560 那一档。超过这个量级会被上游直接拒绝、不会悄悄降级（2560x2560、3072x3072、4096x4096 都失败），所以不要填 4K 尺寸，也不要指望传大数字能拿到更多细节。不填默认 ${DEFAULT_IMAGE_SIZE}（方图）。用户要竖版 / 横版 / 手机壁纸 / 封面 / 高清大图时，改这里的宽高，不要只在 prompt 里说。`
+					pattern: "^([0-9]+[xX×][0-9]+|auto)$",
+					description: "必填，二选一：一是「宽x高」的像素数（如 1024x1024、1024x1536、1536x1024），二是 auto。改图要保住原版式就写 auto：工具会量出第一张输入图的宽高、按同比例定画布，不用你猜原图多大。写像素数时只写「数字 + x」（X、× 也收，工具会规整成小写）。用户说的「2K」「4K」「高清」「9:16」这类档位词和比例词都先按工具描述里的表换成像素数，也不要只写一个边长。上限是两条边各 512–2560、宽乘高不超过 4,194,304（约 419 万，2048x2048 正好顶格）：写超了不会报错，工具会等比缩/放并在 hint 里说明，用户说的数可以照写。唯一的例外是比例比 5:1 还细长（如 2560x400）：缩不出合法值时会在本地报错、不扣积分。"
 				},
 				image: {
-					type: "string",
-					description: "输入图，可选。填了就是改图（image-to-image）；不填就是文生图。接受本地绝对路径、file:// URL、http(s) URL、data URL 或裸 base64。上限 8 MB，不做缩放或格式转换。"
+					type: "array",
+					items: { type: "string" },
+					minItems: 1,
+					description: "输入图数组，可选。填了就是改图（image-to-image）；纯文生图请整个省略本字段，不要传空数组（[] 会被拒）。一张图也要写成数组：[\"/abs/path.png\"]；Windows 路径写成 [\"C:\\\\abs\\\\a.png\"]，本工具收的是结构化参数，直接写真实路径 C:\\Users\\me\\a.png 就行，反斜杠不用翻倍；只有在手写 JSON 文本时，一个反斜杠才要写成两个。多张参考图按数组顺序全部生效，如 [模板图, 服装图]。每个元素接受本地绝对路径、file:// URL、http(s) URL、data URL 或裸 base64，上限 8 MB/张（按原始文件字节算，不是 base64 之后的长度），本工具不做压缩或格式转换——超了会在本地报错、不扣积分，先让用户压一下再传。"
 				},
 				model: {
 					type: "string",
-					description: "模型 id，可选。不填就用该区目录里第一个带当前模式标签的模型（文生图看 text-to-image，改图看 image-to-image）。填了但该 tag 组里没有会直接报错，不会盲发。"
+					description: "模型 id，可选，一般留空（空字符串也算留空）。只有用户点名要某个模型时才填，填了不存在或没有对应 tag 的 id 会直接报错并列出可用 id，不会盲发。"
 				}
 			},
-			required: ["prompt"],
+			required: ["prompt", "size"],
 			additionalProperties: false
 		},
 		output: {
@@ -5975,6 +7042,18 @@ function createImageTool(deps) {
 					mode: {
 						type: "string",
 						description: "'generate'（文生图）或 'edit'（改图）。"
+					},
+					region: {
+						type: "string",
+						description: "'cn'（国内版）或 'global'（国际版）。"
+					},
+					size: {
+						type: "string",
+						description: "实际出图尺寸，规整后的小写「宽x高」。"
+					},
+					requestedSize: {
+						type: "string",
+						description: "尺寸被工具等比缩/放过时才有，是你原本写的值（写 auto 时是 auto）。"
 					},
 					model: {
 						type: "string",
@@ -6000,6 +7079,8 @@ function createImageTool(deps) {
 				required: [
 					"url",
 					"mode",
+					"region",
+					"size",
 					"model",
 					"prompt",
 					"hint"
@@ -6030,11 +7111,12 @@ function createImageTool(deps) {
 		timeoutMs: IMAGE_TOOL_TIMEOUT_MS,
 		async execute(args, exec) {
 			const record = asRecord$1(args);
+			rejectUnknownArgs$1(record);
 			const prompt = asNonEmptyString$1(record["prompt"]);
 			if (prompt === void 0) throw new WorkBuddyImageError(`${WORKBUDDY_IMAGE_TOOL_NAME}: 参数 prompt 必填，且必须是非空字符串。`, "INVALID_ARGS");
-			const size = asNonEmptyString$1(record["size"]) ?? "1024x1024";
-			const requestedModel = asNonEmptyString$1(record["model"]);
-			const image = asNonEmptyString$1(record["image"]);
+			const sizeSpec = parseSizeSpec(record["size"]);
+			const requestedModel = strictString$1(record["model"], "model");
+			const images = asImageList(record["image"]);
 			const now = Date.now();
 			if (now < cooldownUntil) {
 				const seconds = Math.ceil((cooldownUntil - now) / 1e3);
@@ -6046,10 +7128,16 @@ function createImageTool(deps) {
 			let sent = false;
 			try {
 				const models = await listModels(credential, signal);
-				const input = image === void 0 ? void 0 : await resolveImageInput(image, signal);
-				const model = pickMediaModel(models, requestedModel, input === void 0 ? IMAGE_TAG_TEXT_TO_IMAGE : IMAGE_TAG_IMAGE_TO_IMAGE);
+				const resolved = images === void 0 ? void 0 : await Promise.all(images.map((image) => resolveImageInput(image, signal)));
+				const region = regionOf(credential.domain) === "global" ? "global" : "cn";
+				const inputSize = resolved === void 0 ? void 0 : firstDimensions(resolved);
+				if (sizeSpec.kind === "auto" && inputSize === void 0) missingAutoSizeInput();
+				const inputs = resolved?.map((input) => input.dataUrl);
+				const model = resolveImageModel(models, requestedModel, inputs === void 0 ? IMAGE_TAG_TEXT_TO_IMAGE : IMAGE_TAG_IMAGE_TO_IMAGE, deps, credential, region);
+				const plan = planImageSize(sizeSpec, inputSize, imageSizeLimitsOf(model.id));
+				const size = plan.size;
 				sent = true;
-				const outcome = input === void 0 ? await deps.generateImage(credential, {
+				const outcome = inputs === void 0 ? await deps.generateImage(credential, {
 					model: model.id,
 					prompt,
 					size
@@ -6057,15 +7145,22 @@ function createImageTool(deps) {
 					model: model.id,
 					prompt,
 					size,
-					image: [input]
+					image: inputs
 				}, signal);
-				const mode = input === void 0 ? "generate" : "edit";
+				const mode = inputs === void 0 ? "generate" : "edit";
+				const regionLabel = region === "global" ? "国际版" : "国内版";
+				const dimensionNote = plan.note === void 0 ? "" : `${plan.note}。`;
+				const inputNote = inputSize === void 0 ? "" : `输入图第一张是 ${inputSize.width}x${inputSize.height}（${ORIENTATION_LABEL[orientationOf(inputSize)]}）。`;
+				const watermarkNote = isWatermarkFreeImageModel(model.id) ? "这个模型出图不带 WorkBuddy 水印（代价是单价更高、尺寸上限更小）。" : "这个模型出的图右下角带「AI生成 WORKBUDD>」水印——上游没有关闭它的参数；要无水印可在插件卡片里把生图模型选成 hunyuan-image-v3.0（更贵、尺寸上限更小）。";
 				const value = {
 					mode,
+					region,
+					size,
 					model: model.id,
 					prompt,
-					hint: `这张图来自 WorkBuddy（模型 ${model.id}，${mode === "edit" ? "改图" : "文生图"}）。按张扣积分，单价随区域与模型不同` + (outcome.credit === void 0 ? "（本次响应没带扣费字段，以额度面板为准）。" : `；本次实际扣费 ${outcome.credit} 积分。`) + "COS 签名 URL 约 24 小时失效；要长期保留请及时下载。"
+					hint: `这张图来自 WorkBuddy ${regionLabel}（模型 ${model.id}，${mode === "edit" ? "改图" : "文生图"}，尺寸 ${size}）。` + inputNote + dimensionNote + watermarkNote + (outcome.credit === void 0 ? "本次响应没带扣费字段，具体扣了多少以额度面板为准。" : `本次实际扣费 ${outcome.credit} 积分。`) + "COS 签名 URL 约 24 小时失效；要长期保留请及时下载。"
 				};
+				if (plan.requested !== void 0 && plan.requested !== size) value["requestedSize"] = plan.requested;
 				if (outcome.url !== void 0) value["url"] = outcome.url;
 				else if (outcome.b64 !== void 0) {
 					const path = await writeTempImage(outcome.b64, model.id);
@@ -6121,8 +7216,22 @@ function registerWorkBuddyImageTool(tools, deps) {
 */
 /** 工具名。宿主禁止 `run_code`，这个名字与其它 connect 插件的命名习惯一致。 */
 const WORKBUDDY_VIDEO_TOOL_NAME = "workbuddy_draw_video";
-/** 工具单次执行的上限：提交 + 轮询（最多 ~10 分钟）+ 下载，留足余量。 */
-const VIDEO_TOOL_TIMEOUT_MS = 6e5;
+/**
+* 工具单次执行的上限：提交 + 轮询 + 下载。
+*
+* ## 为什么必须比宿主的 600 秒**明显小**（issue #187 的第三种现象）
+*
+* 这个值原本正好是 `600_000`，与宿主自己给工具调用的上限**完全相等**。两者同时到
+* 期，而宿主的计时器先落地：调用被宿主直接掐断，用户看到的是裸的
+* `tool call timed out after 600000ms`——没有 `taskId`、没有 `POLL_TIMEOUT`、没有
+* 任何结构化错误，日志里也找不到是提交卡住还是轮询卡住。
+*
+* 内部超时短于宿主上限，插件就能**先**抛 `POLL_TIMEOUT`，把 task id 带出去。那个
+* id 是这个故障里唯一能拿去问上游的东西，丢掉它等于把可排障的失败变成不可排障的。
+*
+* 570s 而不是更短：正常任务实测几十秒到几分钟，砍太狠会把慢但成功的任务判死。
+*/
+const VIDEO_TOOL_TIMEOUT_MS = 57e4;
 /** 下载远程输入图（图生视频时）的上限，不含生视频本身。 */
 const VIDEO_INPUT_TIMEOUT_MS = 3e4;
 /** 失败后的冷却：视频按次扣积分且一次要几十秒，连续重试会烧掉大量积分。 */
@@ -6133,11 +7242,85 @@ function asRecord(value) {
 function asNonEmptyString(value) {
 	return typeof value === "string" && value.trim() !== "" ? value.trim() : void 0;
 }
-function asNumber(value) {
-	return typeof value === "number" && Number.isFinite(value) ? value : void 0;
+function describeArgType(value) {
+	if (Array.isArray(value)) return "array";
+	if (value === null) return "null";
+	return typeof value;
 }
-function asBoolean(value) {
-	return typeof value === "boolean" ? value : void 0;
+/** 本工具真正认的参数——与 `parameters.properties` 一一对应。 */
+const ALLOWED_ARGS = /* @__PURE__ */ new Set([
+	"prompt",
+	"image",
+	"model",
+	"seconds",
+	"resolution",
+	"aspect_ratio",
+	"negative_prompt",
+	"enable_audio"
+]);
+/**
+* 拒掉 schema 里没有的参数。
+*
+* `additionalProperties: false` 只是写在 schema 里给模型看的：宿主把 `parameters`
+* 原样投影、不代校验，execute 照样会收到从别的生图工具串过来的字段——
+* `size: '1024x1024'`（生图的）、`ratio` / `n` / `return_base64`（agnes 的）、
+* `quality` / `style` 之类。静默忽略的后果是模型以为横竖版生效了，实际出的是
+* 默认 16:9，而视频按次扣积分、一次几十秒，错一次代价很高。
+*
+* 注意 `aspect_ratio` 是本工具**真有**的参数，与生图的 `size` 是同一件事的两种
+* 写法：不要因为生图没有 `aspect_ratio` 就把它也拒掉。
+*/
+function rejectUnknownArgs(record) {
+	const unknown = Object.keys(record).filter((key) => !ALLOWED_ARGS.has(key));
+	if (unknown.length === 0) return;
+	throw new WorkBuddyVideoError(`workbuddy video: 本工具没有 ${unknown.map((key) => `「${key}」`).join("、")} 参数，只有 prompt、image、model、seconds、resolution、aspect_ratio、negative_prompt、enable_audio 八个。横竖比例用 aspect_ratio（16:9 / 9:16 / 1:1，仅文生视频）；尺寸 / 清晰度用 resolution（如 720P / 1080P）；不需要 size、ratio、n、return_base64、quality 之类的字段。`, "INVALID_ARGS");
+}
+/**
+* 可选参数的严格读取族：undefined/null/空串 → 未提供（走默认值）；
+* 类型不对 → INVALID_ARGS，绝不静默丢掉。
+*
+* 旧行为（`asNumber`/`asBoolean` 式的"类型不对就当没给"）与生图工具
+* `image: [...] 被丢掉切回文生图` 是同一族错误：`seconds: "10"` 安静地
+* 出 5 秒的片、`model: ["kling-video-v3"]` 安静地换了模型扣积分。调用方
+* 写了参数就要么被尊重、要么被明说——类型写错就报错，不要替它猜默认值。
+* 这些校验都发生在「发请求」之前：不花积分、不进冷却。
+*/
+function strictString(value, name) {
+	if (value === void 0 || value === null) return void 0;
+	if (typeof value !== "string") throw new WorkBuddyVideoError(`workbuddy video: 参数 ${name} 必须是字符串（或不填），实际是${describeArgType(value)}。`, "INVALID_ARGS");
+	return value.trim() === "" ? void 0 : value.trim();
+}
+function strictNumber(value, name) {
+	if (value === void 0 || value === null) return void 0;
+	if (typeof value !== "number" || !Number.isFinite(value)) throw new WorkBuddyVideoError(`workbuddy video: 参数 ${name} 必须是有限数字（或不填），实际是${describeArgType(value)}。`, "INVALID_ARGS");
+	return value;
+}
+function strictBoolean(value, name) {
+	if (value === void 0 || value === null) return void 0;
+	if (typeof value !== "boolean") throw new WorkBuddyVideoError(`workbuddy video: 参数 ${name} 必须是布尔值（或不填），实际是${describeArgType(value)}。`, "INVALID_ARGS");
+	return value;
+}
+/**
+* 输入图参数：字符串 → 照旧；单元素字符串数组 → 解包（与字符串等价，宽容
+* 模型侧常见的数组写法）；undefined/null/空串 → 未提供（文生视频）。
+* 其余 → INVALID_ARGS。
+*
+* 为什么不收多图数组：图生视频上游只吃**单张** `image_url`，不像图生图的
+* `/v2/images/edits` 收数组。调用方传多张时它以为自己在做多图参考——
+* 静默取第一张或静默全丢都是撒谎，必须明说；生图工具那种「数组被丢掉、
+* 模式悄悄切成文生」的 bug 在这里被钉死不再发生。
+*/
+function asVideoImageInput(value) {
+	if (value === void 0 || value === null) return void 0;
+	if (typeof value === "string") return value.trim() === "" ? void 0 : value.trim();
+	if (Array.isArray(value)) {
+		if (value.length === 0) return void 0;
+		if (value.length > 1) throw new WorkBuddyVideoError(`workbuddy video: 图生视频只支持一张输入图，收到 ${value.length} 张。需要多图参考时，先用生图工具把参考合成一张成品图，再把那张图传到这里。`, "INVALID_ARGS");
+		const item = value[0];
+		if (typeof item !== "string" || item.trim() === "") throw new WorkBuddyVideoError("workbuddy video: image 数组的唯一元素必须是非空字符串（本地路径 / file:// / http(s) / data URL / 裸 base64）。", "INVALID_ARGS");
+		return item.trim();
+	}
+	throw new WorkBuddyVideoError("workbuddy video: image 必须是字符串或单元素字符串数组（本地路径 / file:// / http(s) / data URL / 裸 base64）。", "INVALID_ARGS");
 }
 /**
 * 这些失败说明请求真的打到了上游、可能已经扣了积分，才值得进冷却。
@@ -6166,14 +7349,27 @@ function isBillableFailure(error, sent) {
 	return true;
 }
 /**
-* 把任意形态的输入图规整成上游唯一接受的形态：data URL 或 http(s) URL。
+* 把任意形态的输入图规整成 data URL。
 *
-* 图生视频的 `image_url` 字段只接受上游可访问的 URL。本地文件路径必须
-* 读进来、编码成 data URL 再发，否则上游读到的是空响应，返回
-* "Input ImageUrl data is invalid (too short)"。与 `image-tool.ts` 的
-* `resolveImageInput` 同一套逻辑：data URL 校验后直传，http(s) 校验可达性
-* 后直传，裸 base64 / 本地路径 / file:// 读文件编成 data URL。不做缩放
-* 或格式转换——用户给什么就传什么。
+* ## 为什么 http(s) 也要下载下来（issue #187）
+*
+* 这里以前只发一个 `HEAD` 做可达性校验，然后把 URL **原样**交给上游。两个问题：
+*
+* 1. **`HEAD` 会被 COS 拒绝。** 插件自己出图返回的是腾讯 COS 签名 URL
+*    （`ai-corpus-backup-*.cos.ap-beijing.myqcloud.com`），签名只覆盖 `GET`。
+*    对它发 `HEAD` 拿到 **403**，于是用户在"用上一张成功的图做首帧"这条最自然的
+*    路径上卡死——而那个 URL 用 `curl` 明明取得到。报错因此指向了错误的对象：
+*    用户以为是自己的图有问题。
+* 2. **上游不接受外链。** 即使 HEAD 通过，图生视频的 `image_url` 与图生图的
+*    `image` 是同一条规则（PR #145 记录过："image 必须是 data URI，传 COS 原始
+*    URL → invoke model error"）。原样传 URL 只是把失败推迟到上游，并且那时已经
+*    建了 task、扣了积分。
+*
+* 所以这里与 `image-tool.ts` 的 `resolveImageInput` 完全对齐：**下载并编码成
+* data URL**。这也顺带让签名过期、上游改域名的场景在本地就报出可读的错，而不是
+* 变成一个花了钱才发现的 `TASK_FAILED`。
+*
+* 仍然不做缩放或格式转换——用户给什么就传什么，只改承载形式。
 */
 async function resolveVideoImageInput(value, signal) {
 	const text = value.trim();
@@ -6184,17 +7380,14 @@ async function resolveVideoImageInput(value, signal) {
 		return text;
 	}
 	if (/^https?:\/\//i.test(text)) {
+		let response;
 		try {
-			const response = await fetch(text, {
-				method: "HEAD",
-				signal: signal ?? AbortSignal.timeout(VIDEO_INPUT_TIMEOUT_MS)
-			});
-			if (!response.ok) throw new WorkBuddyVideoError(`workbuddy video: 输入图 URL 不可达（HTTP ${response.status}）: ${text}`, "INVALID_ARGS");
+			response = await fetch(text, { signal: signal ?? AbortSignal.timeout(VIDEO_INPUT_TIMEOUT_MS) });
 		} catch (error) {
-			if (error instanceof WorkBuddyVideoError) throw error;
-			throw new WorkBuddyVideoError(`workbuddy video: 校验输入图 URL 失败（${text}）：` + (error instanceof Error ? error.message : String(error)), "INVALID_ARGS");
+			throw new WorkBuddyVideoError(`workbuddy video: 下载输入图失败（${text}）：` + (error instanceof Error ? error.message : String(error)), "INVALID_ARGS");
 		}
-		return text;
+		if (!response.ok) throw new WorkBuddyVideoError(`workbuddy video: 下载输入图失败（HTTP ${response.status}）：${text}`, "INVALID_ARGS");
+		return encodeVideoInputImage(new Uint8Array(await response.arrayBuffer()), response.headers.get("content-type") ?? text);
 	}
 	if (isBareBase64Image(text)) return encodeVideoInputImage(Buffer.from(text, "base64"), "（内联 base64）");
 	const path = text.startsWith("file:") ? fileURLToPath(text) : text;
@@ -6256,7 +7449,7 @@ function createVideoTool(deps) {
 	};
 	return {
 		name: WORKBUDDY_VIDEO_TOOL_NAME,
-		description: "用当前账号的 WorkBuddy 视频生成能力生成一段短视频。不填 image 是文生视频（用该区带 text-to-video 标签的模型）；填了 image 是图生视频（用带 image-to-video 标签的模型）。国内区与国际区都可用，模型取自该区产品配置（国内区 kling-video-v3、minimax-video-h3；国际区 kling-video-v3，两种 video tag 都有；以该区目录为准）。视频是异步任务：先提交、再轮询到完成、最后把视频下载到本地，单次可能要几十秒到几分钟。每次生成会真实消耗 WorkBuddy 积分，单价随区域与模型不同，以返回结果里的 credit 为准；不要在没必要时调用，也不要为了试错连续调用。返回的是本地 .mp4 文件路径（file:// URL），由宿主/客户端打开或下载。",
+		description: "用当前账号的 WorkBuddy 视频生成能力生成一段短视频。不填 image 是文生视频（用该区带 text-to-video 标签的模型）；填了 image 是图生视频（用带 image-to-video 标签的模型，只收一张输入图）。本工具只有 prompt、image、model、seconds、resolution、aspect_ratio、negative_prompt、enable_audio 八个参数：没有 size / ratio / n / return_base64 / quality / style 之类的字段，塞进来会直接报错。时长用 seconds、横竖用 aspect_ratio（16:9 / 9:16 / 1:1）、清晰度用 resolution——用户提这类要求时改这些参数，不要只在 prompt 里写「横版」「竖版」。可选参数要么不填、要么类型正确；填错类型直接 INVALID_ARGS 且不发请求，不会静默丢参数或切换模式。国内区与国际区都可用，模型取自该区产品配置里带 video tag 的条目。model 默认留空：留空才走「用户在卡片上钉住的模型 → 该区目录第一个」这条链，不要凭印象猜模型 id，名称不对会直接报错并列出可用 id。视频是异步任务：先提交、再轮询到完成、最后把视频下载到本地，单次可能要几十秒到几分钟。每次生成会真实消耗 WorkBuddy 积分，单价随区域与模型不同，以返回结果里的 credit 为准；不要在没必要时调用，也不要为了试错连续调用。返回的是本地 .mp4 文件路径（file:// URL），由宿主/客户端打开或下载。",
 		parameters: {
 			type: "object",
 			properties: {
@@ -6265,8 +7458,9 @@ function createVideoTool(deps) {
 					description: "画面描述（中文或英文都可以），≤2500 字符。写清楚主体、动作、风格、镜头。"
 				},
 				image: {
-					type: "string",
-					description: "输入图，可选。填了就是图生视频（image-to-video）；不填就是文生视频。接受本地绝对路径、file:// URL、http(s) URL、data URL 或裸 base64。上限 8 MB，不做缩放或格式转换。"
+					type: ["string", "array"],
+					items: { type: "string" },
+					description: "输入图，可选。填了就是图生视频（image-to-video）；不填就是文生视频。接受本地绝对路径、file:// URL、http(s) URL、data URL 或裸 base64。上限 8 MB，不做缩放或格式转换。单元素字符串数组与字符串等价；图生视频只支持一张输入图，传多张会直接报错（不会静默改走文生视频）。需要多图参考（如按模板换装）时，先用生图工具 workbuddy_draw_image 把参考合成一张成品图，再把这张图传进来。"
 				},
 				model: {
 					type: "string",
@@ -6369,15 +7563,16 @@ function createVideoTool(deps) {
 		timeoutMs: VIDEO_TOOL_TIMEOUT_MS,
 		async execute(args, exec) {
 			const record = asRecord(args);
+			rejectUnknownArgs(record);
 			const prompt = asNonEmptyString(record["prompt"]);
 			if (prompt === void 0) throw new WorkBuddyVideoError(`${WORKBUDDY_VIDEO_TOOL_NAME}: 参数 prompt 必填，且必须是非空字符串。`, "INVALID_ARGS");
-			const requestedModel = asNonEmptyString(record["model"]);
-			const requestedSeconds = asNumber(record["seconds"]);
-			const requestedResolution = asNonEmptyString(record["resolution"]);
-			const requestedAspectRatio = asNonEmptyString(record["aspect_ratio"]);
-			const requestedNegativePrompt = asNonEmptyString(record["negative_prompt"]);
-			const requestedEnableAudio = asBoolean(record["enable_audio"]);
-			const image = asNonEmptyString(record["image"]);
+			const requestedModel = strictString(record["model"], "model");
+			const requestedSeconds = strictNumber(record["seconds"], "seconds");
+			const requestedResolution = strictString(record["resolution"], "resolution");
+			const requestedAspectRatio = strictString(record["aspect_ratio"], "aspect_ratio");
+			const requestedNegativePrompt = strictString(record["negative_prompt"], "negative_prompt");
+			const requestedEnableAudio = strictBoolean(record["enable_audio"], "enable_audio");
+			const image = asVideoImageInput(record["image"]);
 			const now = Date.now();
 			if (now < cooldownUntil) {
 				const seconds = Math.ceil((cooldownUntil - now) / 1e3);
@@ -8420,6 +9615,26 @@ function mountCommandSurface(runtime, commands) {
 	return mountCodebuddyCommand(commands, runtime.deps);
 }
 //#endregion
+//#region src/cli-bridge/services.ts
+/**
+* Read one projection key through whichever face the Host offers.
+*
+* Extracted from the `ctx.inject(['sessionProjections'])` closure so the
+* PREFERENCE is testable: on a current Host `snapshot` must answer and
+* `stateOf` must never be called (it prints a deprecation warning the first
+* time it is), while an older Host that has only `stateOf` must still answer
+* instead of silently reporting "no directory".
+*
+* `undefined` means "the Host recorded nothing", which is the same signal both
+* faces give, and the ladder above treats it as such — it must NOT be confused
+* with a failure, or the header fallback would disappear. A throw is the
+* caller's to catch (the inject closure does).
+*/
+function readProjectedState(reader, session, key) {
+	if (typeof reader.snapshot === "function") return reader.snapshot(session, [key])?.values?.[key];
+	return reader.stateOf?.(session, key);
+}
+//#endregion
 //#region src/probe.ts
 /**
 * How long to bench a MODEL that answered 14003 with no stated time.
@@ -8654,7 +9869,8 @@ function parseUpstreamResetAt(message) {
 	return utcMs - offsetTotalMinutes * 6e4;
 }
 /**
-* The cooldown the upstream stated, if it stated one.
+* The upstream reset metadata, if stated. A credit-package refresh timestamp
+* is retained for diagnostics; it is not a minimum wait or recovery evidence.
 *
 * Three sources, in order of authority:
 *
@@ -8665,13 +9881,13 @@ function parseUpstreamResetAt(message) {
 *    this service: a 429 from the Chinese gateway carries code 6004 and a
 *    `将在 … 重置` sentence, with no `Retry-After` header at all.
 * 3. The region's monthly quota refresh point, but ONLY for an out-of-credit
-*    outcome. A quota that resets at a known time is the one case where "when
-*    can I use this again" has a real answer even without a header — and it is
-*    the answer for the most common real limit on this service.
+*    outcome. Check-in or a purchase can replenish credits earlier, so callers
+*    must not render this metadata as a recovery countdown or release the
+*    account when the timestamp passes.
 *
-* A limited outcome with none of the three returns `{}`, which the card renders
-* as "the upstream did not say when". That remains the honest answer for a
-* genuinely timeless failure; inventing a number here would be pure fiction.
+* A limited outcome with none of the three returns `{}`. Rate-limit views state
+* that no time was given; credit-exhaustion views name the replenishment action
+* instead. Neither view invents a countdown.
 *
 * An `ok` outcome ALWAYS returns `{}`, whatever headers or body came with it.
 * A successful probe has already answered "can this account serve right now?"
@@ -8797,6 +10013,7 @@ async function probeModel(input) {
 		return {
 			modelId: input.modelId,
 			outcome: "unavailable",
+			status: 0,
 			message: redactUpstreamText(error instanceof Error ? error.message : String(error))
 		};
 	}
@@ -9130,7 +10347,8 @@ async function testOne(target, modelId, deps) {
 			...base,
 			result: {
 				modelId,
-				outcome: "credential-rejected",
+				outcome: "failed",
+				status: 0,
 				message: messageOf$1(error)
 			}
 		};
@@ -9155,6 +10373,13 @@ async function testOne(target, modelId, deps) {
 * failed because the credential could not even be read says nothing about the
 * model, and recording it would exclude a possibly-perfect account from the
 * pool — so those accounts keep their previous measurement instead.
+*
+* That covers two distinct "we never got to ask the model" cases, and they are
+* dropped by {@link isTransportFailure} for different reasons: an absent
+* credential reports itself as `credential-rejected` with the pool's own
+* message, while a credential STORE that threw reports `failed` with `status: 0`
+* (issue #195 — it used to report `credential-rejected`, which carries no
+* cooldown and excluded the account permanently).
 *
 * `atMs` is stamped here, once for the batch, so the card's "tested N minutes
 * ago" reflects when the batch finished rather than drifting per row.
@@ -9182,14 +10407,35 @@ function probeUpdatesOf(rows) {
 	return updates;
 }
 /**
-* Whether a probe result measures the transport rather than the model.
+* Whether a probe result measures the TRANSPORT rather than the model.
 *
-* `credential-rejected` with the pool's own "no stored credential" message is
-* the one case we can attribute to ourselves rather than the upstream: the
-* request never left. Every other rejection came from the upstream and IS a
-* statement about this account, so it is kept.
+* Two shapes qualify, and both must be dropped rather than persisted:
+*
+* 1. `credential-rejected` with the pool's own "no stored credential" message —
+*    we could not even read the credential, so the request never left.
+* 2. `status: 0` — the request never produced an HTTP response at all. That is
+*    what a probe timeout looks like (`transport error: no response within
+*    30000ms`), and equally a DNS failure, a reset connection, or a throw from
+*    the identity work that runs BEFORE the request is sent (`wireIdentity`).
+*    Issue #195 is the third of those: `probeModel`'s own `catch` returned
+*    `unavailable` with NO `status` at all, so it slipped past this test and
+*    benched a healthy account for half an hour.
+*
+* WHY (2) MATTERS — it is the difference between a working pool and a 30-minute
+* outage. A `status: 0` result carries no `retryAtMs` (nothing upstream said
+* when to come back), so `exclusionOf` falls back to
+* {@link POOL_UNKNOWN_COOLDOWN_MS} — 30 minutes. Persisting a timeout therefore
+* benches a perfectly healthy account for half an hour, and since nothing
+* re-probes an excluded member, the pool stays empty until the cooldown lapses
+* on its own. The user sees "池中已无可用账号" and a 502 for a fault that was
+* never the account's.
+*
+* The distinction has to stay honest in the other direction too: `status >= 500`
+* is NOT a transport failure. The gateway answered, and its answer is a
+* statement about this account's standing with it, so those rows are still kept.
 */
 function isTransportFailure(result) {
+	if (result.status === 0) return true;
 	return result.outcome === "credential-rejected" && result.message?.startsWith("no stored credential") === true;
 }
 /** The default inter-account pause. */
@@ -9270,7 +10516,7 @@ function exclusionOf(probe, nowMs) {
 		case "failed": return retryDue(probe, nowMs) ? void 0 : "failed";
 		case "rate-limited": return retryDue(probe, nowMs) ? void 0 : "rate-limited";
 		case "model-busy": return retryDue(probe, nowMs, 12e4) ? void 0 : "model-busy";
-		case "out-of-credit": return retryDue(probe, nowMs) ? void 0 : "out-of-credit";
+		case "out-of-credit": return "out-of-credit";
 		case "policy-rejected": return;
 		case "channel-rejected": return;
 		default: return "unusable";
@@ -9279,11 +10525,10 @@ function exclusionOf(probe, nowMs) {
 /**
 * Whether an account's cooldown has elapsed (or was never stated).
 *
-* The fallback is the ONLY thing a transient outcome relies on: `cooldownOf`
-* attaches `retryAtMs` for a rate limit or a drained quota, never for a
-* transport failure, so `atMs + POOL_UNKNOWN_COOLDOWN_MS` is what brings those
-* back. That is deliberate — the alternative is a permanent exclusion decided by
-* an event that said nothing about the account.
+* Transient failures without a stated retry time use the local short window.
+* Credit exhaustion is cleared by later positive balance evidence or an explicit
+* successful pool test; ordinary chat success does not update the probe store.
+* It does not call this helper.
 *
 * `fallbackMs` lets one outcome carry a SHORTER clock than the generic one: the
 * model-scoped throttle is upstream's own "about a minute", and applying the
@@ -9292,6 +10537,30 @@ function exclusionOf(probe, nowMs) {
 */
 function retryDue(probe, nowMs, fallbackMs = POOL_UNKNOWN_COOLDOWN_MS) {
 	return nowMs >= (probe.retryAtMs ?? probe.atMs + fallbackMs);
+}
+/**
+* When an EXCLUDED account becomes a candidate again, in epoch ms.
+*
+* Same arithmetic as {@link retryDue} — deliberately, so the two can never
+* disagree about when an account is back: this answers "at what instant", that
+* one answers "is that instant past". Two separate clocks would let the card
+* say "recovers at 14:05" while the ranking still refuses it at 14:06.
+*
+* `Infinity` when time cannot fix the account: a rejected token and a
+* restricted or banned account are states a cooldown cannot repair, so they
+* sort after everything that merely has to wait (`exclusionOf` gives them no
+* cooldown at all — this mirrors that, rather than inventing one).
+*/
+function recoversAtOf(probe, excludedBy, fallbackMs = POOL_UNKNOWN_COOLDOWN_MS) {
+	if (probe === void 0) return Number.POSITIVE_INFINITY;
+	switch (excludedBy) {
+		case "rate-limited":
+		case "unavailable":
+		case "failed": return probe.retryAtMs ?? probe.atMs + fallbackMs;
+		case "model-busy": return probe.retryAtMs ?? probe.atMs + 12e4;
+		case "out-of-credit": return probe.retryAtMs ?? Number.POSITIVE_INFINITY;
+		default: return Number.POSITIVE_INFINITY;
+	}
 }
 /**
 * Rank a pool's members best-first.
@@ -9364,11 +10633,13 @@ function rankPool(members, nowMs, orderAccountIds) {
 			_atRisk: (member.credits?.expiringSoon ?? 0) > 0,
 			_expiringAmount: member.credits?.expiringSoon ?? 0,
 			_expiring: member.credits?.nearestExpiryMs ?? Number.POSITIVE_INFINITY,
-			_tokenExpiresAtMs: member.tokenExpiresAtMs ?? 0
+			_tokenExpiresAtMs: member.tokenExpiresAtMs ?? 0,
+			_recoversAt: excludedBy === void 0 ? Number.POSITIVE_INFINITY : recoversAtOf(member.probe, excludedBy)
 		};
 	});
 	rows.sort((left, right) => {
 		if (left._usable !== right._usable) return left._usable ? -1 : 1;
+		if (!left._usable && !right._usable && left._recoversAt !== right._recoversAt) return left._recoversAt - right._recoversAt;
 		if (left._atRisk !== right._atRisk) return left._atRisk ? -1 : 1;
 		if (left._order !== right._order) return left._order - right._order;
 		if (left._atRisk && right._atRisk && left._expiring !== right._expiring) return left._expiring - right._expiring;
@@ -9484,7 +10755,10 @@ function resolveTargetModel(catalog, preferredId) {
 *   向 `{billing_base}{API_PREFIX}/auth/state?platform={platform}` 申请一个
 *   state，用户在浏览器打开授权页完成登录，客户端轮询
 *   `{billing_base}{API_PREFIX}/auth/token?state={state}` 换取凭据，再以
-*   Bearer 调 `{API_PREFIX}/login/account` 拉取账号资料。三步的 URL 形态、
+*   Bearer 调 `{API_PREFIX}/account` 拉取账号资料（旧实现用的是
+*   `{API_PREFIX}/login/account`，但上游已让该端点对任何凭据都回
+*   `12151:not choose login account`、data 为空，见 issue #267/#268/#269；
+*   现在先试 `/account`，再为仍服务旧端点的主机保留回退）。三步的 URL 形态、
 *   响应字段双拼写（camelCase/snake_case）容错、以及「区域必须绑定会话」的
 *   约定均沿用该实现。
 * 改动：端点按本插件 `upstream.ts` 的区域约定路由 —— CN 为
@@ -9655,7 +10929,69 @@ function terminalOf(session) {
 		error: session.error ?? "the sign-in ended without a result"
 	};
 }
-/** Fetch the account profile and assemble the success value. */
+/**
+* Decode an access token's unsigned JWT payload, purely to recover identity
+* when the profile endpoints answer empty (issue #267/#268/#269). This is NOT
+* authentication — the token was already accepted by `/auth/token` and every
+* byte here is attacker-controlled; only non-empty strings are ever used, as
+* display metadata and as a stable account-id seed, never as a permission.
+* A malformed/unsupported token simply yields no claims.
+*/
+function jwtIdentityOf(token) {
+	const empty = {
+		sub: "",
+		nickname: "",
+		uin: "",
+		preferredUsername: ""
+	};
+	if (typeof token !== "string") return empty;
+	const parts = token.split(".");
+	if (parts.length < 2) return empty;
+	let decoded;
+	try {
+		decoded = Buffer.from(parts[1] ?? "", "base64url").toString("utf8");
+	} catch {
+		return empty;
+	}
+	let parsed;
+	try {
+		parsed = JSON.parse(decoded);
+	} catch {
+		return empty;
+	}
+	if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return empty;
+	const payload = parsed;
+	return {
+		sub: firstString(payload, ["sub", "Sub"]),
+		nickname: firstString(payload, ["nickname", "NickName"]),
+		uin: firstString(payload, ["uin", "Uin"]),
+		preferredUsername: firstString(payload, [
+			"preferred_username",
+			"preferredUsername",
+			"PreferredUsername"
+		])
+	};
+}
+/** Whether a profile carries the one field every real identity must have. */
+function hasIdentity(profile) {
+	return firstString(profile, [
+		"uid",
+		"Uid",
+		"userId",
+		"UserID"
+	]) !== "";
+}
+/**
+* Fetch the account profile and assemble the success value.
+*
+* The upstream's `/login/account` endpoint answers `code 12151` ("not choose
+* login account") with an empty `data` envelope for EVERY credential. Taking
+* that empty profile at face value made every OAuth account hash to the same
+* vault id and display as 未命名账号 (#267/#268/#269). So try `/account` first
+* on the same host with the same headers, keep the legacy endpoint only as a
+* fallback, accept neither when its data has no uid, and as a last resort read
+* the identity claims from the token itself.
+*/
 async function collectAccount(session, accessToken, tokenData, doFetch) {
 	const headers = {
 		"Authorization": `Bearer ${accessToken}`,
@@ -9664,27 +11000,32 @@ async function collectAccount(session, accessToken, tokenData, doFetch) {
 	const domain = firstString(tokenData, ["domain", "Domain"]);
 	if (domain !== "") headers["X-Domain"] = domain;
 	let profile = {};
-	try {
-		const document = await readJson(await doFetch(`${session.base}${API_PREFIX}/login/account`, {
+	for (const profilePath of [`${API_PREFIX}/account`, `${API_PREFIX}/login/account`]) try {
+		const document = await readJson(await doFetch(`${session.base}${profilePath}`, {
 			method: "GET",
 			headers,
 			signal: AbortSignal.timeout(3e4)
 		}));
-		if (document !== void 0) profile = envelopeData(document);
+		if (document === void 0) continue;
+		const candidate = envelopeData(document);
+		if (!hasIdentity(candidate)) continue;
+		profile = candidate;
+		break;
 	} catch {}
+	const jwt = jwtIdentityOf(accessToken);
 	const uid = firstString(profile, [
 		"uid",
 		"Uid",
 		"userId",
 		"UserID"
-	]);
+	]) || jwt.sub;
+	if (uid === "") throw new Error("无法识别这个账号：上游没有返回账号资料，登录令牌里也没有可用的身份信息。这通常是上游资料接口临时异常，请稍后重新登录；如果一直这样，说明这种登录方式不再提供身份信息。");
 	const nickname = optionalString(profile, [
 		"nickname",
 		"NickName",
-		"nickname",
 		"ScreenName"
-	]);
-	const uin = optionalString(profile, ["uin", "Uin"]);
+	]) ?? optionalString(jwt, ["nickname"]) ?? optionalString(jwt, ["preferredUsername"]);
+	const uin = optionalString(profile, ["uin", "Uin"]) ?? optionalString(jwt, ["uin"]);
 	const enterpriseId = optionalString(profile, ["enterpriseId", "EnterpriseId"]);
 	const expiresAtMs = expiryMs(tokenData, ["expiresAt", "expires_at"], ["expiresIn", "expires_in"]) ?? 0;
 	const refreshExpiresAtMs = expiryMs(tokenData, ["refreshExpiresAt", "refresh_expires_at"], ["refreshExpiresIn", "refresh_expires_in"]);
@@ -9788,9 +11129,72 @@ function parseTransferFile(text) {
 	} catch (error) {
 		throw new Error("transfer file is not valid JSON: " + (error instanceof Error ? error.message : String(error)));
 	}
-	if (!Array.isArray(parsed)) throw new Error("transfer file must be a JSON array of account records");
-	for (const [index, item] of parsed.entries()) if (typeof item !== "object" || item === null || Array.isArray(item)) throw new Error("transfer file item " + (index + 1) + " is not an account object");
-	return parsed;
+	const records = recordsOf(parsed);
+	if (records === void 0) throw new Error("transfer file must be a JSON array of account records; this file is " + describeShape(parsed) + ". Accepted wrappers: {\"accounts\": [...]}, {\"data\": [...]}, {\"records\": [...]}.");
+	for (const [index, item] of records.entries()) if (typeof item !== "object" || item === null || Array.isArray(item)) throw new Error("transfer file item " + (index + 1) + " is not an account object");
+	return records.map((item) => stripRedundantRaw(item));
+}
+/**
+* Drop `*_raw` snapshots the importer never reads, keeping `auth_raw`.
+*
+* `auth_raw` is exempt because it carries the billing `uin`, which is what makes
+* a re-imported account converge on the same vault id — dropping it would change
+* behaviour, not just size.
+*/
+function stripRedundantRaw(record) {
+	let changed = false;
+	const kept = {};
+	for (const [key, value] of Object.entries(record)) {
+		if (key !== "auth_raw" && key.endsWith("_raw")) {
+			changed = true;
+			continue;
+		}
+		kept[key] = value;
+	}
+	return changed ? kept : record;
+}
+/**
+* The record array inside whatever the file's top level happens to be.
+*
+* THE FIX FOR ISSUE #229: the export/import loop has to be closed against the
+* files sibling tools actually produce, and several of them wrap the records one
+* level down (`{accounts: [...]}`) — which is also the shape THIS plugin's own
+* export endpoint answers with, so a user who saved that JSON verbatim got a file
+* the importer refused. A bare array stays the primary format; the wrappers are
+* recognized by NAME, never by scanning for the first array anywhere, because a
+* file whose records live under an unrelated key should fail loudly rather than
+* be guessed at.
+*
+* `undefined` means "not a transfer document", which the caller turns into a
+* message naming the shape it actually saw.
+*/
+function recordsOf(parsed, depth = 0) {
+	if (Array.isArray(parsed)) return parsed;
+	if (typeof parsed !== "object" || parsed === null) return void 0;
+	const root = parsed;
+	for (const key of [
+		"accounts",
+		"data",
+		"records"
+	]) {
+		const value = root[key];
+		if (Array.isArray(value)) return value;
+	}
+	if (depth >= 1) return void 0;
+	for (const key of ["data", "result"]) {
+		const value = root[key];
+		if (typeof value !== "object" || value === null) continue;
+		const inner = recordsOf(value, depth + 1);
+		if (inner !== void 0) return inner;
+	}
+}
+/** A short, human-readable description of what the top level actually is. */
+function describeShape(parsed) {
+	if (parsed === null) return "null";
+	if (Array.isArray(parsed)) return "an array";
+	if (typeof parsed !== "object") return "a " + typeof parsed;
+	const keys = Object.keys(parsed);
+	return keys.length === 0 ? "an empty object" : "an object with keys: " + keys.slice(0, 8).join(", ");
 }
 /** One string field of a record, tolerating the sibling format's odd shapes. */
 function displayString(value) {
@@ -9960,7 +11364,7 @@ function mergeTransferRecords(records, indexes, region, knownRegionOfDomain) {
 * @module dsh-connect-workbuddy/account-pool-store
 */
 /** On-disk format version; readers reject anything else. */
-const STORE_FORMAT_VERSION = 1;
+const STORE_FORMAT_VERSION$1 = 1;
 /** Filename prefix for one region's measured pool facts. */
 const POOL_STORE_PREFIX = ".workbuddy-pool";
 /** Whether a parsed value looks like a stored probe. */
@@ -10050,7 +11454,7 @@ async function readPoolProbes(region) {
 	}
 	if (typeof parsed !== "object" || parsed === null) return {};
 	const document = parsed;
-	if (document.version !== STORE_FORMAT_VERSION) return {};
+	if (document.version !== STORE_FORMAT_VERSION$1) return {};
 	if (typeof document.probes !== "object" || document.probes === null) return {};
 	const probes = {};
 	for (const [accountId, probe] of Object.entries(document.probes)) {
@@ -10086,18 +11490,24 @@ function knownProbeSource(value) {
 * The two writers describe the same account at different moments and carry
 * different fields:
 *
-*   - `test-batch` measures the TARGET MODEL deliberately, so it is the only
-*     writer that can produce a refresh point (`retryAtMs` with
-*     `retrySource: 'quota-refresh'`) — a time the billing side states outright.
+*   - `test-batch` measures the TARGET MODEL deliberately, and it is the writer
+*     that can attach the monthly refresh point (`retryAtMs` with
+*     `retrySource: 'quota-refresh'`) — recorded as upstream evidence about the
+*     PACKAGE's cycle, not as the moment the account becomes usable again.
 *   - `live-request` reports what a real chat request just hit. It often carries
 *     no `retryAtMs` at all (a transport blip names no time), and a spread would
-*     therefore DELETE the refresh point the probe had already resolved.
+*     therefore DELETE that recorded point.
 *
 * Measured consequence of the spread, on a real `14018` account: the probe
 * recorded "quota refreshes 2026-11-01", the next live failure rewrote the
-* record without that field, and the pool then reported "retry in about 30
-* minutes" — putting an exhausted account back into rotation to be refused
-* again. The correct value was in the file one write earlier.
+* record without that field, and the card then said the upstream gave no time at
+* all — while the correct value was in the file one write earlier.
+*
+* NOTE that recovery no longer follows from this field: credit exhaustion is
+* cleared by a later positive balance read, not by the timestamp passing (see
+* `reconcilePoolCredits` and `exclusionOf`). The point is inherited because it is
+* upstream evidence worth keeping, and losing it would silently downgrade a
+* recorded fact to "the upstream said nothing".
 *
 * So `retryAtMs` is INHERITED when the update does not state one, and every
 * other field is the update's (the newer measurement owns `outcome`, `atMs`,
@@ -10147,7 +11557,7 @@ async function writePoolProbes(region, updates) {
 			const merged = { ...existing };
 			for (const [accountId, update] of Object.entries(updates)) merged[accountId] = mergePoolProbe(existing[accountId], update);
 			await writeFileAtomic(path, `${JSON.stringify({
-				version: STORE_FORMAT_VERSION,
+				version: STORE_FORMAT_VERSION$1,
 				probes: merged
 			}, null, 2)}\n`, {
 				mode: 384,
@@ -10155,6 +11565,348 @@ async function writePoolProbes(region, updates) {
 			});
 		});
 	} catch {}
+}
+/**
+* 只有失败记录写入之后发起的余额查询，才能解除积分耗尽状态。
+* 持锁重读可避免较早的查询结果覆盖并发请求刚记录的新失败；其他异常保持原样。
+* 删除失败记录只表示余额恢复，不会伪造一次成功的模型测试。
+* 恢复后界面会显示“未测试”：这里删除的是最近失败记录，存储结构没有保留此前
+* 成功测试的历史，余额到账也不能证明某个模型可用；再次测试才会产生新的结论。
+*/
+async function reconcilePoolCredits(region, readings) {
+	const path = workbuddyPoolStorePath(region);
+	try {
+		return await withFileLock(path, async () => {
+			const probes = await readPoolProbes(region);
+			let changed = false;
+			for (const reading of readings) {
+				const probe = probes[reading.accountId];
+				if (probe?.outcome !== "out-of-credit" || probe.atMs >= reading.startedAtMs) continue;
+				if (!Number.isFinite(reading.total) || reading.total <= 0) continue;
+				delete probes[reading.accountId];
+				changed = true;
+			}
+			if (changed) await writeFileAtomic(path, `${JSON.stringify({
+				version: STORE_FORMAT_VERSION$1,
+				probes
+			}, null, 2)}\n`, {
+				mode: 384,
+				dirMode: 448
+			});
+			return probes;
+		});
+	} catch {
+		return readPoolProbes(region);
+	}
+}
+//#endregion
+//#region src/auto-checkin.ts
+/**
+* Regions that have a daily check-in at all.
+*
+* The CN gateway runs a consumer check-in; the international one does not. The
+* card hides the switch on a region without one, and this predicate is the
+* single place that fact is stated for the background path — the manual button
+* asks `checkinSupported` on the same rule.
+*/
+function autoCheckinRegions() {
+	return ["cn"];
+}
+/**
+* Retry backoff after a failed attempt, in milliseconds.
+*
+* Five widening steps and then a slow poll. The shape matters more than the
+* numbers: the first retry is soon (a transient socket fault clears in seconds),
+* and the tail is slow (an upstream outage should not be probed every minute for
+* the rest of the day). After the last entry, {@link AUTO_CHECKIN_TAIL_MS}
+* repeats until the local day rolls over.
+*/
+const AUTO_CHECKIN_BACKOFF_MS = [
+	3e4,
+	6e4,
+	12e4,
+	3e5,
+	9e5
+];
+/** The steady-state retry interval once {@link AUTO_CHECKIN_BACKOFF_MS} is spent. */
+const AUTO_CHECKIN_TAIL_MS = 18e5;
+/**
+* How long after a completed day the runner waits before trying again.
+*
+* Not a retry: this is the "everything is done, come back tomorrow" interval.
+* It exists so the timer keeps a slow heartbeat rather than stopping dead — a
+* stopped timer cannot notice the local day rolling over, and re-arming from a
+* one-shot is how a background feature silently dies after its first day.
+*/
+const AUTO_CHECKIN_IDLE_MS = 18e5;
+/**
+* The local calendar day, as `YYYY-MM-DD`.
+*
+* LOCAL, not UTC, and deliberately so: the upstream resets its check-in at the
+* user's local midnight (the card's own wording is 「今天」), so a runner keyed
+* to UTC would consider 08:00 local a new day and try to claim twice, or think
+* the day was done while the reward was still claimable.
+*
+* Built from the local getters rather than `toISOString()` — the latter is UTC
+* and would put the boundary in the wrong place for every user not on UTC.
+*/
+function localDayKey(nowMs) {
+	const date = new Date(nowMs);
+	return `${date.getFullYear()}-${`${date.getMonth() + 1}`.padStart(2, "0")}-${`${date.getDate()}`.padStart(2, "0")}`;
+}
+/** A state for a day with nothing done yet. */
+function emptyAutoCheckinState(day) {
+	return {
+		day,
+		doneAccountIds: [],
+		scopeSize: 0,
+		failures: 0
+	};
+}
+/**
+* Fold one attempt's rows into the day's state.
+*
+* `doneAccountIds` accumulates ACROSS attempts within a day, because a batch can
+* fail halfway: the accounts that answered stay done, and the next tick only
+* has to retry the rest. Recomputing the set from this attempt alone would make
+* the runner re-check accounts that already succeeded.
+*
+* `failures` counts CONSECUTIVE failures, and an attempt that made progress
+* resets it — see {@link AutoCheckinState.failures}.
+*/
+function foldAttempt(previous, rows, nowMs, scopeSize = previous.scopeSize) {
+	const done = new Set(previous.doneAccountIds);
+	let progressed = false;
+	const failures = [];
+	for (const row of rows) {
+		if (row.status === "claimed" || row.status === "already") {
+			if (!done.has(row.accountId)) {
+				done.add(row.accountId);
+				progressed = true;
+			}
+			continue;
+		}
+		if (row.status === "failed") failures.push(row.message ?? row.accountId);
+	}
+	const nextFailures = progressed ? 0 : previous.failures + (failures.length > 0 ? 1 : 0);
+	return {
+		day: previous.day,
+		doneAccountIds: [...done],
+		scopeSize,
+		failures: nextFailures,
+		lastAttemptAtMs: nowMs,
+		...failures.length === 0 ? {} : { lastError: failures[0] }
+	};
+}
+/**
+* How long to wait before the next attempt.
+*
+* Returns `undefined` when there is nothing left to do today — the caller then
+* arms {@link AUTO_CHECKIN_IDLE_MS} instead of a retry, which is how the timer
+* stays alive to notice the day rolling over without re-running the batch.
+*
+* `pending` is the number of accounts still outstanding. It is passed rather
+* than derived from the state because only the caller can enumerate the pool
+* (the state records what is DONE, not what exists).
+*/
+function nextDelayMs(state, pending) {
+	if (pending === 0) return void 0;
+	const step = AUTO_CHECKIN_BACKOFF_MS[Math.min(state.failures, AUTO_CHECKIN_BACKOFF_MS.length - 1)];
+	return state.failures >= AUTO_CHECKIN_BACKOFF_MS.length ? AUTO_CHECKIN_TAIL_MS : step;
+}
+/**
+* Whether an attempt is due now.
+*
+* `pending === 0` is "nothing to do", which is NOT "due": arming a retry for an
+* empty set would spin the timer every backoff step to discover the same thing.
+*/
+function isDue(state, pending, nowMs) {
+	if (pending === 0) return false;
+	if (state.lastAttemptAtMs === void 0) return true;
+	const delay = nextDelayMs(state, pending);
+	if (delay === void 0) return false;
+	return nowMs - state.lastAttemptAtMs >= delay;
+}
+/**
+* Build the card's summary.
+*
+* Takes the STATE alone: the denominator was recorded when the day's first
+* attempt ran (see {@link AutoCheckinState.scopeSize}), so the card's poll needs
+* no credential-store scan and membership edits mid-day cannot silently rewrite
+* the progress it is reporting.
+*/
+function summarizeAutoCheckin(state) {
+	const inScope = Math.max(0, state.scopeSize);
+	const done = Math.min(state.doneAccountIds.length, inScope);
+	return {
+		done,
+		total: inScope,
+		pending: Math.max(0, inScope - done),
+		...state.lastError === void 0 ? {} : { lastError: state.lastError }
+	};
+}
+/**
+* Today's summary — `undefined` when `state` is not today's.
+*
+* The day check is NOT a nicety (issue #232). The state is only rewritten when a
+* tick runs, and after a finished day the next tick is an idle heartbeat up to
+* {@link AUTO_CHECKIN_IDLE_MS} away — so for the first half hour of a new local
+* day the in-memory state still describes YESTERDAY. Summarizing it as today made
+* the card announce 「今日：N 个全部已签」 at 00:08 while every row underneath
+* read 未签到, i.e. the one place that is supposed to prove the runner works
+* claimed the opposite of the truth.
+*
+* `undefined` (rather than a zeroed summary) is what the card already renders as
+* "no status line", and it is the honest answer: nothing has run today yet. The
+* zeroed variant would invent a denominator for a day no attempt has measured.
+*/
+function todaySummary(state, nowMs) {
+	if (state.day !== localDayKey(nowMs)) return void 0;
+	return summarizeAutoCheckin(state);
+}
+/**
+* Whether a cached check-in reading may still be served.
+*
+* Two conditions, and the second is the one that took a bug report: a reading is
+* an answer to "has this account checked in TODAY", so it must not survive local
+* midnight. The TTL alone would serve a `true` read taken at 23:58 until 00:08,
+* so the column would assert a check-in that has not happened — the per-account
+* half of the same lie as {@link todaySummary}.
+*
+* The day is derived from `atMs` rather than stored beside it: the read time
+* already says which day the answer belongs to, and a second field could drift
+* out of step with it.
+*/
+function checkinReadingFresh(atMs, nowMs, ttlMs) {
+	if (nowMs - atMs >= ttlMs) return false;
+	return localDayKey(atMs) === localDayKey(nowMs);
+}
+/**
+* The accounts an attempt should address, in the pool's own order.
+*
+* Only members that are not already done. Enterprise members are dropped HERE
+* rather than left to the batch runner: the runner would report them `skipped`
+* on every attempt, and while that is harmless it also means every tick would
+* look like it had work to do. Filtering up front keeps "pending" meaningful.
+*/
+function pendingTargets(targets, state) {
+	const done = new Set(state.doneAccountIds);
+	return targets.filter((target) => target.enterprise !== true && !done.has(target.accountId));
+}
+//#endregion
+//#region src/auto-checkin-store.ts
+/**
+* On-disk memory for the automatic check-in.
+*
+* 参考：本仓库 `src/account-pool-store.ts`（`$DSH_HOME` 下
+*   `.workbuddy-pool.<region>.json`，`withFileLock` + `writeFileAtomic`，
+*   `mode: 0o600`）。本模块沿用同一套写入方式与同一份隐私标准。
+* 改动：存的是**今天签到到哪一步**，因此文件里不含任何 token，也不含账号名
+*   ——只有账号 id 与一句失败原因。
+*
+* ## 为什么单独落盘，而不是塞进 settings
+*
+* 卡片对用户偏好用的是「草稿 → 保存 → 丢弃草稿」模式。签到进度是插件自己高频
+* 写的运行状态，不是用户偏好；把它塞进 `regions[region].pool` 会让用户手点一次
+* 「保存」用几分钟前的草稿把它覆盖回去。这与 `account-pool-store.ts` 当初把
+* 探测结果搬出 settings 是同一个理由。
+*
+* ## 读写从不抛异常
+*
+* 自动签到是增强功能。一个损坏的进度文件绝不能让插件启动失败或让卡片渲染不出来
+* ——最坏情况是「今天当作没签过」，而那次重跑是幂等的（先读状态、已签判 already）。
+*
+* @module dsh-connect-workbuddy/auto-checkin-store
+*/
+/** On-disk format version; readers reject anything else. */
+const STORE_FORMAT_VERSION = 1;
+/** Filename prefix for one region's auto-check-in memory. */
+const AUTO_CHECKIN_PREFIX = ".workbuddy-auto-checkin";
+/** Whether a parsed value looks like a stored state. */
+function isState(value) {
+	if (typeof value !== "object" || value === null) return false;
+	const candidate = value;
+	return typeof candidate["day"] === "string" && Array.isArray(candidate["doneAccountIds"]) && candidate["doneAccountIds"].every((id) => typeof id === "string") && typeof candidate["failures"] === "number" && Number.isFinite(candidate["failures"]) && (candidate["lastAttemptAtMs"] === void 0 || typeof candidate["lastAttemptAtMs"] === "number") && (candidate["lastError"] === void 0 || typeof candidate["lastError"] === "string");
+}
+/** One region's path for auto-check-in memory. */
+function autoCheckinStorePath(region) {
+	return join(resolveDshHome(), `${AUTO_CHECKIN_PREFIX}.${region}.json`);
+}
+/**
+* Read every region's stored state.
+*
+* Returns `{}` for a missing, unreadable, corrupt, or wrong-version file — see
+* the module note. A region absent from the result simply has no memory, which
+* reads as "nothing done today".
+*/
+async function readAutoCheckinState(region) {
+	let raw;
+	try {
+		raw = await readFile(autoCheckinStorePath(region), "utf8");
+	} catch {
+		return;
+	}
+	let parsed;
+	try {
+		parsed = JSON.parse(raw);
+	} catch {
+		return;
+	}
+	if (typeof parsed !== "object" || parsed === null) return void 0;
+	const document = parsed;
+	if (document.version !== STORE_FORMAT_VERSION) return void 0;
+	const regions = document.regions;
+	if (typeof regions !== "object" || regions === null) return void 0;
+	const state = regions[region];
+	return isState(state) ? state : void 0;
+}
+/**
+* Write one region's state, merging into whatever the file already holds.
+*
+* A MERGE rather than a replace for the same reason `writePoolProbes` merges:
+* the two regions run independently, and a write from one must not erase the
+* other's memory. Never throws — see the module note.
+*/
+async function writeAutoCheckinState(region, state) {
+	const path = autoCheckinStorePath(region);
+	try {
+		await withFileLock(path, async () => {
+			const regions = {
+				...await readDocument(path),
+				[region]: state
+			};
+			await writeFileAtomic(path, `${JSON.stringify({
+				version: STORE_FORMAT_VERSION,
+				regions
+			}, null, 2)}\n`, {
+				mode: 384,
+				dirMode: 448
+			});
+		});
+	} catch {}
+}
+/** Read the whole document, for the merge above. */
+async function readDocument(path) {
+	let raw;
+	try {
+		raw = await readFile(path, "utf8");
+	} catch {
+		return {};
+	}
+	let parsed;
+	try {
+		parsed = JSON.parse(raw);
+	} catch {
+		return {};
+	}
+	if (typeof parsed !== "object" || parsed === null) return {};
+	const document = parsed;
+	if (document.version !== STORE_FORMAT_VERSION) return {};
+	const regions = document.regions;
+	if (typeof regions !== "object" || regions === null) return {};
+	const clean = {};
+	for (const [key, value] of Object.entries(regions)) if (isState(value)) clean[key] = value;
+	return clean;
 }
 //#endregion
 //#region src/web-status.ts
@@ -10182,7 +11934,10 @@ const UPSTREAM_SWITCH_FIELDS = /* @__PURE__ */ new Set([
 	"extraInjectedPrefixes",
 	"sessionTitle",
 	"dropForeignThinking",
-	"channelRejectContinue"
+	"dropAllThinking",
+	"channelRejectContinue",
+	"sidebarPanel",
+	"pollIntervalMs"
 ]);
 /** A non-null, non-array object: the only shape the slot merge applies to. */
 function isPlainRecord(value) {
@@ -10226,29 +11981,77 @@ function jsonPrivate(res, status, body) {
 	});
 	res.end(payload);
 }
-/** Request-body cap for the probe route: model ids only, never content. */
+/** Request-body cap for the PROBE route: model ids only, never content. */
 const PROBE_BODY_LIMIT = 65536;
 /**
-* Read a small JSON request body.
+* Request-body cap for routes that carry a FILE the user chose.
 *
-* Bounded, unlike the settings route's reader: this endpoint takes a list of
-* model ids and has no legitimate use for a large payload, so an oversized body
-* is refused rather than buffered.
+* WHY THIS IS NOT `PROBE_BODY_LIMIT` (issue #229, second report). The transfer
+* route takes the whole text of an account-export file, and those are not small:
+* a single account from a sibling tool measured 108 KiB, because the file carries
+* two raw upstream snapshots (`quota_raw` + `usage_raw`, ~59 KiB together) that
+* this plugin never reads. One account already exceeded the probe's 64 KiB, so a
+* perfectly valid import failed — with the *worst possible* error message (the
+* socket was destroyed, so the browser reported `Failed to fetch`).
+*
+* The number matches the chat route's limit for the same reason: a cap exists to
+* stop unbounded buffering, not to express an opinion about how big a user's
+* export file is allowed to be.
 */
-function readJsonBody(req) {
+const TRANSFER_BODY_LIMIT = 67108864;
+/**
+* Raised when a request body exceeds its route's cap.
+*
+* A CLASS, not a message, so the caller can answer 413 instead of 500: the
+* protocol says the client sent too much, and a 500 would send the reader
+* looking for a server-side fault that does not exist. Same reasoning (and the
+* same shape) as `RequestBodyTooLargeError` in `shim.ts`.
+*/
+var JsonBodyTooLargeError = class extends Error {
+	limitBytes;
+	constructor(limitBytes) {
+		super("request body too large (limit " + String(limitBytes) + " bytes)");
+		this.limitBytes = limitBytes;
+		this.name = "JsonBodyTooLargeError";
+	}
+};
+/**
+* Read a JSON object request body, bounded.
+*
+* AN OVER-LIMIT BODY IS STOPPED, NOT DESTROYED (issue #229). This used to call
+* `req.destroy()`, which tears down the SOCKET — so the error response could
+* never reach the client, and the browser reported a bare `Failed to fetch`.
+* The user then had no way to learn that the file was merely too large. The
+* chat route fixed exactly this in #174 ("the 413 can never reach the client
+* ... it saw a reset connection instead of an answer"); this reader was left
+* behind, and because the transfer route is the one route that takes a FILE, it
+* is the place the flaw actually bit. So the stream is paused and its listeners
+* dropped, the response still goes out, and the caller answers 413.
+*
+* @param req - The request to read.
+* @param limitBytes - The route's cap; defaults to the probe's small limit.
+*/
+function readJsonBody(req, limitBytes = PROBE_BODY_LIMIT) {
 	return new Promise((resolve, reject) => {
 		const chunks = [];
 		let size = 0;
+		let settled = false;
 		req.on("data", (chunk) => {
+			if (settled) return;
 			size += chunk.length;
-			if (size > PROBE_BODY_LIMIT) {
-				reject(/* @__PURE__ */ new Error("request body too large"));
-				req.destroy();
+			if (size > limitBytes) {
+				settled = true;
+				chunks.length = 0;
+				req.removeAllListeners("data");
+				req.removeAllListeners("end");
+				req.pause();
+				reject(new JsonBodyTooLargeError(limitBytes));
 				return;
 			}
 			chunks.push(chunk);
 		});
 		req.on("end", () => {
+			if (settled) return;
 			try {
 				const parsed = JSON.parse(Buffer.concat(chunks).toString("utf8"));
 				if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
@@ -10269,7 +12072,7 @@ function readJsonBody(req) {
 * Origin alone is not enough. It answers "did a foreign page cause this?", but a
 * DNS-rebinding attack arrives with the attacker's domain in `Host` and no
 * useful Origin, so the Host check is what drops it — and until this function
-* existed, all thirteen routes below (ten POST, three GET) had only the Origin
+* existed, all of the routes below had only the Origin
 * half while the shim's chat route had both. The asymmetry was invisible per-file.
 *
 * Both halves are cheap and NEITHER IS AUTHENTICATION. A local process — or any
@@ -10292,13 +12095,21 @@ function readJsonBody(req) {
 * Absent Host is refused: HTTP/1.1 requires it, and its absence on a
 * credit-spending surface is not worth the benefit of the doubt. Absent Origin
 * passes, because that is the shape of the plugin's own fetch and of curl.
+*
+* `trustedHosts` (issue #261) is a THIRD, opt-in input, and it changes none of
+* the above: it is still a forgeable header decision, not authentication. It only
+* admits a Host/Origin authority the deployer declared, which is what a reverse
+* proxy needs (the harness binds loopback, so `localAddress` is always 127.0.0.1
+* and the browser's public authority could never match it). The same getter is
+* passed to BOTH halves so a request cannot be half-trusted. See `loopback.ts`.
 */
-function requireLoopback(req, res) {
-	if (!hostMatchesListener(req.headers.host, req.socket?.localAddress)) {
+function requireLoopback(req, res, deps) {
+	const trustedHosts = deps.trustedHosts;
+	if (!hostMatchesListener(req.headers.host, req.socket?.localAddress, trustedHosts)) {
 		json(res, 403, { error: "host-not-trusted" });
 		return false;
 	}
-	if (!originIsLoopback(req.headers.origin, req.socket?.localAddress)) {
+	if (!originIsLoopback(req.headers.origin, req.socket?.localAddress, trustedHosts)) {
 		json(res, 403, { error: "origin-not-trusted" });
 		return false;
 	}
@@ -10387,6 +12198,24 @@ async function searchedPaths(store) {
 		return {};
 	}
 }
+/**
+* The vault-read failure for the card, when there is one (issue #199).
+*
+* Mirrors `searchedPaths`' defensive shape: a store built without the probe
+* (an older Host half) or one whose probe throws degrades to the plain status
+* rather than failing the whole signed-out payload. The raw error is carried
+* verbatim — it is the ONLY place the #199 lockout (readdir EPERM with
+* per-path reads still working) becomes visible anywhere in the card data.
+*/
+async function vaultUnreadableOf(store) {
+	if (typeof store.vaultReadError !== "function") return {};
+	try {
+		const message = await store.vaultReadError();
+		return message === void 0 ? {} : { vaultUnreadable: message };
+	} catch {
+		return {};
+	}
+}
 /** Reads schemastery's internal `meta.volatile` marker for one top-level field. */
 function volatileFlagOf(field) {
 	return Config.dict?.[field]?.meta?.volatile === true;
@@ -10404,6 +12233,13 @@ function volatileFlagOf(field) {
 * carries NO `credits` field rather than `0`, so the panel renders "—" instead
 * of telling the user they are out of credits.
 *
+* Each row also carries how much of that balance lapses within three days
+* (issue #263). This route is the only place the panel can learn it: the pool
+* block covers pool MEMBERS only, and an account outside the pool is exactly
+* the one whose expiring credits would otherwise go unmentioned. The whole
+* answer is kept rather than just `total` for that reason — the expiry split is
+* already computed by the same read, so forwarding it costs no extra call.
+*
 * Failures are contained per account: one dead credential must not blank the
 * table for the accounts that are fine.
 */
@@ -10413,13 +12249,15 @@ async function workBuddyAccountCredits(deps, region) {
 	const exclusions = await deps.accountExclusions?.(region).catch(() => void 0) ?? {};
 	return Promise.all(accounts.map(async (account) => {
 		const credential = await store.credentialFor(account.id).catch(() => void 0);
-		const credits = credential === void 0 ? void 0 : await deps.client.fetchCredits(credential).then((answer) => answer.total).catch(() => void 0);
+		const answer = credential === void 0 ? void 0 : await deps.client.fetchCredits(credential).catch(() => void 0);
 		const excludedBy = exclusions[account.id];
 		return {
 			id: account.id,
 			accountName: account.accountName,
 			selected: account.selected,
-			...credits === void 0 ? {} : { credits },
+			...answer === void 0 ? {} : { credits: answer.total },
+			...answer === void 0 ? {} : { expiringSoon: answer.expiringSoon },
+			...answer?.nearestExpiryMs === void 0 ? {} : { nearestExpiryMs: answer.nearestExpiryMs },
 			...excludedBy === void 0 ? {} : { excludedBy }
 		};
 	}));
@@ -10466,11 +12304,26 @@ async function workBuddyWebStatus(deps, region, options = {}) {
 	deps.regionUsable?.(region, accounts.length > 0);
 	const enabled = deps.regionEnabled(region);
 	const showCreditsInMainUi = deps.showCreditsInMainUi?.(region) ?? true;
+	const showNewModelsInMainUi = deps.showNewModelsInMainUi?.(region) ?? false;
 	const creditPosition = deps.creditPosition?.(region) ?? "composer";
 	const imageToolEnabled = deps.imageToolEnabled?.(region) ?? false;
 	const videoToolEnabled = deps.videoToolEnabled?.(region) ?? false;
 	const preferredVideoModels = deps.preferredVideoModels?.(region) ?? {};
+	const preferredImageModel = deps.preferredImageModel?.(region) ?? "";
 	const cliBridgeEnabled = deps.cliBridgeEnabled?.() === true;
+	const sidebarPanelEnabled = deps.sidebarPanelEnabled?.() === true;
+	/**
+	* The card's refresh cadence, resolved once per document.
+	*
+	* Coerced against the offered set here as well as on the Host: this value
+	* drives `setInterval`, and an unrecognized number (an older Host, a
+	* hand-edited profile) must degrade to the default rather than to something
+	* like `0`, which would poll continuously.
+	*/
+	const pollIntervalMs = (() => {
+		const raw = deps.pollIntervalMs?.();
+		return typeof raw === "number" && WORKBUDDY_POLL_INTERVALS_MS.includes(raw) ? raw : WORKBUDDY_DEFAULT_POLL_INTERVAL_MS;
+	})();
 	const cliBridgeModel = deps.cliBridgeModel?.() ?? "";
 	const cliBridgeEffort = deps.cliBridgeEffort?.() ?? "";
 	const cliBridgeRegionOrder = deps.cliBridgeRegionOrder?.() ?? "";
@@ -10485,10 +12338,14 @@ async function workBuddyWebStatus(deps, region, options = {}) {
 		selectionExplicit,
 		enabled,
 		showCreditsInMainUi,
+		showNewModelsInMainUi,
 		imageToolEnabled,
 		videoToolEnabled,
 		preferredVideoModels,
+		preferredImageModel,
 		cliBridgeEnabled,
+		sidebarPanelEnabled,
+		pollIntervalMs,
 		cliBridgeModel,
 		cliBridgeEffort,
 		cliBridgeRegionOrder,
@@ -10507,11 +12364,15 @@ async function workBuddyWebStatus(deps, region, options = {}) {
 			selectionExplicit,
 			enabled,
 			showCreditsInMainUi,
+			showNewModelsInMainUi,
 			creditPosition,
 			imageToolEnabled,
 			videoToolEnabled,
 			preferredVideoModels,
+			preferredImageModel,
 			cliBridgeEnabled,
+			sidebarPanelEnabled,
+			pollIntervalMs,
 			cliBridgeModel,
 			cliBridgeEffort,
 			cliBridgeRegionOrder,
@@ -10519,6 +12380,7 @@ async function workBuddyWebStatus(deps, region, options = {}) {
 			...lastForeignThinking === void 0 ? {} : { lastForeignThinking },
 			busyLevels,
 			...await store.selectionLost() ? { selectionLost: true } : {},
+			...await vaultUnreadableOf(store),
 			...webAccounts.length === 0 ? await searchedPaths(store) : {}
 		};
 	}
@@ -10537,7 +12399,10 @@ async function workBuddyWebStatus(deps, region, options = {}) {
 		imageToolEnabled,
 		videoToolEnabled,
 		preferredVideoModels,
+		preferredImageModel,
 		cliBridgeEnabled,
+		sidebarPanelEnabled,
+		pollIntervalMs,
 		cliBridgeModel,
 		cliBridgeEffort,
 		cliBridgeRegionOrder,
@@ -10686,6 +12551,11 @@ async function workBuddyWebPool(deps, region, fast = false) {
 	return {
 		enabled: preferences.enabled,
 		checkinSupported: pool.checkinSupported?.(region) === true,
+		...preferences.autoCheckin !== true ? {} : { autoCheckin: true },
+		...(() => {
+			const today = pool.autoCheckinToday?.(region);
+			return today === void 0 ? {} : { autoCheckinToday: today };
+		})(),
 		...target.modelId === void 0 ? {} : { targetModelId: target.modelId },
 		...target.staleModelId === void 0 ? {} : { staleTargetModelId: target.staleModelId },
 		targetModelSource: target.source,
@@ -10726,213 +12596,179 @@ function requestRegion(req, res) {
 */
 function registerWorkBuddyStatusRoute(ctx, deps) {
 	ctx.effect(() => {
-		const disposeUsage = ctx.webServer.register({
-			kind: "exact",
+		/**
+		* 注册时自动收好 disposer。曾经每个路由 `const disposeX = register(...)`，再
+		* 在末尾手写 16 行 `disposeX()`——`benefit/claim` 漏了一行（issue #86），热重载
+		* 时宿主因重复注册同路径而抛错，后面的路由全部注册不上，卡片半数按钮答 405。
+		* 收成一个数组后，「新加路由忘了加卸载」这一类错误不可能再发生。
+		*/
+		const disposers = [];
+		const route = (entry) => {
+			disposers.push(ctx.webServer.register(entry));
+		};
+		/**
+		* 路由骨架：方法闸 → loopback → 可选前置条件 → 区域 → try/catch → 500。
+		*
+		* 这几道闸原先在每个 handler 里各抄一遍（16 处 `requireLoopback`、16 处
+		* `405`、22 处 `500`）。抄漏一道不会有任何编译错误，却是一个真实的
+		* DNS-rebinding 或跨区泄漏面——见 `requireLoopback` 自己的注释。收进这里
+		* 之后，handler 只写业务，也不可能漏闸。
+		*
+		* `ready` 在区域解析**之前**跑：`models` / `media` 这类路由要先答「宿主没有
+		* 这项能力」的 503，再谈区域；反过来会让一个缺区域参数的请求先拿到 400。
+		*/
+		function raw(spec, run) {
+			route({
+				kind: "exact",
+				path: spec.path,
+				handler: async (req, res) => {
+					if (req.method !== spec.method) return json(res, 405, { error: "method not allowed" });
+					if (!requireLoopback(req, res, deps)) return;
+					if (spec.ready !== void 0 && !spec.ready(res)) return;
+					try {
+						await run(req, res);
+					} catch (error) {
+						json(res, 500, { error: safeMessage(error) });
+					}
+				}
+			});
+		}
+		/**
+		* 带区域参数的路由：区域解析在 try 之外，与原来的顺序一致。
+		* 不带区域参数的路由直接调 `raw`——区域参数会让 `requestRegion` 把一个
+		* 合法读答成 400（`cli-live` 就是这种）。
+		*/
+		function endpointRegion(spec, handle) {
+			raw(spec, (req, res) => {
+				const region = requestRegion(req, res);
+				if (region === void 0) return;
+				return handle(req, res, region);
+			});
+		}
+		endpointRegion({
 			path: WORKBUDDY_USAGE_PATH,
-			handler: async (req, res) => {
-				if (req.method !== "GET") {
-					json(res, 405, { error: "method not allowed" });
-					return;
-				}
-				if (!requireLoopback(req, res)) return;
-				const region = requestRegion(req, res);
-				if (region === void 0) return;
-				const detail = fastDetailOf(req.url ?? "") ? "fast" : "full";
-				try {
-					json(res, 200, await workBuddyWebStatus(deps, region, { detail }));
-				} catch (error) {
-					json(res, 500, { error: safeMessage(error) });
-				}
-			}
+			method: "GET"
+		}, async (req, res, region) => {
+			json(res, 200, await workBuddyWebStatus(deps, region, { detail: fastDetailOf(req.url ?? "") ? "fast" : "full" }));
 		});
-		const disposeAccountCredits = ctx.webServer.register({
-			kind: "exact",
+		endpointRegion({
 			path: WORKBUDDY_ACCOUNT_CREDITS_PATH,
-			handler: async (req, res) => {
-				if (req.method !== "GET") return json(res, 405, { error: "method not allowed" });
-				if (!requireLoopback(req, res)) return;
-				const region = requestRegion(req, res);
-				if (region === void 0) return;
-				try {
-					json(res, 200, { accounts: await workBuddyAccountCredits(deps, region) });
-				} catch (error) {
-					json(res, 500, { error: safeMessage(error) });
-				}
-			}
+			method: "GET"
+		}, async (_req, res, region) => {
+			json(res, 200, { accounts: await workBuddyAccountCredits(deps, region) });
 		});
-		const disposeAccounts = ctx.webServer.register({
-			kind: "exact",
+		endpointRegion({
 			path: WORKBUDDY_ACCOUNTS_REFRESH_PATH,
-			handler: async (req, res) => {
-				if (req.method !== "POST") return json(res, 405, { error: "method not allowed" });
-				if (!requireLoopback(req, res)) return;
-				const region = requestRegion(req, res);
-				if (region === void 0) return;
-				try {
-					const store = deps.store(region);
-					const dismissalsCleared = await store.clearDismissals();
-					const accounts = await store.accounts();
-					deps.regionUsable?.(region, accounts.length > 0);
-					json(res, 200, {
-						accounts: accounts.map(toWebAccount),
-						dismissalsCleared
-					});
-				} catch (error) {
-					json(res, 500, { error: safeMessage(error) });
-				}
-			}
+			method: "POST"
+		}, async (_req, res, region) => {
+			const store = deps.store(region);
+			const dismissalsCleared = await store.clearDismissals();
+			const accounts = await store.accounts();
+			deps.regionUsable?.(region, accounts.length > 0);
+			json(res, 200, {
+				accounts: accounts.map(toWebAccount),
+				dismissalsCleared
+			});
 		});
-		const disposeCheckin = ctx.webServer.register({
-			kind: "exact",
+		endpointRegion({
 			path: WORKBUDDY_CHECKIN_PATH,
-			handler: async (req, res) => {
-				if (req.method !== "POST") return json(res, 405, { error: "method not allowed" });
-				if (!requireLoopback(req, res)) return;
-				const region = requestRegion(req, res);
-				if (region === void 0) return;
-				try {
-					const credential = await deps.store(region).resolve();
-					const current = await deps.client.fetchCheckinStatus(credential);
-					if (!current.active) return json(res, 409, { error: "check-in activity is not active" });
-					if (current.todayCheckedIn) return json(res, 200, {
-						alreadyCheckedIn: true,
-						checkin: current
-					});
-					json(res, 200, {
-						alreadyCheckedIn: false,
-						claim: await deps.client.claimDailyCheckin(credential),
-						checkin: await deps.client.fetchCheckinStatus(credential)
-					});
-				} catch (error) {
-					json(res, 500, { error: safeMessage(error) });
-				}
-			}
+			method: "POST"
+		}, async (_req, res, region) => {
+			const credential = await deps.store(region).resolve();
+			const current = await deps.client.fetchCheckinStatus(credential);
+			if (!current.active) return json(res, 409, { error: "check-in activity is not active" });
+			if (current.todayCheckedIn) return json(res, 200, {
+				alreadyCheckedIn: true,
+				checkin: current
+			});
+			json(res, 200, {
+				alreadyCheckedIn: false,
+				claim: await deps.client.claimDailyCheckin(credential),
+				checkin: await deps.client.fetchCheckinStatus(credential)
+			});
 		});
-		const disposeBenefitClaim = ctx.webServer.register({
-			kind: "exact",
+		endpointRegion({
 			path: WORKBUDDY_BENEFIT_CLAIM_PATH,
-			handler: async (req, res) => {
-				if (req.method !== "POST") return json(res, 405, { error: "method not allowed" });
-				if (!requireLoopback(req, res)) return;
-				const region = requestRegion(req, res);
-				if (region === void 0) return;
-				const url = new URL(req.url ?? "/", "http://127.0.0.1");
-				const accountId = url.searchParams.get(WORKBUDDY_POOL_ACCOUNT_PARAM);
-				const kind = url.searchParams.get("kind");
-				if (accountId === null || accountId === "") return json(res, 400, { error: "accountId is required" });
-				if (kind !== "compensation" && kind !== "gift") return json(res, 400, { error: "kind must be compensation or gift" });
-				try {
-					const credential = await deps.store(region).credentialFor(accountId);
-					if (credential === void 0) return json(res, 404, { error: "no credential for this account" });
-					if (credential.enterpriseId !== void 0 && credential.enterpriseId !== "") return json(res, 409, { error: "enterprise-account-unsupported" });
-					const target = (await deps.client.fetchBenefits(credential)).find((benefit) => benefit.kind === kind);
-					if (target === void 0) return json(res, 404, { error: "benefit not available on this account" });
-					if (target.claimed) return json(res, 409, {
-						error: "benefit already claimed",
-						benefit: target
-					});
-					if (!target.active) return json(res, 409, {
-						error: "benefit activity is not active",
-						benefit: target
-					});
-					await deps.client.claimBenefit(credential, kind);
-					deps.pool?.invalidateBenefit?.(region, accountId);
-					json(res, 200, {
-						claimed: true,
-						benefit: (await deps.client.fetchBenefits(credential)).find((benefit) => benefit.kind === kind) ?? target
-					});
-				} catch (error) {
-					json(res, 500, { error: safeMessage(error) });
-				}
-			}
+			method: "POST"
+		}, async (req, res, region) => {
+			const url = new URL(req.url ?? "/", "http://127.0.0.1");
+			const accountId = url.searchParams.get(WORKBUDDY_POOL_ACCOUNT_PARAM);
+			const kind = url.searchParams.get("kind");
+			if (accountId === null || accountId === "") return json(res, 400, { error: "accountId is required" });
+			if (kind !== "compensation" && kind !== "gift") return json(res, 400, { error: "kind must be compensation or gift" });
+			const credential = await deps.store(region).credentialFor(accountId);
+			if (credential === void 0) return json(res, 404, { error: "no credential for this account" });
+			if (credential.enterpriseId !== void 0 && credential.enterpriseId !== "") return json(res, 409, { error: "enterprise-account-unsupported" });
+			const target = (await deps.client.fetchBenefits(credential)).find((benefit) => benefit.kind === kind);
+			if (target === void 0) return json(res, 404, { error: "benefit not available on this account" });
+			if (target.claimed) return json(res, 409, {
+				error: "benefit already claimed",
+				benefit: target
+			});
+			if (!target.active) return json(res, 409, {
+				error: "benefit activity is not active",
+				benefit: target
+			});
+			await deps.client.claimBenefit(credential, kind);
+			deps.pool?.invalidateBenefit?.(region, accountId);
+			json(res, 200, {
+				claimed: true,
+				benefit: (await deps.client.fetchBenefits(credential)).find((benefit) => benefit.kind === kind) ?? target
+			});
 		});
-		const disposeRefresh = ctx.webServer.register({
-			kind: "exact",
+		endpointRegion({
 			path: WORKBUDDY_MODELS_REFRESH_PATH,
-			handler: async (req, res) => {
-				if (req.method !== "POST") return json(res, 405, { error: "method not allowed" });
-				if (!requireLoopback(req, res)) return;
-				if (deps.discoverModels === void 0) return json(res, 503, { error: "model refresh unavailable" });
-				const region = requestRegion(req, res);
-				if (region === void 0) return;
-				try {
-					json(res, 200, { models: (await deps.discoverModels(region)).map((model) => toWebModel(model, deps.contextBudgets(region))) });
-				} catch (error) {
-					json(res, 500, { error: safeMessage(error) });
-				}
-			}
+			method: "POST",
+			ready: (res) => deps.discoverModels === void 0 ? (json(res, 503, { error: "model refresh unavailable" }), false) : deps.persistModels === void 0 ? (json(res, 503, { error: "model refresh cannot be persisted" }), false) : true
+		}, async (_req, res, region) => {
+			const models = await deps.discoverModels(region);
+			await deps.persistModels(region, models);
+			json(res, 200, { models: models.map((model) => toWebModel(model, deps.contextBudgets(region))) });
 		});
-		const disposeMediaModels = ctx.webServer.register({
-			kind: "exact",
+		endpointRegion({
 			path: WORKBUDDY_MEDIA_MODELS_PATH,
-			handler: async (req, res) => {
-				if (req.method !== "POST") return json(res, 405, { error: "method not allowed" });
-				if (!requireLoopback(req, res)) return;
-				if (deps.mediaModels === void 0) return json(res, 503, { error: "media model list unavailable" });
-				const region = requestRegion(req, res);
-				if (region === void 0) return;
-				try {
-					const refresh = new URL(req.url ?? "/", "http://localhost").searchParams.get("refresh") === "1";
-					json(res, 200, { models: (await deps.mediaModels(region, { refresh })).map((model) => ({
-						id: model.id,
-						name: model.name,
-						tags: [...model.tags]
-					})) });
-				} catch (error) {
-					json(res, 500, { error: safeMessage(error) });
-				}
-			}
+			method: "POST",
+			ready: (res) => deps.mediaModels !== void 0 ? true : (json(res, 503, { error: "media model list unavailable" }), false)
+		}, async (req, res, region) => {
+			const refresh = new URL(req.url ?? "/", "http://localhost").searchParams.get("refresh") === "1";
+			json(res, 200, { models: (await deps.mediaModels(region, { refresh })).map((model) => ({
+				id: model.id,
+				name: model.name,
+				tags: [...model.tags]
+			})) });
 		});
-		const disposeProbe = ctx.webServer.register({
-			kind: "exact",
+		endpointRegion({
 			path: WORKBUDDY_PROBE_PATH,
-			handler: async (req, res) => {
-				if (req.method !== "POST") return json(res, 405, { error: "method not allowed" });
-				if (!requireLoopback(req, res)) return;
-				if (deps.probeModels === void 0) return json(res, 503, { error: "model probe unavailable" });
-				const region = requestRegion(req, res);
-				if (region === void 0) return;
-				try {
-					const body = await readJsonBody(req);
-					const modelIds = Array.isArray(body.modelIds) ? body.modelIds.filter((id) => typeof id === "string" && id !== "") : [];
-					if (modelIds.length === 0) return json(res, 400, { error: "modelIds must be a non-empty array of strings" });
-					if (modelIds.length > 1) return json(res, 400, { error: "a probe accepts exactly one model" });
-					const results = [];
-					for (const modelId of modelIds) results.push(...await deps.probeModels(region, [modelId]));
-					json(res, 200, { results });
-				} catch (error) {
-					json(res, 500, { error: safeMessage(error) });
-				}
-			}
+			method: "POST",
+			ready: (res) => deps.probeModels !== void 0 ? true : (json(res, 503, { error: "model probe unavailable" }), false)
+		}, async (req, res, region) => {
+			const body = await readJsonBody(req);
+			const modelIds = Array.isArray(body.modelIds) ? body.modelIds.filter((id) => typeof id === "string" && id !== "") : [];
+			if (modelIds.length === 0) return json(res, 400, { error: "modelIds must be a non-empty array of strings" });
+			if (modelIds.length > 1) return json(res, 400, { error: "a probe accepts exactly one model" });
+			const results = [];
+			for (const modelId of modelIds) results.push(...await deps.probeModels(region, [modelId]));
+			json(res, 200, { results });
 		});
-		const disposeTps = ctx.webServer.register({
-			kind: "exact",
+		endpointRegion({
 			path: WORKBUDDY_TPS_PATH,
-			handler: async (req, res) => {
-				if (req.method !== "POST") return json(res, 405, { error: "method not allowed" });
-				if (!requireLoopback(req, res)) return;
-				if (deps.measureTps === void 0) return json(res, 503, { error: "tps measurement unavailable" });
-				const region = requestRegion(req, res);
-				if (region === void 0) return;
-				try {
-					const body = await readJsonBody(req);
-					const modelIds = Array.isArray(body.modelIds) ? body.modelIds.filter((id) => typeof id === "string" && id !== "") : [];
-					if (modelIds.length === 0) return json(res, 400, { error: "modelIds must be a non-empty array of strings" });
-					if (modelIds.length > 1) return json(res, 400, { error: "a tps measurement accepts exactly one model" });
-					const results = [];
-					for (const modelId of modelIds) results.push(...await deps.measureTps(region, [modelId]));
-					json(res, 200, { results });
-				} catch (error) {
-					json(res, 500, { error: safeMessage(error) });
-				}
-			}
+			method: "POST",
+			ready: (res) => deps.measureTps !== void 0 ? true : (json(res, 503, { error: "tps measurement unavailable" }), false)
+		}, async (req, res, region) => {
+			const body = await readJsonBody(req);
+			const modelIds = Array.isArray(body.modelIds) ? body.modelIds.filter((id) => typeof id === "string" && id !== "") : [];
+			if (modelIds.length === 0) return json(res, 400, { error: "modelIds must be a non-empty array of strings" });
+			if (modelIds.length > 1) return json(res, 400, { error: "a tps measurement accepts exactly one model" });
+			const results = [];
+			for (const modelId of modelIds) results.push(...await deps.measureTps(region, [modelId]));
+			json(res, 200, { results });
 		});
-		const disposePool = ctx.webServer.register({
+		route({
 			kind: "exact",
 			path: WORKBUDDY_POOL_PATH,
 			handler: async (req, res) => {
 				if (req.method !== "POST") return json(res, 405, { error: "method not allowed" });
-				if (!requireLoopback(req, res)) return;
+				if (!requireLoopback(req, res, deps)) return;
 				const region = requestRegion(req, res);
 				if (region === void 0) return;
 				const action = poolActionOf(req.url ?? "/");
@@ -11070,12 +12906,12 @@ function registerWorkBuddyStatusRoute(ctx, deps) {
 				}
 			}
 		});
-		const disposeDiagWrite = ctx.webServer.register({
+		route({
 			kind: "exact",
 			path: "/plugins/dsh-connect-workbuddy/__save",
 			handler: async (req, res) => {
 				if (req.method !== "POST") return json(res, 405, { error: "method not allowed" });
-				if (!requireLoopback(req, res)) return;
+				if (!requireLoopback(req, res, deps)) return;
 				const settings = ctx.get?.("settings");
 				if (settings === void 0) return json(res, 503, { error: "settings service unavailable to this fiber" });
 				try {
@@ -11092,7 +12928,7 @@ function registerWorkBuddyStatusRoute(ctx, deps) {
 						req.on("error", reject);
 					});
 					const field = body.field;
-					if (field !== "regions" && field !== "accounts" && field !== "cliBridge" && !(typeof field === "string" && UPSTREAM_SWITCH_FIELDS.has(field))) return json(res, 400, { error: "field must be regions, accounts, cliBridge, usageIdentity, keepPromptLast, extraInjectedPrefixes, sessionTitle, dropForeignThinking or channelRejectContinue" });
+					if (field !== "regions" && field !== "accounts" && field !== "cliBridge" && !(typeof field === "string" && UPSTREAM_SWITCH_FIELDS.has(field))) return json(res, 400, { error: "field must be regions, accounts, cliBridge, usageIdentity, keepPromptLast, extraInjectedPrefixes, sessionTitle, dropForeignThinking, dropAllThinking, channelRejectContinue or sidebarPanel" });
 					const row = settings.describe().find((r) => String(r.ns).includes("workbuddy"));
 					if (row === void 0) return json(res, 503, { error: "workbuddy namespace missing from describe()" });
 					const current = field === "regions" ? regionsMapOf(row.value?.[field]) : unwrapVolatileDeep(row.value?.[field] ?? {});
@@ -11157,40 +12993,31 @@ function registerWorkBuddyStatusRoute(ctx, deps) {
 				}
 			}
 		});
-		const disposeOAuth = ctx.webServer.register({
-			kind: "exact",
+		endpointRegion({
 			path: WORKBUDDY_OAUTH_PATH,
-			handler: async (req, res) => {
-				if (req.method !== "POST") return json(res, 405, { error: "method not allowed" });
-				if (!requireLoopback(req, res)) return;
-				const region = requestRegion(req, res);
-				if (region === void 0) return;
-				const action = oauthActionOf(req.url ?? "/");
-				if (action === void 0) return json(res, 400, { error: "action must be start or poll" });
-				const oauth = deps.oauth;
-				if (oauth === void 0) return json(res, 503, {
-					reason: "oauth-unavailable",
-					error: "OAuth sign-in is not available in this build"
-				});
-				try {
-					if (action === "start") {
-						json(res, 200, await oauth.start(region));
-						return;
-					}
-					const body = await readJsonBody(req);
-					if (typeof body.loginId !== "string" || body.loginId === "") return json(res, 400, { error: "loginId must be a non-empty string" });
-					json(res, 200, await oauth.poll(region, body.loginId));
-				} catch (error) {
-					json(res, 500, { error: safeMessage(error) });
-				}
+			method: "POST"
+		}, async (req, res, region) => {
+			const action = oauthActionOf(req.url ?? "/");
+			if (action === void 0) return json(res, 400, { error: "action must be start or poll" });
+			const oauth = deps.oauth;
+			if (oauth === void 0) return json(res, 503, {
+				reason: "oauth-unavailable",
+				error: "OAuth sign-in is not available in this build"
+			});
+			if (action === "start") {
+				json(res, 200, await oauth.start(region));
+				return;
 			}
+			const body = await readJsonBody(req);
+			if (typeof body.loginId !== "string" || body.loginId === "") return json(res, 400, { error: "loginId must be a non-empty string" });
+			json(res, 200, await oauth.poll(region, body.loginId));
 		});
-		const disposeTransfer = ctx.webServer.register({
+		route({
 			kind: "exact",
 			path: WORKBUDDY_TRANSFER_PATH,
 			handler: async (req, res) => {
 				if (req.method !== "POST") return json(res, 405, { error: "method not allowed" });
-				if (!requireLoopback(req, res)) return;
+				if (!requireLoopback(req, res, deps)) return;
 				const region = requestRegion(req, res);
 				if (region === void 0) return;
 				const action = transferActionOf(req.url ?? "/");
@@ -11209,13 +13036,14 @@ function registerWorkBuddyStatusRoute(ctx, deps) {
 						if (answer.accounts.length === 0) return json(res, 409, { error: "none of the named accounts was found in this region" });
 						return jsonPrivate(res, 200, answer);
 					}
-					const body = await readJsonBody(req);
+					const body = await readJsonBody(req, TRANSFER_BODY_LIMIT);
 					if (typeof body.text !== "string" || body.text.trim() === "") return json(res, 400, { error: "text must be the transfer file's JSON content" });
 					if (action === "preview") return json(res, 200, await transfer.previewImport(region, body.text));
 					const indexes = Array.isArray(body.indexes) ? body.indexes.filter((value) => typeof value === "number" && Number.isInteger(value) && value >= 0) : [];
 					if (indexes.length === 0) return json(res, 400, { error: "indexes must name at least one file entry to import" });
 					return json(res, 200, await transfer.importAccounts(region, body.text, indexes));
 				} catch (error) {
+					if (error instanceof JsonBodyTooLargeError) return json(res, 413, { error: safeMessage(error) });
 					json(res, 500, { error: safeMessage(error) });
 				}
 			}
@@ -11239,21 +13067,14 @@ function registerWorkBuddyStatusRoute(ctx, deps) {
 		* leave a ghost pill describing a turn that already ended. Answering an
 		* empty document keeps "off" inside the same code path as "no turns".
 		*/
-		const disposeCliLive = ctx.webServer.register({
-			kind: "exact",
+		raw({
 			path: WORKBUDDY_CLI_LIVE_PATH,
-			handler: (req, res) => {
-				if (req.method !== "GET") return json(res, 405, { error: "method not allowed" });
-				if (!requireLoopback(req, res)) return;
-				try {
-					json(res, 200, deps.cliLive?.() ?? {
-						turns: [],
-						serverTime: Date.now()
-					});
-				} catch (error) {
-					json(res, 500, { error: safeMessage(error) });
-				}
-			}
+			method: "GET"
+		}, (_req, res) => {
+			json(res, 200, deps.cliLive?.() ?? {
+				turns: [],
+				serverTime: Date.now()
+			});
 		});
 		/**
 		* 设备头设置：档位切换 + 每账号的虚拟参数。
@@ -11262,11 +13083,11 @@ function registerWorkBuddyStatusRoute(ctx, deps) {
 		* 都是**即时生效**——这里没有草稿，因为齿轮改的是"这台机器对外声称自己是谁"，
 		* 一个需要点保存才生效的设备身份，会让"我改完到底发出去的是什么"变成猜测。
 		*/
-		const disposeDeviceProfile = ctx.webServer.register({
+		route({
 			kind: "exact",
 			path: WORKBUDDY_DEVICE_PROFILE_PATH,
 			handler: async (req, res) => {
-				if (!requireLoopback(req, res)) return;
+				if (!requireLoopback(req, res, deps)) return;
 				const port = deps.deviceSettings;
 				if (port === void 0) return json(res, 503, {
 					reason: "device-settings-unavailable",
@@ -11361,11 +13182,11 @@ function registerWorkBuddyStatusRoute(ctx, deps) {
 		* 放在 POST 后面不是形式主义——它会进浏览器历史、会被 proxy 记日志、会被截图，
 		* 而 `GET` 是三者里最容易被动触发的（预取、刷新、插件间的探测）。
 		*/
-		const disposeDeviceSdk = ctx.webServer.register({
+		route({
 			kind: "exact",
 			path: WORKBUDDY_DEVICE_SDK_PATH,
 			handler: async (req, res) => {
-				if (!requireLoopback(req, res)) return;
+				if (!requireLoopback(req, res, deps)) return;
 				const port = deps.deviceSdk;
 				if (port === void 0) return json(res, 503, {
 					reason: "device-sdk-unavailable",
@@ -11373,7 +13194,12 @@ function registerWorkBuddyStatusRoute(ctx, deps) {
 				});
 				if (req.method === "GET") {
 					try {
-						json(res, 200, await port.read());
+						const report = await port.read();
+						const enabled = await port.readEnabled();
+						json(res, 200, enabled === void 0 ? report : {
+							...report,
+							sdkEnabled: enabled
+						});
 					} catch (error) {
 						json(res, 500, {
 							reason: "device-sdk-failed",
@@ -11394,32 +13220,30 @@ function registerWorkBuddyStatusRoute(ctx, deps) {
 						return json(res, 200, { token });
 					}
 					if (action === "refresh") return json(res, 200, await port.refresh());
+					/**
+					* `?action=enable` / `?action=disable` —— SDK 总开关。
+					*
+					* 用两个动作名而不是 `?enabled=1`：这个路由的其余动作都是**动词**，
+					* 而一个布尔查询参数会让"没传"和"传了空"看起来一样。
+					*/
+					if (action === "enable" || action === "disable") {
+						if (!await port.writeEnabled(action === "enable")) return json(res, 501, {
+							reason: "settings-unavailable",
+							error: "this host has no settings write path"
+						});
+						return json(res, 200, { sdkEnabled: action === "enable" });
+					}
 				} catch (error) {
 					return json(res, 500, {
 						reason: "device-sdk-failed",
 						error: safeMessage(error)
 					});
 				}
-				json(res, 400, { error: "action must be 'refresh' or 'reveal'" });
+				json(res, 400, { error: "action must be 'refresh', 'reveal', 'enable' or 'disable'" });
 			}
 		});
 		return () => {
-			disposeBenefitClaim();
-			disposeRefresh();
-			disposeMediaModels();
-			disposeCheckin();
-			disposeAccounts();
-			disposeUsage();
-			disposeAccountCredits();
-			disposeProbe();
-			disposeTps();
-			disposePool();
-			disposeOAuth();
-			disposeTransfer();
-			disposeDiagWrite();
-			disposeCliLive();
-			disposeDeviceProfile();
-			disposeDeviceSdk();
+			for (const dispose of disposers) dispose();
 		};
 	}, "dsh-connect-workbuddy: Web status route");
 }
@@ -11485,6 +13309,25 @@ const poolConfig = z.object({
 	*/
 	probeInputTokens: z.number().step(1).default(0).description("Input tokens each test probe sends: 10000 / 20000 / 30000 / 50000 / 100000. Bigger probes catch a rate limit real conversations would hit, but cost more credit per test and may mark an account unusable for large requests only. 0 uses the measured default (25000)"),
 	memberAccountIds: z.array(z.string()).default([]).description("Account ids checked into this pool (opt-in; empty means the pool covers nothing)"),
+	/**
+	* Whether the plugin claims the daily check-in by itself (opt-IN, default off).
+	*
+	* OFF BY DEFAULT, and that is the whole design (issue #191). Claiming a daily
+	* reward is a real WRITE on the user's account, and this plugin shipped with no
+	* automatic check-in precisely so it would never make that decision for
+	* someone. The reasoning still holds — what changed is that the user can now
+	* make the decision once and have it honoured.
+	*
+	* The alternative was worse than it looks: a missed day resets the streak to
+	* zero (the reporter was at 32), and the claim costs no credits and is
+	* idempotent upstream. So the trade is "one switch" against "a 32-day streak
+	* lost to a weekend".
+	*
+	* Only the CN region has a check-in; the switch is hidden elsewhere and the
+	* runner refuses to start there, so a hand-edited profile cannot make the
+	* background path spend a request per account per day learning a refusal.
+	*/
+	autoCheckin: z.boolean().default(false).description("Claim the daily check-in automatically for the accounts checked into this pool (opt-in). Idempotent: an account already checked in today is reported, never re-claimed. Only the CN region has a daily check-in."),
 	orderAccountIds: z.array(z.string()).default([]).description("The user's hand-ordered pool order, as account ids. Independent of membership: an id need not be checked in (it only takes effect once the account is a member), and ids not listed sort last. Separate from memberAccountIds so reordering never conflicts with, or is destroyed by, a membership edit.")
 });
 const regionStateConfig = z.object({
@@ -11498,17 +13341,64 @@ const regionStateConfig = z.object({
 	* single shared switch would force them to either show a permanently empty
 	* row or lose the one that works.
 	*
-	* ON by default (opt-out). The plugin card is not reachable in every host —
-	* a market plugin can own the Plugins tab and never render
-	* `plugins.bundle.config` — so a feature that is off until discovered would be
-	* off forever for those users. The line carries its own `×` in the sidebar,
-	* which is reachable exactly where the feature renders.
+	* ON by default (opt-out). The configuration page is not reachable in every
+	* host — a composition can omit the Settings shell, and even where it exists
+	* the user has to know the page is there — so a feature that is off until
+	* discovered would be off forever for those users. The line carries its own
+	* `×` in the sidebar, which is reachable exactly where the feature renders.
 	*/
 	showCreditsInMainUi: z.boolean().default(true).description("Show this region's remaining credits at the DSH sidebar foot (opt-out; the line carries its own hide button)"),
+	/**
+	* Whether the composer pill carries its "· N 新模型" segment (opt-IN, default
+	* off).
+	*
+	* WHY OFF BY DEFAULT. "New" here means *first seen by this machine*, not *new
+	* upstream* — the plugin cannot observe when the upstream listed a model, only
+	* when its own roster history first recorded the id. On a fresh install every
+	* id is first-seen, so the very first refresh announces the entire roster as
+	* new: a number that is true by construction, says nothing about the upstream,
+	* and reads as a defect.
+	*
+	* It is a genuinely useful signal ONCE history exists, and it WAS already on,
+	* so the people who want it would lose it to a silent change. Hence opt-in
+	* rather than removal: the segment is worth having, it is just not worth
+	* showing to someone who never asked for it. The same switch governs the "新"
+	* mark on individual picker rows — both read one snapshot (see
+	* `WorkBuddyModelLabel`), so the two surfaces cannot disagree.
+	*/
+	showNewModelsInMainUi: z.boolean().default(false).description("Show the \"· N 新模型\" segment (and the per-row \"新\" mark) in the composer. \"New\" means first seen BY THIS MACHINE, not newly listed upstream — on a fresh install that is the whole roster. Off by default."),
 	creditPosition: z.union([z.const("composer"), z.const("stats")]).default("composer").description("Where the credit readout sits: \"composer\" = the composer tool row (default), \"stats\" = the ambient row below the composer card, next to the shell's own token pills. Choose \"stats\" if another plugin occupies the composer row."),
 	lastCatalog: z.array(modelConfig).default([]),
 	enabledModelIds: z.array(z.string()).default([]),
 	imageModelIds: z.array(z.string()).default([]),
+	/**
+	* Which text-to-image model this region uses, as picked in the card (issue #241).
+	*
+	* An EMPTY string means "no choice": the tool takes the group's first model,
+	* which is whatever the upstream catalog lists first (`hunyuan-image-alpha` in
+	* the CN region as of 2026-11-12). Set it to `hunyuan-image-v3.0` for output
+	* with no watermark.
+	*
+	* Why a free string and not an enum: the watermark-free model is NOT in the
+	* `/v3/config` catalog — it is the official CLI's own hard-coded fallback — so
+	* an enum would have to hard-code a vendor id list that can change without
+	* this plugin being released. The tool validates it against the choices it can
+	* actually offer (`imageModelChoices`) and falls back silently when the id is
+	* stale, exactly like `preferredVideoModels`.
+	*/
+	preferredImageModel: z.string().default("").description("Text-to-image model for this region, picked in the card. Empty = the catalog's first model. Set \"hunyuan-image-v3.0\" for watermark-free output (CN region only; ~11.1 credits/image instead of ~6, and a smaller size limit)."),
+	/**
+	* Alternative CN gateway host (issue #220); see the interface field of the
+	* same name. Empty = the built-in gateway.
+	*
+	* A plain string rather than a `union` of the allowed hosts on purpose: the
+	* allowlist lives in `src/cn-gateway.ts` and is enforced there with an
+	* explicit reason the card can word ("not a known CN host" vs "not https").
+	* Encoding it in the schema too would produce a validation error the settings
+	* layer reports as a generic schema failure, and the user would be told their
+	* value is invalid without being told which rule it broke.
+	*/
+	cnBase: z.string().default("").description("Alternative CN gateway host for networks that filter copilot.tencent.com by TLS SNI (issue #220). Must be an https URL on one of the CN brands: copilot.tencent.com, wb.tencentbuddy.com, www.workbuddy.cn, www.codebuddy.cn (any subdomain of those registrable domains). Empty keeps the built-in gateway. Chat, billing, catalog and check-in all follow it; Origin/Referer keep naming the CN web app. CONNECTION-LAYER failures only — set it after a filter, not to change your account or region."),
 	/**
 	* Whether the model may call the image-generation tool (opt-IN, default off).
 	*
@@ -11583,9 +13473,11 @@ const regionStateConfig = z.object({
 	* not have is a hard `UNSUPPORTED_REASONING_EFFORT` (issue #90).
 	*
 	* An ABSENT key means "follow this model's own upstream `defaultEffort`",
-	* which every model in the live catalog declares (measured 2026-10-30: `high`
-	* on thirteen of fifteen, `max` on the two five-tier ones). That is NOT the
-	* same as "no opinion": the adapter must still pin SOMETHING for the request
+	* which the great majority of the live catalog declares (measured 2026-10-30:
+	* `high` on thirteen of fifteen, `max` on the two five-tier ones) — and where
+	* the upstream declares none, "follow this model's own MIDDLE tier", never its
+	* weakest one (qoder 518ecbb's rule; see `src/default-effort.ts`). That is NOT
+	* the same as "no opinion": the adapter must still pin SOMETHING for the request
 	* paths that name no tier, and issue #83 is the record of what happens when
 	* that is left to pi-ai's level map — it filled in `off`, the upstream answers
 	* 400 / 11133, and `/compact` failed.
@@ -11675,13 +13567,45 @@ const Config = z.object({
 	imageModelIds: z.array(z.string()).default([]).description("Deprecated: pre-region-split CN image opt-in"),
 	contextBudgets: z.dict(z.number().step(1).min(1)).default({}).description("Deprecated: pre-region-split CN context budgets"),
 	cliBridge: asVolatile(cliBridgeConfig.default({}).description("Optional CodeBuddy CLI route; off by default and independent of the providers")),
+	sidebarPanel: asVolatile(z.boolean().default(false).description("Add a WorkBuddy panel to the DSH sidebar: a nav row that opens the credits / accounts / model catalog as a full page. Off by default — the row claims a global sidebar seat shared by every bundle, and the Plugins page already reaches the same content.")),
 	channelPerturbation: asVolatile(z.union([
 		z.const("off"),
 		z.const("failure"),
 		z.const("always")
 	]).default("failure").description("When to perturb scanned messages with invisible characters: \"off\" only rescues after a channel-gate refusal, \"failure\" (default) learns from a successful rescue and starts later requests perturbed, \"always\" starts every request with the dense rescue for a gateway whose plain attempt is guaranteed to fail.")),
 	usageIdentity: asVolatile(z.boolean().default(false).description("Send the chat conversation ids in the official client's 32-hex UUIDv7 shape and add a mirroring X-Request-ID. Off by default — it is a display alignment measured by a reporter, not by this plugin, and the chat channel identity (User-Agent) and request body never change.")),
+	stableConversationId: asVolatile(z.boolean().default(true).description("路线 A（默认开）：把 X-Conversation-ID 固定为从请求体不变前缀派生的亲和键（其余三件套仍每请求现生成），以复用上游前缀缓存。该值不是宿主会话标识，不宣称会话隔离，也不证明上游按会话分区；相同前缀的独立会话会共享键。设为 false 则回到每请求现生成的默认形状。依据 #275 的冻结单变量实验与维护者独立复现（87.1pp [81.9,92.0]，BENEFIT_SUPPORTED）翻为默认开；实验口径与边界见 docs/STABLE-KEY-SEMANTICS.md。改动后需重载插件（配置在挂载时采样一次）。")),
+	sessionConversationId: asVolatile(z.boolean().default(false).description("Route B (默认关): derive the upstream X-Conversation-ID from the HOST session id instead of the request prefix. The session id reaches the loopback shim as pi-ai session-affinity headers and is replaced by a domain-separated digest before anything is sent upstream — the real session id never leaves the process. Independent of route A; takes effect on the next request without a reload. See docs/ROUTE-B-SESSION-ID.md. No upstream cache-key or routing mechanism is asserted.")),
 	wireProfile: asVolatile(z.union([z.const("conservative"), z.const("balanced")]).default("balanced").description("Outbound identity profile. \"balanced\" (default) makes every request claim the same client (WorkBuddy product/IDE/agent headers, X-CodeBuddy-Request, Accept-Language, X-Root-Request-ID, and a per-account X-Machine-ID/X-Session-ID pair) and gives the billing routes a User-Agent plus Origin/Referer. \"conservative\" restores the 5.16.0 bytes exactly, including X-Product: SaaS.")),
+	/**
+	* How often the card re-reads the usage document.
+	*
+	* GLOBAL, not per-region: the card polls ONE region at a time (whichever tab
+	* is open), so a per-region value would be a setting the user edits per tab
+	* while only one of them is ever in effect. The composer account panel reads
+	* the same number, which is what keeps the two surfaces from disagreeing
+	* about one account — the complaint that fixed the panel at 60s in the first
+	* place.
+	*
+	* A CLOSED SET of five values rather than a free number: this interval decides
+	* the plugin's upstream request volume, and a typo'd `0` or a hand-written
+	* `1000` would turn a display refresh into a poll the upstream could rate
+	* limit. The same five are what the dropdown offers, so the control and its
+	* validation cannot drift apart.
+	*
+	* WHY THE DEFAULT MOVED OFF 60s: one refresh reads a credits document AND a
+	* check-in status per pooled account, so a 4-account pool at 60s is ~11,520
+	* requests a day for figures that move slowly. 5 minutes is a fifth of that
+	* and still far finer than the 30-minute auto check-in heartbeat.
+	*/
+	pollIntervalMs: asVolatile(z.union([
+		z.const(6e4),
+		z.const(3e5),
+		z.const(6e5),
+		z.const(18e5),
+		z.const(36e5)
+	]).default(3e5).description("How often the card refreshes its account table: 60000 (1 min), 300000 (5 min, default), 600000 (10 min), 1800000 (30 min) or 3600000 (60 min), in milliseconds. One refresh costs a credits read plus a check-in read per pooled account, so this is the setting that decides the plugin's upstream request volume. The composer account panel follows this value so the two surfaces cannot disagree about one account.")),
+	deviceSdkEnabled: asVolatile(z.boolean().default(false).description("Master switch for the real-device SDK. OFF by default, matching the default Virtual tier: turning it on makes the plugin discover the installed desktop SDK, fetch its device token in a background child process and keep it fresh. A capability that reaches into a third party's native modules on your machine should be opted into, and with the Virtual tier (the default) the token it fetches would never be sent anyway. On: discover, fetch, prewarm. Off: none of that — no discovery, no child process, no prewarming — so the Real tier has no token to send; the Virtual tier is unaffected (its ids derive from the local salt).")),
 	deviceToken: asVolatile(z.object({
 		file: z.string().default(""),
 		ttlMs: z.number().step(1).min(1e3).default(3e5)
@@ -11689,6 +13613,30 @@ const Config = z.object({
 	keepPromptLast: asVolatile(z.boolean().default(false).description("Move the harness-injected runtime context above the real prompt, so the WorkBuddy usage page records what you actually typed instead of the injected block. Message count and text are preserved; the one edit is the recorded prompt's own leading <acp> marker. Off by default because it changes the message order the upstream counts.")),
 	extraInjectedPrefixes: asVolatile(z.array(z.string()).default([]).description("Extra literal prefixes (issue #133) treated like the harness-injected context markers when keepPromptLast is on — for blocks a companion plugin injects that the built-in list does not recognize. Each entry matches the start of a trailing user message; read only while keepPromptLast is enabled. Sampled when the plugin mounts: reload the plugin (or restart the host) after changing it.")),
 	dropForeignThinking: asVolatile(z.boolean().default(false).description("Drop foreign thinking blocks that pi-ai would publish as prose (issue #147). CROSS-PROVIDER turns are dropped automatically: after a provider switch the other provider's unsigned thinking blocks can never be replayed, and pi-ai would flatten them into assistant prose that the gateway refuses with 11128 (issue #163's measured scene). This switch only widens the repair to a model switch inside one of this bundle's own routes. On, those blocks are removed from the request; text and tool calls are untouched. Off by default for the same-route leg because it changes bytes the upstream counts.")),
+	dropAllThinking: asVolatile(z.boolean().default(false).description("Strip EVERY historical thinking block before the request goes out (issue #213). The channel gate scans the request text, and a 11128 report matched every banned opening against this session's own reasoning blocks: WorkBuddy answers reasoning in `reasoning_content`, pi-ai records that field name as the block signature and replays it under the same name, so past reasoning rides along in the request and is one of the things carrying the text the gate refuses. On, all thinking blocks are removed from the request; your messages, tool calls and the model's answers are untouched, but the model no longer sees its own earlier reasoning. OFF by default: that loss is real, so it is a deliberate answer to a 11128 you can match to reasoning text, not a default. Takes effect on the next turn, no reload.")),
+	/**
+	* Authorities the deployer declared trusted for the plugin's own routes
+	* (issue #261). OFF (empty) by default, so nothing changes for a loopback or
+	* LAN-bound deployment. Add the public authority when DSH sits behind a
+	* reverse proxy that forwards Host unchanged: the harness binds a loopback
+	* address, so `req.socket.localAddress` is always 127.0.0.1 and the card's
+	* Host/Origin gate can never match `Host: <public authority>` — every route
+	* would answer 403 `host-not-trusted` even though the harness's own `/api`
+	* accepts that same Host via `--trusted-host`.
+	*
+	* Each entry is a bare `host[:port]` authority; a port-less entry matches the
+	* hostname on any port, an explicit-port entry matches exactly that
+	* authority. Values are validated by `assertTrustedAuthority` at mount so a
+	* typo fails loudly instead of silently granting a hostname prefix. This is
+	* NOT authentication (Host/Origin are forgeable) and does not weaken DNS
+	* rebinding defense: an attacker's domain is not on the list, loopback and
+	* the listener's own address are still accepted first, and `0.0.0.0`/`[::]`
+	* are still refused.
+	*
+	* Volatile and read at REQUEST time: adding an authority must not require a
+	* full plugin reload (which would drop in-flight requests) to take effect.
+	*/
+	trustedHosts: asVolatile(z.array(z.string()).default([]).description("Extra Host authorities the plugin's settings-card routes accept when DSH sits behind a reverse proxy (e.g. [\"192.168.1.250:8443\"] or [\"dsh.example.com\"]). Each entry is a bare host[:port]; a port-less entry matches that host on any port. Loopback, the listener's own address and the 0.0.0.0/[::] refusal are unchanged. Off by default. Takes effect without a reload.")),
 	sessionTitle: asVolatile(z.object({
 		enabled: z.boolean().default(false),
 		model: z.string().default("wb-lite")
@@ -11736,6 +13684,42 @@ function regionEnabled(config, region) {
 }
 /** Every region, in card tab order. */
 const REGION_KEYS = ["cn", "global"];
+/**
+* 「真实值」档在这台机器上能不能真的工作，以及为什么不能。
+*
+* ## 为什么不让界面自己判断平台
+*
+* 客户端能拿到 `sdk.platform`，但**平台不是判据**。macOS 上 SDK 能被发现、
+* `probe` 也答 `ready`，真正坏掉的是取 token 那一环：SDK 向 dispatch 主队列
+* `dispatch_sync`，而纯 libuv 子进程永不排空那个队列（`sample` 栈实测，见
+* CHANGELOG 的「macOS 现状如实记录」）。于是「darwin → 禁用」会把一台**没装**
+* 桌面端的 mac 和一台装了的 mac 说成同一件事，而它们的用户该做的事完全不同。
+*
+* ## 为什么现在还写死
+*
+* 这是一个**已知的、非本平台的**缺陷，不是运行时可以测出来的：真去测就要起子进程
+* 等 15 秒超时，而这一页每次打开都会拉一次设置。写成常量意味着它是可以被人替换
+* 的显式声明，而不是散在三个组件里的 `if (platform === 'darwin')`。
+*
+* ⚠️ 修好 `dispatch_sync` 那条路之后，**这里必须跟着改**，否则界面会继续劝退一个
+* 已经能用的功能。修法不在本次范围（需要一个排空主队列的伴生原生模块）。
+*
+* `state`：
+*   - `available` —— 能取到 token，切成「真实值」就能用；
+*   - `broken` —— 这套 SDK 在本平台取不到 token，切过去只会降级，界面上应禁用
+*     并说明原因；
+*   - `unavailable` —— 本平台没有这条取链（不预期出现，留作兜底）。
+*/
+function realTierAvailabilityFor(platform) {
+	return platform === "darwin" ? {
+		state: "broken",
+		platform: "darwin"
+	} : {
+		state: "available",
+		platform
+	};
+}
+const REAL_TIER_AVAILABILITY = realTierAvailabilityFor(process.platform);
 /**
 * The region that owns the image tool right now, or `undefined` when no region
 * has it switched on.
@@ -11834,6 +13818,19 @@ async function legacyAttributionRegion(value, accountsFor) {
 */
 function apply(ctx, config) {
 	/**
+	* 反代部署下插件自己路由的可信 Host（issue #261）。
+	*
+	* 在挂载期逐条校验「裸 authority」，拼错的值宁可让插件加载失败，也不要等请求
+	* 时才 403、或悄悄授权一个 hostname 前缀（宿主自己的 `assertTrustedAuthority`
+	* 是同一条边界）。但**读取**放在下面的 `trustedHosts()` 里、每次请求现读：
+	* 这是个 volatile 字段，用户加一条白名单不该触发整插件重载（会丢在途请求）。
+	*/
+	const trustedHosts = () => {
+		const value = unwrapVolatile(config.trustedHosts) ?? [];
+		return Array.isArray(value) ? value.filter((entry) => typeof entry === "string") : [];
+	};
+	for (const entry of trustedHosts()) assertTrustedAuthority(entry);
+	/**
 	* 每账号的设备覆盖值（设置里齿轮改的那份）。
 	*
 	* 读盘缓存在 `device-profile.ts` 里是**模块级**的，所以这里、路由、以及客户端
@@ -11854,19 +13851,59 @@ function apply(ctx, config) {
 	* `dirSource` 让卡片上填的目录**下一次观察就生效**（作者意见 #1）：句柄活到
 	* 卸载，而设置随时会变，所以目录每次 `probe` 现问一次。`deviceProfiles` 读盘有
 	* 5 秒缓存，保存会立即失效它。
+	*
+	* 总开关只留**一份活真值**。曾经这里写 `const flag = unwrapVolatile(...) === true`
+	* 把布尔在 apply 期求值一次传给句柄，而 `readEnabled()` 却每次现读活引用——
+	* volatile 字段就地修改、插件不重挂，于是「勾选框是开的、probe 永远答 disabled」。
+	* 现在两处共用 `deviceSdkEnabled()`。句柄即使关掉也保留，因为端口仍要能回答
+	* "这个功能被关掉了"（`disabled`），而不是给一块空白面板。
+	*
+	* `=== true`：`undefined`（老配置没有这一项）落到"关"，与 `default(false)` 一致。
 	*/
+	const deviceSdkEnabled = () => unwrapVolatile(config.deviceSdkEnabled) === true;
 	const turing = createTuringSdk({
 		productVersion: APP_VERSION,
-		dirSource: () => deviceProfiles.sdkDir()
+		dirSource: () => deviceProfiles.sdkDir(),
+		get enabled() {
+			return deviceSdkEnabled();
+		}
 	});
-	turing.startAutoRefresh();
+	/** 让预热链跟随开关：开则补建（内部幂等），关则立即拆除。 */
+	const syncDeviceSdk = () => {
+		if (deviceSdkEnabled()) turing.startAutoRefresh();
+		else turing.stopAutoRefresh();
+	};
+	syncDeviceSdk();
 	ctx.effect(() => () => {
 		turing.stopAutoRefresh();
 	});
+	/**
+	* Announce a CN gateway override, ONCE per distinct value / failure.
+	*
+	* The reader runs on every CN request, so logging unconditionally would turn
+	* one misconfiguration into a warn per request. Keyed on the VALUE rather than
+	* a plain boolean, so fixing the setting and breaking it again both get said —
+	* a user who is iterating on hosts needs to see each attempt acknowledged.
+	*/
+	let announcedCnBase;
+	let announcedCnBaseFailure;
+	const warnCnBaseOnce = (base) => {
+		if (announcedCnBase === base) return;
+		announcedCnBase = base;
+		ctx.logger.warn(`dsh-connect-workbuddy: CN gateway overridden to ${base} (issue #220). Chat, billing, catalog and check-in follow it; Origin/Referer still name the CN web app.`);
+	};
+	const warnCnBaseInvalidOnce = (reason, value) => {
+		const key = `${reason}:${value}`;
+		if (announcedCnBaseFailure === key) return;
+		announcedCnBaseFailure = key;
+		const why = reason === "malformed" ? "it is not an absolute URL" : reason === "insecure" ? "only https is accepted (a plaintext base would put the bearer token on the wire in clear)" : "its host is not one of the CN brands (copilot.tencent.com, wb.tencentbuddy.com, workbuddy.cn, codebuddy.cn)";
+		ctx.logger.warn(`dsh-connect-workbuddy: ignoring regions.cn.cnBase "${value}" — ${why}. Using the built-in CN gateway.`);
+	};
 	const client = new WorkBuddyUpstreamClient((message) => {
 		ctx.logger.warn(`dsh-connect-workbuddy: ${message}`);
 	}, {
 		usageIdentity: unwrapVolatile(config.usageIdentity) === true,
+		stableConversationId: unwrapVolatile(config.stableConversationId) === true,
 		...unwrapVolatile(config.wireProfile) === void 0 ? {} : { profile: unwrapVolatile(config.wireProfile) }
 	}, (() => {
 		const token = unwrapVolatile(config.deviceToken);
@@ -11875,7 +13912,28 @@ function apply(ctx, config) {
 			deviceTokenFile: configured !== "" ? configured : (process.env["WORKBUDDY_DEVICE_TOKEN_FILE"] ?? "").trim(),
 			...typeof token?.ttlMs === "number" ? { deviceTokenTtlMs: token.ttlMs } : {},
 			deviceProfiles,
-			realDevice: turing.tokens
+			realDevice: turing.tokens,
+			/**
+			* CN 网关覆盖（issue #220）：**每次请求现读**，不是一个采样值。
+			*
+			* `regions` 是 volatile 字段，用户保存后不重启插件；这里若在构造期采样
+			* 一次，改设置就只有重启才生效，而「填了没反应」正是本设置唯一的用途。
+			*
+			* 只对 CN 生效，且只有 `resolveCnGateway` 通过时才返回覆盖值：
+			* 校验失败一律退回内置网关并记一条 warn。**退回而不是抛**，因为这条
+			* 路径在每一请求上；但绝不静默——用户填了个不被接受的 host 却一直用着
+			* 默认网关，会让他继续怀疑是网络，而不是自己填错。
+			*/
+			cnBase: () => {
+				const raw = regionStateOf(current(), "cn").cnBase;
+				const resolved = resolveCnGateway(raw);
+				if (resolved.ok) {
+					if (resolved.overridden) warnCnBaseOnce(resolved.base);
+					return resolved.overridden ? resolved.base : "";
+				}
+				warnCnBaseInvalidOnce(resolved.reason, resolved.value);
+				return "";
+			}
 		};
 	})());
 	/**
@@ -11893,6 +13951,11 @@ function apply(ctx, config) {
 	* Invalidated by this plugin's own check-in batch (the only writer that can
 	* change the answer during a session), so the user sees their result
 	* immediately instead of waiting out the TTL.
+	*
+	* A reading is ALSO bounded by the local day, not just by the TTL — see
+	* `checkinReadingFresh`. Both readers go through it, because an entry is an
+	* answer to "has this account checked in TODAY" and a `true` read at 23:58
+	* must not be served at 00:08.
 	*/
 	const checkinStateCache = {};
 	/**
@@ -11937,6 +14000,7 @@ function apply(ctx, config) {
 				logger: ctx.logger,
 				channelPerturbation: unwrapVolatile(config.channelPerturbation) ?? "failure",
 				keepPromptLast: unwrapVolatile(config.keepPromptLast) === true,
+				sessionConversationId: () => unwrapVolatile(current().sessionConversationId) === true,
 				extraInjectedPrefixes: unwrapVolatile(config.extraInjectedPrefixes) ?? [],
 				sessionTitle: unwrapVolatile(config.sessionTitle) ?? {},
 				/**
@@ -11965,7 +14029,10 @@ function apply(ctx, config) {
 				reportRefusal: (report) => {
 					recordRefusal(report);
 				},
-				prepareAccount: () => applyPoolSelection(region),
+				prepareAccount: async (signal) => {
+					await refreshDepletedPoolCredits(region, signal);
+					if (!signal?.aborted) await applyPoolSelection(region);
+				},
 				failoverAccount: (triedAccountIds) => failoverAccountFor(region, triedAccountIds),
 				failoverShortfall: () => explainPoolShortfall(region),
 				onAccountFailure: (accountId, failure) => {
@@ -12048,7 +14115,7 @@ function apply(ctx, config) {
 	const savedOffModelIds = (state, roster) => state.offModelIds ?? defaultOffModelIds(roster);
 	const displayModels = (value, region) => {
 		const state = regionStateOf(value, region);
-		const live = stacks[region]?.catalog?.current() ?? [];
+		const live = stacks[region]?.catalog?.hasLiveRoster() === true ? stacks[region].catalog.current() : [];
 		return resolveRoster(state.lastCatalog ?? [], live, region);
 	};
 	/**
@@ -12144,7 +14211,7 @@ function apply(ctx, config) {
 	* request. The read side is already correct without it, so the repair is
 	* an optimisation that heals the profile, never a precondition.
 	*/
-	const repairRegionCatalog = async (region, live) => {
+	const repairRegionCatalog = async (region, live, options = {}) => {
 		if (live.length === 0) return;
 		const saved = regionStateOf(current(), region).lastCatalog ?? [];
 		const repaired = (isUnconfiguredFallbackSnapshot(saved, region) ? withoutRouters(live) : repairedCatalog(saved, live)).map((model) => {
@@ -12157,6 +14224,7 @@ function apply(ctx, config) {
 		try {
 			await writeRegionCatalog(hostSettings(), settingsNs, region, repaired);
 		} catch (error) {
+			if (options.strict === true) throw error;
 			ctx.logger.warn(`dsh-connect-workbuddy: could not repair the ${region} model directory against the live roster`, error);
 		}
 	};
@@ -12202,6 +14270,45 @@ function apply(ctx, config) {
 		const credential = await stacks[region].store.resolve();
 		const keep = regionStateOf(current(), region).enabledModelIds ?? [];
 		return client.fetchModels(credential, signal, keep);
+	};
+	/**
+	* Record a refresh the card just asked for (issue #214).
+	*
+	* The reported bug, in one sentence: the refresh button was the only code
+	* path that read the CURRENT upstream prices, and it discarded them. So the
+	* fresh numbers were visible only inside the response to that one press —
+	* the card went on rendering `displayModels()` (the saved directory) and the
+	* runtime went on serving the catalog built at startup, which is why the
+	* reporter saw 0.69 from `models/refresh` and 0.79 from `usage` on the same
+	* host at the same moment.
+	*
+	* TWO WRITES, and they are deliberately different:
+	*
+	*   1. the live CATALOG, so the running provider and the picker's price
+	*      labels follow the upstream immediately — this is the in-memory answer
+	*      the user was looking at when they pressed the button;
+	*   2. the saved DIRECTORY, through the Host's merge, so the price survives
+	*      the settings card being closed and the harness being restarted.
+	*
+	* What is NOT written is the user's selection. `enabledModelIds`,
+	* `imageModelIds`, `contextBudgets` and `defaultThinkingEfforts` remain the
+	* card's DRAFT until Save — the card's own refresh handler re-maps them onto
+	* the fresh rows and keeps them dirty, and the reporter's report shows the
+	* draft list containing models that were not ticked. Committing them here
+	* would turn one press of "refresh" into an unrequested "save".
+	*
+	* `origin: 'upstream'` on the catalog write is correct and load-bearing: this
+	* roster IS a fresh upstream answer, which is what lets `hasLiveRoster()`
+	* become true and every other reader stop mistaking the static table for the
+	* upstream (see `displayModels`).
+	*/
+	const persistRefreshedModels = async (region, models) => {
+		if (models.length === 0) return;
+		const state = regionStateOf(current(), region);
+		const next = withEffectiveOff(withImageSelection(deriveCatalog(models, new Set(state.enabledModelIds ?? []), state.contextBudgets ?? {}), effectiveImageIds(state, models)), new Set(savedOffModelIds(state, models)));
+		stacks[region].catalog.set(next);
+		invalidateCatalog();
+		await repairRegionCatalog(region, models, { strict: true });
 	};
 	/**
 	* The region's MEDIA models, cached briefly for the card's read-only roster.
@@ -12287,13 +14394,14 @@ function apply(ctx, config) {
 		for (const region of REGION_KEYS) {
 			stacks[region].store.setDesktopPath(authFile);
 			stacks[region].store.selectAccount(effectiveAccountFor(region, value));
-			stacks[region].catalog.set(configuredModels(value, region, stacks[region].catalog.current()));
+			const liveRoster = stacks[region].catalog.hasLiveRoster() ? stacks[region].catalog.current() : [];
+			stacks[region].catalog.set(configuredModels(value, region, liveRoster), "derived");
 		}
 		invalidateCatalog();
 		for (const region of REGION_KEYS) (async () => {
 			const live = await restampBusyLevels(region, stacks[region].catalog.current());
 			if (live.length === 0) return;
-			stacks[region].catalog.set(live);
+			stacks[region].catalog.set(live, "derived");
 			invalidateCatalog();
 		})();
 		syncRegionRegistration(value);
@@ -12323,7 +14431,8 @@ function apply(ctx, config) {
 			let accounts;
 			try {
 				accounts = await stacks[region].store.accounts();
-			} catch {
+			} catch (error) {
+				ctx.logger("workbuddy").warn("region usability scan failed for %s: %s", region, error);
 				continue;
 			}
 			if (stacks[region].catalog.setRegionUsable(accounts.length > 0)) invalidateCatalog();
@@ -12361,87 +14470,75 @@ function apply(ctx, config) {
 			declared: false
 		})));
 	};
-	let imageTools;
-	let disposeImageTool;
-	const syncImageTool = (value) => {
-		const wanted = imageToolRegionOf(value) !== void 0;
-		if (wanted && disposeImageTool === void 0 && imageTools !== void 0) {
-			disposeImageTool = registerWorkBuddyImageTool(imageTools, {
-				resolveCredential: async () => {
-					const live = current();
-					for (const region of REGION_KEYS) {
-						if (!regionEnabled(live, region)) continue;
-						if (regionStateOf(live, region).imageToolEnabled !== true) continue;
-						try {
-							return await stacks[region].store.resolve();
-						} catch {
-							continue;
-						}
-					}
-				},
-				listMediaModels: (credential, signal) => client.fetchMediaModels(credential, signal),
-				generateImage: (credential, request, signal) => client.generateImage(credential, request, signal),
-				editImage: (credential, request, signal) => client.editImage(credential, request, signal),
-				logger: ctx.logger
+	function mountOptionalTool(options) {
+		let tools;
+		let dispose;
+		const sync = (value) => {
+			const wanted = options.wanted(value);
+			if (wanted && dispose === void 0 && tools !== void 0) {
+				dispose = options.register(tools);
+				return;
+			}
+			if (!wanted && dispose !== void 0) {
+				dispose();
+				dispose = void 0;
+			}
+		};
+		ctx.inject(["tools"], (toolsCtx) => {
+			tools = toolsCtx.tools;
+			if (tools === void 0) return;
+			sync(current());
+			toolsCtx.effect(() => () => {
+				dispose?.();
+				dispose = void 0;
+				tools = void 0;
 			});
-			return;
-		}
-		if (!wanted && disposeImageTool !== void 0) {
-			disposeImageTool();
-			disposeImageTool = void 0;
+		});
+		return sync;
+	}
+	/**
+	* 每次调用现挑区、现解析凭据：用户在两次调用之间换账号或关掉某区都要生效。
+	* `optIn` 必须是该工具自己的逐区开关 —— 生图不能借用视频已授权的区，否则绕过
+	* 用户按区做出的授权。
+	*/
+	const toolCredential = (optIn) => async () => {
+		const live = current();
+		for (const region of REGION_KEYS) {
+			if (!regionEnabled(live, region)) continue;
+			if (regionStateOf(live, region)[optIn] !== true) continue;
+			try {
+				return await stacks[region].store.resolve();
+			} catch {
+				continue;
+			}
 		}
 	};
-	ctx.inject(["tools"], (toolsCtx) => {
-		imageTools = toolsCtx.tools;
-		if (imageTools === void 0) return;
-		syncImageTool(current());
-		toolsCtx.effect(() => () => {
-			disposeImageTool?.();
-			disposeImageTool = void 0;
-			imageTools = void 0;
-		});
+	const syncImageTool = mountOptionalTool({
+		wanted: (value) => imageToolRegionOf(value) !== void 0,
+		register: (tools) => registerWorkBuddyImageTool(tools, {
+			resolveCredential: toolCredential("imageToolEnabled"),
+			listMediaModels: (credential, signal) => client.fetchMediaModels(credential, signal),
+			generateImage: (credential, request, signal) => client.generateImage(credential, request, signal),
+			editImage: (credential, request, signal) => client.editImage(credential, request, signal),
+			preferredImageModel: (credential, tag) => {
+				if (tag !== "text-to-image") return void 0;
+				const picked = regionStateOf(current(), regionOf(credential.domain)).preferredImageModel;
+				return picked === void 0 || picked === "" ? void 0 : picked;
+			},
+			logger: ctx.logger
+		})
 	});
-	let videoTools;
-	let disposeVideoTool;
-	const syncVideoTool = (value) => {
-		const wanted = videoToolRegionOf(value) !== void 0;
-		if (wanted && disposeVideoTool === void 0 && videoTools !== void 0) {
-			disposeVideoTool = registerWorkBuddyVideoTool(videoTools, {
-				resolveCredential: async () => {
-					const live = current();
-					for (const region of REGION_KEYS) {
-						if (!regionEnabled(live, region)) continue;
-						if (regionStateOf(live, region).videoToolEnabled !== true) continue;
-						try {
-							return await stacks[region].store.resolve();
-						} catch {
-							continue;
-						}
-					}
-				},
-				listMediaModels: (credential, signal) => client.fetchMediaModels(credential, signal),
-				submitVideo: (credential, request, signal) => client.submitVideo(credential, request, signal),
-				pollVideoTask: (credential, taskId, signal) => client.pollVideoTask(credential, taskId, signal),
-				preferredVideoModel: (credential, tag) => regionStateOf(current(), regionOf(credential.domain)).preferredVideoModels?.[tag],
-				downloadVideo: (credential, url, signal) => client.downloadVideo(credential, url, signal),
-				logger: ctx.logger
-			});
-			return;
-		}
-		if (!wanted && disposeVideoTool !== void 0) {
-			disposeVideoTool();
-			disposeVideoTool = void 0;
-		}
-	};
-	ctx.inject(["tools"], (toolsCtx) => {
-		videoTools = toolsCtx.tools;
-		if (videoTools === void 0) return;
-		syncVideoTool(current());
-		toolsCtx.effect(() => () => {
-			disposeVideoTool?.();
-			disposeVideoTool = void 0;
-			videoTools = void 0;
-		});
+	const syncVideoTool = mountOptionalTool({
+		wanted: (value) => videoToolRegionOf(value) !== void 0,
+		register: (tools) => registerWorkBuddyVideoTool(tools, {
+			resolveCredential: toolCredential("videoToolEnabled"),
+			listMediaModels: (credential, signal) => client.fetchMediaModels(credential, signal),
+			submitVideo: (credential, request, signal) => client.submitVideo(credential, request, signal),
+			pollVideoTask: (credential, taskId, signal) => client.pollVideoTask(credential, taskId, signal),
+			preferredVideoModel: (credential, tag) => regionStateOf(current(), regionOf(credential.domain)).preferredVideoModels?.[tag],
+			downloadVideo: (credential, url, signal) => client.downloadVideo(credential, url, signal),
+			logger: ctx.logger
+		})
 	});
 	let cliTools;
 	let cliCommands;
@@ -12498,7 +14595,7 @@ function apply(ctx, config) {
 	});
 	ctx.inject(["sessionProjections"], (projectionCtx) => {
 		const reader = projectionCtx.sessionProjections;
-		if (reader === void 0 || typeof reader.stateOf !== "function") return;
+		if (reader === void 0 || typeof reader.snapshot !== "function" && typeof reader.stateOf !== "function") return;
 		/**
 		* The one place the projection key is spelled out.
 		*
@@ -12520,7 +14617,7 @@ function apply(ctx, config) {
 		cliDirectoryOf = (session) => {
 			let state;
 			try {
-				state = reader.stateOf(session, WORKING_DIRECTORY_PROJECTION_KEY);
+				state = readProjectedState(reader, session, WORKING_DIRECTORY_PROJECTION_KEY);
 			} catch {
 				return null;
 			}
@@ -12564,17 +14661,25 @@ function apply(ctx, config) {
 		const withDerived = async (settings) => {
 			try {
 				const derived = await describeDerivedDevices(await deviceAccounts());
-				return derived === void 0 ? settings : {
+				return derived === void 0 ? {
 					...settings,
-					derived
+					realTier: REAL_TIER_AVAILABILITY
+				} : {
+					...settings,
+					derived,
+					realTier: REAL_TIER_AVAILABILITY
 				};
 			} catch {
-				return settings;
+				return {
+					...settings,
+					realTier: REAL_TIER_AVAILABILITY
+				};
 			}
 		};
 		return registerWorkBuddyStatusRoute(webCtx, {
 			store: (region) => stacks[region].store,
 			client,
+			trustedHosts,
 			accountUsable: accountUsabilityProbe,
 			/**
 			* The CLI route's live turns, for the composer readout.
@@ -12622,7 +14727,15 @@ function apply(ctx, config) {
 			*/
 			deviceSdk: createDeviceSdkPort({
 				sdk: turing,
-				mode: async () => (await readDeviceSettings()).mode
+				mode: async () => (await readDeviceSettings()).mode,
+				/**
+				* 总开关走插件配置（`Config.deviceSdkEnabled`），与 SDK 句柄的 `enabled`
+				* getter 共用同一个 `deviceSdkEnabled()`，因此勾选框与 probe 不会分叉。
+				*/
+				enabled: {
+					read: async () => deviceSdkEnabled(),
+					write: writeDeviceSdkEnabled
+				}
 			}),
 			/**
 			* Why each of the region's accounts cannot serve right now, for the composer
@@ -12658,6 +14771,7 @@ function apply(ctx, config) {
 			contextBudgets: (region) => regionStateOf(current(), region).contextBudgets ?? {},
 			defaultThinkingEfforts: (region) => regionStateOf(current(), region).defaultThinkingEfforts ?? {},
 			discoverModels,
+			persistModels: persistRefreshedModels,
 			/**
 			* This region's first-sighting readout, the data behind the composer pill's
 			* "· N 新模型" segment.
@@ -12677,6 +14791,15 @@ function apply(ctx, config) {
 			*/
 			showCreditsInMainUi: (region) => regionStateOf(current(), region).showCreditsInMainUi !== false,
 			/**
+			* The region's committed new-model-segment flag, read from the same config
+			* the card writes.
+			*
+			* `=== true`, the opposite reading to the line above and for the same reason
+			* `imageToolEnabled` uses it: this one is opt-IN, so a missing or unreadable
+			* value must mean "do not show it", never "assume the user wanted it".
+			*/
+			showNewModelsInMainUi: (region) => regionStateOf(current(), region).showNewModelsInMainUi === true,
+			/**
 			* Whether the model may call the image tool here. Read from the committed
 			* value like the flag above, and deliberately `=== true`: an absent setting
 			* is NOT consent to let the model spend.
@@ -12692,6 +14815,13 @@ function apply(ctx, config) {
 			*/
 			preferredVideoModels: (region) => regionStateOf(current(), region).preferredVideoModels ?? {},
 			/**
+			* The text-to-image model chosen per region, for the card's picker (issue
+			* #241). Read from the committed value like the switches above, so the
+			* picker shows what the TOOL will actually use rather than the browser's
+			* stale mirror of this namespace.
+			*/
+			preferredImageModel: (region) => regionStateOf(current(), region).preferredImageModel ?? "",
+			/**
 			* Whether the optional CodeBuddy CLI route is mounted (`codebuddy_ask` tool
 			* + `/codebuddy` command).
 			*
@@ -12701,6 +14831,20 @@ function apply(ctx, config) {
 			* consent. `cliBridge` is a volatile field, hence the unwrap.
 			*/
 			cliBridgeEnabled: () => unwrapVolatile(current().cliBridge)?.enabled === true,
+			/**
+			* Whether the optional DSH sidebar panel is switched on (PR #188).
+			*
+			* GLOBAL, so it takes no region. `=== true` like `cliBridgeEnabled`, not
+			* `!== false`: the row claims a `sidebar.panellist` seat and a `main` page
+			* that every installed bundle shares, so an absent value must read as "not
+			* asked for" rather than as consent. Volatile, hence the unwrap.
+			*/
+			sidebarPanelEnabled: () => unwrapVolatile(current().sidebarPanel) === true,
+			/**
+			* The card's refresh cadence, read live so a change takes effect on the
+			* next poll rather than on a plugin reload.
+			*/
+			pollIntervalMs: () => pollIntervalOf(current()),
 			/**
 			* The model / reasoning effort the optional CodeBuddy CLI route runs on.
 			*
@@ -12717,6 +14861,7 @@ function apply(ctx, config) {
 			* rather than the one captured at mount.
 			*/
 			dropForeignThinking: () => unwrapVolatile(current().dropForeignThinking) === true,
+			dropAllThinking: () => unwrapVolatile(current().dropAllThinking) === true,
 			/**
 			* What the last request had to drop, so the card can explain a turn that
 			* arrived looking like working notes instead of leaving the user to conclude
@@ -12738,11 +14883,11 @@ function apply(ctx, config) {
 			* token: the route passes only model ids and receives only outcomes.
 			*
 			* `quotaRefreshAtMs` is the region's nearest monthly refresh point, read from
-			* the SAME credit answer the card displays. It is the only cooldown this
-			* service ever states — an exhausted monthly resource that resets at a known
-			* time — so it is what makes "when can I use this again" answerable for an
-			* out-of-credit result. Every other limited outcome has no time anywhere, and
-			* the probe reports exactly that instead of inventing one.
+			* the SAME credit answer the card displays. It is recorded beside an
+			* out-of-credit result as upstream EVIDENCE, not as a recovery deadline:
+			* check-in and top-ups can replenish credits long before it, so the views
+			* name the replenishment action instead of rendering a countdown, and the
+			* pool does not release the account when the moment passes.
 			*/
 			async probeModels(region, modelIds, options) {
 				let credential;
@@ -12900,17 +15045,18 @@ function apply(ctx, config) {
 				* failure is simply omitted, which the card renders as unknown.
 				*/
 				async checkedInToday(region) {
-					if (!poolPreferencesOf(current(), region).enabled) return {};
+					if (region !== "cn" || !poolPreferencesOf(current(), region).enabled) return {};
 					const store = stacks[region].store;
 					const accounts = await store.accounts();
 					const now = Date.now();
 					const entries = await Promise.all(accounts.map(async (account) => {
+						if (account.enterprise === true) return void 0;
 						const cached = checkinStateCache[region]?.[account.id];
-						if (cached !== void 0 && now - cached.atMs < CHECKIN_CACHE_MS) return [account.id, cached.checkedIn];
+						if (cached !== void 0 && checkinReadingFresh(cached.atMs, now, CHECKIN_CACHE_MS)) return [account.id, cached.checkedIn];
 						const credential = await store.credentialFor(account.id).catch(() => void 0);
 						if (credential === void 0) return void 0;
 						const status = await client.fetchCheckinStatus(credential).catch(() => void 0);
-						if (status === void 0) return void 0;
+						if (status === void 0 || !status.active) return void 0;
 						checkinStateCache[region] = {
 							...checkinStateCache[region],
 							[account.id]: {
@@ -12936,7 +15082,7 @@ function apply(ctx, config) {
 					const state = checkinStateCache[region] ?? {};
 					const cached = {};
 					for (const [accountId, entry] of Object.entries(state)) {
-						if (now - entry.atMs >= CHECKIN_CACHE_MS) continue;
+						if (!checkinReadingFresh(entry.atMs, now, CHECKIN_CACHE_MS)) continue;
 						cached[accountId] = entry.checkedIn;
 					}
 					return cached;
@@ -13025,12 +15171,30 @@ function apply(ctx, config) {
 				* no equivalent here, so its card must not offer the action.
 				*/
 				checkinSupported: (region) => region === "cn",
+				/**
+				* What the background check-in has settled today (issue #191).
+				*
+				* Answers from the runner's in-memory state, which is the same object the
+				* tick updates — so the card never has to guess which accounts a previous
+				* attempt already handled. `undefined` when the switch is off or nothing
+				* has run, which the card renders as "no status line" rather than "0 of N".
+				*/
+				autoCheckinToday: (region) => {
+					if (!autoCheckinEnabled(region)) return void 0;
+					const state = autoCheckinState[region];
+					if (state === void 0) return void 0;
+					return todaySummary(state, Date.now());
+				},
 				checkin: async (region) => {
 					const rows = await checkinAllAccounts(await poolTargets(region), poolRunnerDeps(region));
 					for (const row of rows) {
 						if (row.status === "failed") continue;
 						const cached = checkinStateCache[region];
 						if (cached !== void 0) delete cached[row.accountId];
+					}
+					if (rows.some((row) => row.status !== "failed")) {
+						await poolMembersOf(region);
+						await applyPoolSelection(region);
 					}
 					return rows;
 				},
@@ -13201,10 +15365,11 @@ function apply(ctx, config) {
 	* The region's nearest monthly quota refresh, or undefined when unknown.
 	*
 	* The monthly resource (`CapacityType 4`) is the one package that never
-	* expires and resets on a cycle, so its `refreshAtMs` is a real answer to
-	* "when can I use this again" after the quota runs out. The probe passes it
-	* through; a failure to read it is not an error, because a probe without a
-	* cooldown is still a useful probe.
+	* expires and resets on a cycle, so its `refreshAtMs` is the package's own
+	* schedule. It is handed to a probe as EVIDENCE to store beside an
+	* out-of-credit outcome — never as the moment the account becomes usable
+	* again, because check-in and top-ups can land first. A failure to read it is
+	* not an error: a probe that records no refresh point is still a useful probe.
 	*/
 	const quotaRefreshOf = async (region, credential) => {
 		try {
@@ -13309,11 +15474,10 @@ function apply(ctx, config) {
 	* without fetching one.
 	*
 	* Credits are the ranking's second key, and they cost an upstream call per
-	* member. A chat request must never pay that: it happens on the hot path, and
-	* `fetchCredits` per member would turn one page of conversation into N extra
-	* requests. So the request path uses whatever the pool last read (the card's
-	* 60-second poll, a batch test, or a save) and simply skips the key when the
-	* snapshot is too old to speak for today's balances.
+	* member. Normal ranking reuses the last UI/check-in snapshot and omits stale
+	* balances rather than fetching all members for each chat. The separate,
+	* rate-limited recovery check reads only accounts with recorded credit
+	* failures; it does not refresh this whole-pool ranking snapshot.
 	*/
 	const creditsSnapshot = {};
 	/** How long a credits reading may steer routing. */
@@ -13325,9 +15489,9 @@ function apply(ctx, config) {
 	* the probe store, plus the credits snapshot when it is fresh.
 	*
 	* The request path calls this on every chat completion, so it must not touch
-	* the network. `poolMembersOf` is the honest-but-expensive version (it fetches
-	* credits per member) and stays on the card's route, which is where those
-	* readings come from in the first place.
+	* the network. `poolMembersOf` refreshes all members on explicit UI/check-in
+	* paths. Before a request, `refreshDepletedPoolCredits` separately checks only
+	* recorded credit failures, at most once per minute, even with no card open.
 	*/
 	async function localPoolMembers(region) {
 		const accounts = await poolMemberAccounts(region);
@@ -13348,6 +15512,64 @@ function apply(ctx, config) {
 		});
 	}
 	/**
+	* Recover depleted members without blocking requests that already have a usable
+	* account. Concurrent callers share one balance read per region and minute.
+	* When every member is excluded, a caller may wait for recovery; disconnecting
+	* releases that caller without cancelling evidence needed by other requests.
+	* Positive readings update existing ranking balances without extending the
+	* lifetime of unrelated cached readings or overwriting a newer UI snapshot.
+	*/
+	const depletedRefreshAt = {};
+	const depletedRefreshInFlight = {};
+	async function refreshDepletedPoolCredits(region, signal) {
+		if (!poolPreferencesOf(current(), region).enabled || signal?.aborted) return;
+		const members = await localPoolMembers(region);
+		if (signal?.aborted) return;
+		let task = depletedRefreshInFlight[region];
+		if (task === void 0 && Date.now() >= (depletedRefreshAt[region] ?? 0)) {
+			const depleted = members.filter((member) => member.probe?.outcome === "out-of-credit");
+			if (depleted.length === 0) return;
+			depletedRefreshAt[region] = Date.now() + 6e4;
+			task = (async () => {
+				const completed = (await Promise.all(depleted.map(async (member) => {
+					const credential = await stacks[region].store.credentialFor(member.account.id).catch(() => void 0);
+					if (credential === void 0) return void 0;
+					const startedAtMs = Date.now();
+					const credits = await client.fetchCredits(credential).catch(() => void 0);
+					return credits === void 0 ? void 0 : {
+						accountId: member.account.id,
+						startedAtMs,
+						total: credits.total,
+						credits
+					};
+				}))).filter((reading) => reading !== void 0);
+				await reconcilePoolCredits(region, completed);
+				const snapshot = creditsSnapshot[region];
+				if (snapshot !== void 0) {
+					const updated = new Map(snapshot);
+					for (const reading of completed) if ((creditsSnapshotAt[region] ?? 0) <= reading.startedAtMs) updated.set(reading.accountId, reading.credits);
+					creditsSnapshot[region] = updated;
+				}
+			})().catch((error) => {
+				ctx.logger.warn("dsh-connect-workbuddy: pool credit recovery failed", error);
+			}).finally(() => {
+				delete depletedRefreshInFlight[region];
+			});
+			depletedRefreshInFlight[region] = task;
+		}
+		if (task === void 0 || members.some((member) => exclusionOf(member.probe, Date.now()) === void 0)) return;
+		if (signal === void 0) return task;
+		await new Promise((resolve) => {
+			const finish = () => {
+				signal.removeEventListener("abort", finish);
+				resolve();
+			};
+			signal.addEventListener("abort", finish, { once: true });
+			if (signal.aborted) finish();
+			task.then(finish, finish);
+		});
+	}
+	/**
 	* Record a failure a LIVE request hit, so the NEXT request starts from a
 	* usable account.
 	*
@@ -13364,23 +15586,13 @@ function apply(ctx, config) {
 	* sideline a good account over a bad body.
 	*
 	* The reset time comes from the upstream's own words — the 429 body carries
-	* 「将在 … 重置」 — which `cooldownOf` parses. When it states no time, the store's
-	* own short window applies rather than a guess at a long one.
+	* 「将在 … 重置」 — which `cooldownOf` parses. Transient failures with no stated
+	* time use the local short window; credit exhaustion requires balance evidence.
 	*
-	* THE QUOTA REFRESH POINT IS PASSED IN, and it is not decoration. This path
-	* used to omit `quotaRefreshAtMs` while the PROBE path supplied it, so one
-	* `out-of-credit` failure got two different answers depending on which door it
-	* arrived through: the probe said "the quota refreshes on the 1st" (a time the
-	* billing side states outright) while a live chat failure said "30 minutes
-	* from now" — a window the account cannot possibly clear, so the pool put it
-	* back and paid another refused round trip. Worse, the write below combines
-	* with the stored record, and the stored refresh point was being LOST in the
-	* process (see {@link mergePoolProbe}).
-	*
-	* Reading it costs one `fetchCredits`, affordable here but not on every
-	* failure: it runs only for `out-of-credit`, where the refresh point is the one
-	* honest answer and there is no cheaper source. Failing to read it is not an
-	* error — the fallback still applies.
+	* The monthly package refresh is retained as upstream evidence, not as the
+	* earliest recovery date: check-in and purchases can replenish credits sooner.
+	* A later positive balance reading clears an older credit failure under the
+	* store lock, without overwriting failures recorded during the query.
 	*
 	* The upstream's text is persisted alongside the outcome so the card can name
 	* the reason. It is REDACTED first because this message is a raw upstream body:
@@ -13390,6 +15602,7 @@ function apply(ctx, config) {
 	const recordAccountFailure = async (region, accountId, failure) => {
 		if (!poolPreferencesOf(current(), region).enabled) return;
 		if (failure.kind === "client") return;
+		if (failure.status === 0) return;
 		const members = poolPreferencesOf(current(), region).memberAccountIds;
 		if (members.length > 0 && !members.includes(accountId)) return;
 		const outcome = outcomeOfFailure(failure.status, failure.message);
@@ -13472,10 +15685,17 @@ function apply(ctx, config) {
 	async function poolMembersOf(region) {
 		const store = stacks[region].store;
 		const accounts = await poolMemberAccounts(region);
-		const probes = await readPoolProbes(region);
+		const recordedProbes = await readPoolProbes(region);
+		const creditReadings = [];
 		const rows = await Promise.all(accounts.map(async (account) => {
 			const credential = await store.credentialFor(account.id).catch(() => void 0);
+			const startedAtMs = Date.now();
 			const credits = credential === void 0 ? void 0 : await client.fetchCredits(credential).catch(() => void 0);
+			if (credits !== void 0) creditReadings.push({
+				accountId: account.id,
+				startedAtMs,
+				total: credits.total
+			});
 			return {
 				account: {
 					id: account.id,
@@ -13487,13 +15707,16 @@ function apply(ctx, config) {
 					expiringSoon: credits.expiringSoon,
 					...credits.nearestExpiryMs === void 0 ? {} : { nearestExpiryMs: credits.nearestExpiryMs }
 				} },
-				...probes[account.id] === void 0 ? {} : { probe: probes[account.id] },
 				tokenExpiresAtMs: account.tokenExpiresAtMs
 			};
 		}));
+		const probes = creditReadings.some((reading) => recordedProbes[reading.accountId]?.outcome === "out-of-credit") ? await reconcilePoolCredits(region, creditReadings) : recordedProbes;
 		creditsSnapshot[region] = new Map(rows.filter((row) => row.credits !== void 0).map((row) => [row.account.id, row.credits]));
 		creditsSnapshotAt[region] = Date.now();
-		return rows;
+		return rows.map((row) => ({
+			...row,
+			...probes[row.account.id] === void 0 ? {} : { probe: probes[row.account.id] }
+		}));
 	}
 	/**
 	* The model a per-row test would use right now: the SAME resolution the
@@ -13514,6 +15737,20 @@ function apply(ctx, config) {
 	* upgrade moves nothing on screen.
 	*/
 	const creditPositionOf = (config, region) => regionStateOf(config, region).creditPosition === "stats" ? "stats" : "composer";
+	/**
+	* The card's refresh interval, coerced against the offered set.
+	*
+	* Coerced HERE rather than trusted from the config, for the same reason
+	* `resolveProbeInputTokens` coerces its own: a hand-edited `cordis.patch.yml`
+	* can carry any number, and `setInterval(…, 0)` would turn a display refresh
+	* into a busy loop against the upstream. An unrecognized value falls back to
+	* the default rather than to the smallest step — the safe direction for a
+	* setting whose whole purpose is bounding request volume.
+	*/
+	const pollIntervalOf = (config) => {
+		const raw = unwrapVolatile(config.pollIntervalMs);
+		return typeof raw === "number" && WORKBUDDY_POLL_INTERVALS_MS.includes(raw) ? raw : WORKBUDDY_DEFAULT_POLL_INTERVAL_MS;
+	};
 	const poolPreferencesOf = (config, region) => {
 		const pool = regionStateOf(config, region).pool;
 		const probeInputTokens = pool?.probeInputTokens;
@@ -13522,7 +15759,8 @@ function apply(ctx, config) {
 			targetModelId: pool?.targetModelId ?? "",
 			...probeInputTokens === void 0 ? {} : { probeInputTokens },
 			memberAccountIds: pool?.memberAccountIds ?? [],
-			orderAccountIds: pool?.orderAccountIds ?? []
+			orderAccountIds: pool?.orderAccountIds ?? [],
+			autoCheckin: pool?.autoCheckin === true
 		};
 	};
 	/**
@@ -13580,12 +15818,168 @@ function apply(ctx, config) {
 			}
 		};
 	}
+	/**
+	* The automatic daily check-in (issue #191).
+	*
+	* A single timer per region, armed only when the user ticks the switch. The
+	* rules live in `src/auto-checkin.ts` (pure) and the memory in
+	* `src/auto-checkin-store.ts`; this block owns only the two things those
+	* modules deliberately do not: a real clock and a real batch call.
+	*
+	* ## Why a re-arming one-shot instead of `setInterval`
+	*
+	* The interval is not constant: a failure walks a widening backoff, a finished
+	* day idles, and a day rollover resets everything. `setInterval` can only
+	* express a fixed period, so the delay is computed per tick and the timer is
+	* re-armed from the tick's own `finally`. The alternative — a 30-minute
+	* `setInterval` plus "is it due?" inside — would sleep past the short first
+	* retries (30 s, 60 s) and make a transient fault look like a 30-minute outage.
+	*
+	* ## Why the timer never stops
+	*
+	* Even when the day is finished the timer re-arms at {@link AUTO_CHECKIN_IDLE_MS}.
+	* A timer that stops after its first successful day cannot notice the next
+	* local midnight, so the feature would silently work exactly once — the
+	* failure mode this whole design exists to avoid. The idle tick costs no
+	* request: `isDue` answers "nothing pending" before any I/O.
+	*
+	* ## Why it is safe to run alongside a manual press
+	*
+	* `checkinAllAccounts` reads status first and reports `already` WITHOUT a
+	* claim, so two overlapping runs cannot double-claim. The batch is also
+	* serial, so the worst case is one redundant status request per account.
+	*/
+	const autoCheckinTimers = {};
+	/** In-memory mirror of the on-disk state, so a tick does not re-read the file. */
+	const autoCheckinState = {};
+	/** Guards against a second tick landing while one is still running. */
+	const autoCheckinRunning = {};
+	/** Whether the user has asked for the background check-in on this region. */
+	function autoCheckinEnabled(region) {
+		if (!autoCheckinRegions().includes(region)) return false;
+		return poolPreferencesOf(current(), region).autoCheckin === true;
+	}
+	/**
+	* One tick: decide, run, fold, persist, re-arm.
+	*
+	* Deliberately never throws — a background feature that can take down `apply`
+	* (or a later tick) over a disk error would be worse than not having it.
+	*/
+	async function autoCheckinTick(region) {
+		if (autoCheckinRunning[region] === true) return;
+		autoCheckinRunning[region] = true;
+		try {
+			if (!autoCheckinEnabled(region)) return;
+			const nowMs = Date.now();
+			const today = localDayKey(nowMs);
+			const stored = autoCheckinState[region] ?? await readAutoCheckinState(region);
+			const state = stored === void 0 || stored.day !== today ? emptyAutoCheckinState(today) : stored;
+			autoCheckinState[region] = state;
+			const targets = pendingTargets(await poolTargets(region), state);
+			if (!isDue(state, targets.length, nowMs)) {
+				scheduleAutoCheckin(region, AUTO_CHECKIN_IDLE_MS);
+				return;
+			}
+			const rows = await checkinAllAccounts(targets, poolRunnerDeps(region));
+			for (const row of rows) {
+				if (row.status === "failed") continue;
+				const cached = checkinStateCache[region];
+				if (cached !== void 0) delete cached[row.accountId];
+			}
+			if (rows.some((row) => row.status !== "failed")) {
+				await poolMembersOf(region);
+				await applyPoolSelection(region);
+			}
+			const folded = foldAttempt(state, rows, nowMs, targets.length + state.doneAccountIds.length);
+			autoCheckinState[region] = folded;
+			await writeAutoCheckinState(region, folded);
+			const pending = pendingTargets(await poolTargets(region), folded).length;
+			scheduleAutoCheckin(region, nextDelayMs(folded, pending) ?? 18e5);
+		} catch (error) {
+			ctx.logger.warn(`dsh-connect-workbuddy: auto check-in tick failed (${region})`, error);
+			scheduleAutoCheckin(region, AUTO_CHECKIN_IDLE_MS);
+		} finally {
+			autoCheckinRunning[region] = false;
+		}
+	}
+	/** Arm the next tick, replacing any pending one. */
+	function scheduleAutoCheckin(region, delayMs) {
+		const existing = autoCheckinTimers[region];
+		if (existing !== void 0) clearTimeout(existing);
+		const timer = setTimeout(() => {
+			autoCheckinTick(region);
+		}, delayMs);
+		timer.unref?.();
+		autoCheckinTimers[region] = timer;
+	}
+	/**
+	* Arm or disarm every region to match the saved switches.
+	*
+	* Called once at `apply` and again on every settings change, so flipping the
+	* switch takes effect without a restart. Disarming CLEARS the timer rather
+	* than leaving it to notice: an off switch must stop the work immediately, not
+	* at the next tick.
+	*/
+	function syncAutoCheckin() {
+		for (const region of autoCheckinRegions()) {
+			if (autoCheckinEnabled(region)) {
+				if (autoCheckinTimers[region] === void 0) scheduleAutoCheckin(region, 0);
+				continue;
+			}
+			const timer = autoCheckinTimers[region];
+			if (timer !== void 0) {
+				clearTimeout(timer);
+				delete autoCheckinTimers[region];
+			}
+		}
+	}
+	/** Stop every timer; called on unload. */
+	function stopAutoCheckin() {
+		for (const region of autoCheckinRegions()) {
+			const timer = autoCheckinTimers[region];
+			if (timer !== void 0) clearTimeout(timer);
+			delete autoCheckinTimers[region];
+		}
+	}
+	syncAutoCheckin();
+	ctx.effect(() => () => {
+		stopAutoCheckin();
+	});
 	ctx.inject(["settings"], (sctx) => {
 		const settings = sctx.settings;
 		ctx.effect(() => settings.configure({ auto: true }, ctx.fiber));
 	});
+	/**
+	* The one settings WRITE the card is allowed to make: the SDK master switch.
+	*
+	* Resolved lazily (not captured at mount) because `settings` is an optional
+	* service and the card may ask before that service is present — a captured
+	* `undefined` would make the switch permanently read-only on that host.
+	* Returns `false` rather than throwing when the host has no `update`: the
+	* panel renders the same switch either way, and a thrown error there would
+	* surface as "saving failed" for a capability the host simply lacks.
+	*
+	* ⚠️ The namespace MUST be `settingsNs` — the Loader entry id the host
+	* actually serves — never the declared `WORKBUDDY_SETTINGS_NS` fallback. The
+	* settings service resolves an entry by EXACT id
+	* (`entries().find(row => row.options.id === ns)`) and throws
+	* `No configurable plugin entry "workbuddy"` for a name it does not serve.
+	* Every other write path here already threads `settingsNs`
+	* (`writeRegionCatalog`, `healRegionsField`, the `__save` route); this one
+	* shipped with the bare constant, so on the live Desktop host — whose entry is
+	* `include:dsh-connect-workbuddy` — the switch answered HTTP 500 and could
+	* never be turned on.
+	*/
+	const writeDeviceSdkEnabled = async (enabled) => {
+		const host = ctx.get("settings");
+		if (host?.update === void 0) return false;
+		await host.update(settingsNs, { deviceSdkEnabled: enabled });
+		return true;
+	};
 	ctx.on("loader/volatile-update", () => {
 		applySelection(current());
+		syncAutoCheckin();
+		syncDeviceSdk();
 	});
 	applySelection(config);
 	(async () => {
@@ -13597,10 +15991,12 @@ function apply(ctx, config) {
 		} catch {}
 	})();
 	let stopped = false;
-	ctx.effect(() => () => {
+	let heartbeatWrite;
+	ctx.effect(() => async () => {
 		stopped = true;
 		for (const region of REGION_KEYS) stacks[region].shim.close();
-		clearHostHeartbeat();
+		const owner = await heartbeatWrite;
+		if (owner !== void 0) await clearHostHeartbeat(owner);
 	});
 	Promise.all(REGION_KEYS.map((region) => stacks[region].shim.ready)).then(async () => {
 		if (stopped) return;
@@ -13635,12 +16031,15 @@ function apply(ctx, config) {
 				*/
 				defaultThinkingEfforts: () => regionStateOf(current(), region).defaultThinkingEfforts ?? {},
 				dropForeignThinking: () => unwrapVolatile(current().dropForeignThinking) === true,
+				dropAllThinking: () => unwrapVolatile(current().dropAllThinking) === true,
+				sessionConversationId: () => unwrapVolatile(current().sessionConversationId) === true,
 				onForeignThinking: (blocks) => {
 					latestForeignThinking = {
 						blocks,
 						atMs: Date.now()
 					};
-					if (unwrapVolatile(current().dropForeignThinking) !== true) ctx.logger.warn(`dsh-connect-workbuddy: dropped ${blocks.length} cross-provider thinking block(s) before a WorkBuddy request (provider switch); see issue #163`);
+					if (unwrapVolatile(current().dropAllThinking) === true) ctx.logger.warn(`dsh-connect-workbuddy: dropped ${blocks.length} thinking block(s) before a WorkBuddy request because the reasoning-redaction switch is on; see issue #213`);
+					else if (unwrapVolatile(current().dropForeignThinking) !== true) ctx.logger.warn(`dsh-connect-workbuddy: dropped ${blocks.length} cross-provider thinking block(s) before a WorkBuddy request (provider switch); see issue #163`);
 				}
 			});
 			invalidateCatalog = () => {
@@ -13699,7 +16098,10 @@ function apply(ctx, config) {
 					inputModalities: workBuddyModelInput(model)
 				}));
 			});
-			writeHostHeartbeat();
+			const logger = ctx.logger;
+			heartbeatWrite = writeHostHeartbeat().catch((error) => {
+				logger.error("dsh-connect-workbuddy: host heartbeat write failed", error);
+			});
 		} catch (error) {
 			ctx.logger.error("dsh-connect-workbuddy: provider registration failed", error);
 			return;
@@ -13711,7 +16113,6 @@ function apply(ctx, config) {
 			(async () => {
 				try {
 					const credential = await stacks[region].store.resolve();
-					if (stopped) return;
 					const models = await withBusyLevels(region, await client.fetchModels(credential, void 0, regionStateOf(current(), region).enabledModelIds ?? []));
 					if (stopped) return;
 					const state = regionStateOf(current(), region);
@@ -13734,4 +16135,4 @@ function apply(ctx, config) {
 	});
 }
 //#endregion
-export { CREDENTIAL_REJECTED_CODE, Config, DEFAULT_PROBE_INPUT_TOKENS, ENCRYPTED_CREDENTIAL_CODE, FALLBACK_WORKBUDDY_MODELS, FALLBACK_WORKBUDDY_MODELS_GLOBAL, NATIVE_MODALITY_BY_MODEL_ID, PROBE_INPUT_TOKEN_CHOICES, PROBE_MAX_TOKENS, PROBE_SYSTEM_PROMPT, REFUSES_OFF_MODEL_IDS, WORKBUDDY_ACCOUNTS_REFRESH_PATH, WORKBUDDY_APP_EXECUTABLE_ENV, WORKBUDDY_AUTH_FILENAME, WORKBUDDY_AUTH_FILE_ENV, WORKBUDDY_CHECKIN_PATH, WORKBUDDY_CONNECT_VERSION, WORKBUDDY_GLOBAL_PROVIDER, WORKBUDDY_HOST_HEARTBEAT_FILENAME, WORKBUDDY_MODELS_REFRESH_PATH, WORKBUDDY_PROBE_PATH, WORKBUDDY_PROVIDER, WORKBUDDY_PROVIDERS, WORKBUDDY_PROVIDER_DISPLAY_NAMES, WORKBUDDY_REGIONS, WORKBUDDY_REGION_PARAM, WORKBUDDY_SETTINGS_NS, WORKBUDDY_STREAM_IDLE_TIMEOUT_MS, WORKBUDDY_TPS_PATH, WORKBUDDY_USAGE_PATH, WorkBuddyCatalog, WorkBuddyCredentialRejectedError, WorkBuddyCredentialStore, WorkBuddyEncryptedCredentialError, WorkBuddyUpstreamClient, apply, asVolatile, authFileName, classifyUpstreamError, clearAtRestKeyCache, clearHostHeartbeat, cooldownOf, createAccountUsabilityProbe, createWorkBuddyAdapter, createWorkBuddyShim, creditOfStream, defaultDesktopAuthCandidates, defaultDesktopAuthDirs, defaultDesktopAuthPath, defaultOffModelIds, deriveAtRestKey, deriveAtRestKeyId, deriveCatalog, fallbackModelsFor, fetchAtRestKeyPayload, findWorkbuddyAppExecutable, hasEncryptedCredentialFields, imageDefaultFor, imageToolRegionOf, inject, isCredentialRejectedError, isEncryptedCredentialError, isEncryptedFieldWrapper, isHeartbeatProcessAlive, isWorkbuddyBundle, knownRegionOf, legacyAttributionRegion, legacyWorkbuddyOwnAuthPath, macosBundleExecutable, macosNestedAppBundles, modelIdOfBody, name, nativeModalityOf, nextRegionEnabled, nextRegionSlots, offDefaultFor, openEncryptedField, outcomeOfFailure, parseCreditMultiplier, parseReasoning, parseRetryAfter, parseUpstreamModel, parseWorkBuddyAuth, prepareChatBody, probeModel, probeRequestBody, probeSucceeded, processStartTimeMs, readAtRestKey, readHostHeartbeat, regionCleared, regionEnabled, regionEnabledOf, regionOf, regionOfProvider, regionOfStatusUrl, regionStateOf, regionsFieldIsCorrupt, regionsMapOf, registerWorkBuddyStatusRoute, resolveCredentialRecovery, selectAccountFor, settingsNamespaceOf, toPersistedWorkBuddyModel, unwrapVolatileDeep, videoToolRegionOf, withEffectiveOff, withWorkBuddyRegion, workBuddyDisplayName, workBuddyModelInput, workBuddyThinkingLevelMap, workBuddyWebStatus, workbuddyAccountId, workbuddyAppExecutableCandidates, workbuddyHostHeartbeatPath, workbuddyOwnAuthPath, writeHostHeartbeat };
+export { CREDENTIAL_REJECTED_CODE, Config, DEFAULT_PROBE_INPUT_TOKENS, ENCRYPTED_CREDENTIAL_CODE, FALLBACK_WORKBUDDY_MODELS, FALLBACK_WORKBUDDY_MODELS_GLOBAL, NATIVE_MODALITY_BY_MODEL_ID, PROBE_INPUT_TOKEN_CHOICES, PROBE_MAX_TOKENS, PROBE_SYSTEM_PROMPT, REFUSES_OFF_MODEL_IDS, WORKBUDDY_ACCOUNTS_REFRESH_PATH, WORKBUDDY_APP_EXECUTABLE_ENV, WORKBUDDY_AUTH_FILENAME, WORKBUDDY_AUTH_FILE_ENV, WORKBUDDY_CHECKIN_PATH, WORKBUDDY_CONNECT_VERSION, WORKBUDDY_GLOBAL_PROVIDER, WORKBUDDY_HOST_HEARTBEAT_FILENAME, WORKBUDDY_MODELS_REFRESH_PATH, WORKBUDDY_PROBE_PATH, WORKBUDDY_PROVIDER, WORKBUDDY_PROVIDERS, WORKBUDDY_PROVIDER_DISPLAY_NAMES, WORKBUDDY_REGIONS, WORKBUDDY_REGION_PARAM, WORKBUDDY_SETTINGS_NS, WORKBUDDY_STREAM_IDLE_TIMEOUT_MS, WORKBUDDY_TPS_PATH, WORKBUDDY_USAGE_PATH, WorkBuddyCatalog, WorkBuddyCredentialRejectedError, WorkBuddyCredentialStore, WorkBuddyEncryptedCredentialError, WorkBuddyUpstreamClient, apply, asVolatile, authFileName, classifyUpstreamError, clearAtRestKeyCache, clearHostHeartbeat, conversationIdFromSessionId, cooldownOf, createAccountUsabilityProbe, createWorkBuddyAdapter, createWorkBuddyShim, creditOfStream, defaultDesktopAuthCandidates, defaultDesktopAuthDirs, defaultDesktopAuthPath, defaultOffModelIds, deriveAtRestKey, deriveAtRestKeyId, deriveCatalog, deriveStableConversationId, fallbackModelsFor, fetchAtRestKeyPayload, findWorkbuddyAppExecutable, hasEncryptedCredentialFields, imageDefaultFor, imageToolRegionOf, inject, isCredentialRejectedError, isEncryptedCredentialError, isEncryptedFieldWrapper, isHeartbeatProcessAlive, isWorkbuddyBundle, knownRegionOf, legacyAttributionRegion, legacyWorkbuddyOwnAuthPath, macosBundleExecutable, macosNestedAppBundles, modelIdOfBody, name, nativeModalityOf, nextRegionEnabled, nextRegionSlots, offDefaultFor, openEncryptedField, outcomeOfFailure, parseCreditMultiplier, parseReasoning, parseRetryAfter, parseUpstreamModel, parseWorkBuddyAuth, prepareChatBody, probeModel, probeRequestBody, probeSucceeded, processStartTimeMs, readAtRestKey, readHostHeartbeat, realTierAvailabilityFor, regionCleared, regionEnabled, regionEnabledOf, regionOf, regionOfProvider, regionOfStatusUrl, regionStateOf, regionsFieldIsCorrupt, regionsMapOf, registerWorkBuddyStatusRoute, resolveCredentialRecovery, selectAccountFor, settingsNamespaceOf, toPersistedWorkBuddyModel, unwrapVolatileDeep, videoToolRegionOf, withEffectiveOff, withWorkBuddyRegion, workBuddyDisplayName, workBuddyModelInput, workBuddyThinkingLevelMap, workBuddyWebStatus, workbuddyAccountId, workbuddyAppExecutableCandidates, workbuddyHostHeartbeatPath, workbuddyOwnAuthPath, writeHostHeartbeat };

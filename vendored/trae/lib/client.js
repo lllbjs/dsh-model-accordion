@@ -7,6 +7,253 @@ window.__ModuleLoader__.load({
 		let react = require("react");
 		let react_jsx_runtime = require("react/jsx-runtime");
 		let react_dom = require("react-dom");
+		//#region src/client/series-layout.ts
+		/** 同系列的公共布局规则。两个桥接插件同步维护此文件，功能专属样式留在 styles.ts。 */
+		function seriesLayoutCss(plugin) {
+			const p = `.dsm-${plugin}`;
+			const u = `${p}-usage`;
+			const members = plugin === "trae" ? `${p}-pool-card` : `${p}-pool-members`;
+			const memberHead = plugin === "trae" ? `${p}-pool-card-head` : `${p}-pool-members-head`;
+			const memberTitle = plugin === "trae" ? `${p}-pool-card-title` : `${p}-pool-members-title`;
+			const memberActions = plugin === "trae" ? `${p}-pool-card-tools` : `${p}-pool-members-actions`;
+			const saveBar = plugin === "trae" ? `${p}-pool-save-row` : `${p}-pool-save-bar`;
+			return `
+${p}-page{font-family:inherit;--dsm-series-sticky-top:-28px}
+${p}-page${p}-page{height:calc(100% - 16px);margin-bottom:16px;padding:28px clamp(24px,4vw,48px) 48px;gap:20px}
+${u} ${p}-pool-auto-checkin-status{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary,#777)}
+${p}-page-desc{font-size:13px;line-height:20px;color:var(--dsw-alias-label-tertiary,#999)}
+${u} ${p}-pool-auto-checkin{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+${p}-page>*{width:100%;max-width:860px;min-width:0}
+${u}{gap:16px;font-size:13px;line-height:1.5;min-width:0}
+${u} .dsm-btn{box-sizing:border-box;font:inherit;font-size:13px;line-height:20px;padding:5px 14px;border-radius:8px;min-height:32px}
+${u} .dsm-btn-outline{background:transparent;border-color:var(--dsw-alias-border-l2,#777);color:var(--dsw-alias-label-secondary,#999)}
+${u} ${p}-tabs{display:flex;gap:8px}
+${u} ${p}-tab-cell{flex:1;min-width:0;padding:8px 12px;border-radius:10px}
+${u} ${p}-panels{position:sticky;top:var(--dsm-series-sticky-top,0px);z-index:2;display:flex;gap:2px;margin:4px 0 0;padding:8px 0 0;border-bottom:1px solid var(--dsw-alias-border-l1,#777);background:var(--dsw-alias-bg-layer-2,#24262c)}
+/* 吸顶背景覆盖卡片两侧内边距，顶部偏移抵消滚动容器的顶部内边距。 */
+${p}-page-body ${u} ${p}-panels{margin-inline:0;padding:8px 0;border:0;border-bottom:1px solid var(--dsw-alias-border-l2,#777);border-radius:0;background:var(--dsw-alias-bg-layer-3,#202126)}
+${p}-page[data-tabs-stuck="true"] ${p}-panels{margin-inline:-20px;padding-inline:20px;border-top:1px solid var(--dsw-alias-border-l2,#777);box-shadow:0 3px 6px rgba(0,0,0,.06)}
+${u} ${p}-panel-tab{font-size:13px;font-weight:600;line-height:20px;padding:7px 11px}
+${u} ${p}-panel{margin-top:0;min-width:0}
+${u} ${p}-models-summary,${u} ${p}-panel-note{margin:2px 0 0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary,#999)}
+${u} ${p}-free-quota-warn{font-weight:600}
+/* 说明段落的间距由容器统一控制，避免与卡片的纵向 gap 叠加。 */
+${u} ${p}-region-summary{display:flex;flex-direction:column;gap:2px}
+${u} ${p}-region-summary ${p}-models-summary{margin:0}
+/* 页签底边已经分隔账号区，不在账号池顶部重复画线。 */
+${u} #dsm-${plugin}-panel-accounts ${p}-pool{border-top:0;padding-top:0}
+
+${u} ${p}-pool{display:flex;flex-direction:column;gap:12px;margin:0;padding:14px 0 0;border-top:1px solid var(--dsw-alias-border-l2,#777)}
+${u} ${p}-pool-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+${u} ${p}-pool-title{margin:0;font-size:13px;font-weight:600;line-height:18px}
+${u} ${plugin === "trae" ? `${p}-pool-current` : `${p}-pool-current-badge`}{margin-left:auto;max-width:100%;overflow-wrap:anywhere;white-space:normal;padding:2px 8px;border-radius:999px;border:1px solid var(--dsw-alias-border-l2,#777);font-size:11px;font-weight:500;line-height:16px;background:var(--dsw-alias-bg-layer-2,#24262c);color:var(--dsw-alias-label-secondary,#999)}
+${u} ${p}-pool-settings${p}-pool-modebar{padding:12px 14px;gap:8px;border:1px solid var(--dsw-alias-border-l2,#777);border-radius:12px;background:color-mix(in srgb,var(--dsw-alias-brand-primary,#cf795b) 5%,var(--dsw-alias-bg-layer-2,#24262c))}
+${u} ${p}-pool-modebar-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-height:20px}
+${u} ${p}-pool-modebar-label{font-size:13px;font-weight:600;line-height:20px}
+${u} ${p}-pool-modebar-state{padding:1px 9px;font-size:12px;line-height:18px;border-radius:999px;color:var(--dsw-alias-label-secondary,#999);border:1px solid var(--dsw-alias-border-l2,#777);background:var(--dsw-alias-bg-layer-2,#24262c)}
+${u} ${p}-pool-note,${u} ${p}-pool-modebar ${p}-pool-note{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary,#999)}
+${u} ${members}{display:flex;flex-direction:column;gap:0;min-width:0;border:1px solid var(--dsw-alias-border-l2,#777);border-radius:12px;background:var(--dsw-alias-bg-layer-2,#24262c);overflow:hidden}
+${u} ${memberHead}{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:14px 14px 12px}
+${u} ${memberTitle}{margin:0;font-size:13px;font-weight:600;line-height:18px;color:var(--dsw-alias-label-primary,#eee)}
+${u} ${memberHead} ${p}-pool-note{margin-top:4px}
+${u} ${memberActions}{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+${u} ${memberActions} .dsm-btn{padding:5px 14px;font-size:13px;line-height:20px}
+${u} ${p}-pool-count,${u} ${memberActions} ${p}-pool-hint{font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary,#999)}
+${u} ${members} ${p}-pool-actions{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:0 14px 12px}
+${u} ${p}-pool-actions-end{margin-left:auto}
+${u} ${members} ${p}-pool-action-note{margin:0;padding:0 14px 12px;font-size:12px;line-height:18px}
+${u} ${members} ${p}-pool-table{border:0;border-top:1px solid var(--dsw-alias-border-l1,#777);border-radius:0}
+${u} ${p}-pool-row{padding:10px 14px;align-items:start;font-size:13px;line-height:18px}
+${u} ${p}-pool-row-head{padding:8px 14px;font-size:11px;line-height:16px;align-items:center}
+${u} ${p}-pool-row-current{background:color-mix(in srgb,var(--dsw-alias-brand-primary,#cf795b) 5%,var(--dsw-alias-bg-layer-2,#24262c));box-shadow:inset 3px 0 0 var(--dsw-alias-brand-primary,#cf795b)}
+${u} ${p}-pool-row-actions .dsm-btn{min-height:26px;padding:2px 10px;font-size:12px;line-height:20px}
+${u} ${p}-pool-settings-wrap{display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--dsw-alias-border-l2,#777);padding-top:14px}
+${u} ${p}-pool-settings{border-radius:12px;gap:0}
+${u} ${p}-pool-settings-wrap :is(h3,h4){margin:0;font-size:13px;font-weight:600;line-height:18px;color:var(--dsw-alias-label-primary,#eee)}
+${u} ${p}-pool-set-ctl select{box-sizing:border-box;width:240px;min-width:0;max-width:100%}
+${u} ${p}-pool-set{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 14px}
+${u} ${p}-pool-set-copy{flex:1;min-width:0;gap:3px}
+${u} ${p}-pool-set-copy b{font-size:13px;font-weight:500;line-height:18px}
+${u} ${p}-pool-set-copy span{font-size:12px;line-height:18px}
+${u} ${p}-models-title{font-size:13px;line-height:18px;font-weight:600}
+${u} ${p}-model-list{border-radius:12px}
+${u} ${p}-model{padding:12px 14px;gap:8px}
+${u} ${p}-model-name{font-size:13px;line-height:20px}
+${u} ${p}-model-actions,${u} ${p}-pool-save-row{gap:12px;padding-top:12px}
+/* 保存栏以整个账号池为粘附范围，避免被更多设置的短父级截住。 */
+${u} ${p}-pool-settings-wrap{display:contents}
+${u} ${saveBar}{position:sticky;bottom:0;z-index:2;isolation:isolate;padding-bottom:12px;background:var(--dsw-alias-bg-layer-3,#202126)}
+/* 滚动容器底部的内边距也属于可见区域，负偏移让背景覆盖到视口底边。 */
+${p}-page ${saveBar}{bottom:-48px}
+${p}-page ${saveBar}[data-save-stuck="true"]{margin-inline:-20px;padding-inline:20px;border-top:1px solid var(--dsw-alias-border-l2,#777);border-bottom:1px solid var(--dsw-alias-border-l2,#777);border-radius:0;box-shadow:0 -3px 6px rgba(0,0,0,.06)}
+
+${u} #dsm-${plugin}-panel-capabilities:not([hidden]){display:flex;flex-direction:column;gap:14px}
+${u} ${p}-prefs{gap:14px;padding:0}
+${u} ${p}-pref{font-size:13px;line-height:18px;gap:10px}
+${u} ${p}-pref-hint{font-size:12px;line-height:18px}
+${u} ${p}-draw-image{margin:0;gap:10px;font-size:13px;line-height:18px}
+${u} ${p}-draw-image>span{display:flex;flex-direction:column;gap:3px}
+${u} ${p}-draw-image-hint{font-size:12px;line-height:18px}
+${u} ${p}-pool-table{container-type:inline-size}
+${u} ${p}-pool-current-tag{border:1px solid var(--dsw-alias-border-l2,#777);background:var(--dsw-alias-bg-layer-2,#24262c);color:var(--dsw-alias-label-secondary,#999)}
+@container(max-width:700px){
+ ${u} ${p}-pool-row{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;padding:10px 12px}
+ ${u} ${p}-pool-row-head{display:none}
+ ${u} ${p}-pool-account{flex:1 1 auto;min-width:0}
+ ${u} ${p}-pool-row-actions{flex:1 1 100%;justify-content:flex-start;padding-top:4px}
+}
+/* 自动签到、设备参数和 SDK 是功能差异；沿用公共间距，不移除控件。 */
+${u} ${p}-device-mode{margin:0;padding:0 14px 12px}
+${u} ${p}-pool .sw{width:36px;height:20px}
+${u} ${p}-pool .sw-track::after{top:2px;left:2px;width:16px;height:16px;background:var(--dsw-alias-bg-layer-3,#fff)}
+${u} ${p}-pool .sw input:checked+.sw-track::after{transform:translateX(16px)}
+@media(max-width:600px){
+ ${p}-page${p}-page{padding:20px 16px 32px;--dsm-series-sticky-top:-20px}
+ ${p}-page ${saveBar}{bottom:-32px}
+ ${u} ${memberHead}{align-items:flex-start}
+ ${u} ${memberActions}{flex-wrap:wrap}
+ ${u} ${p}-pool-set{flex-wrap:wrap}
+ ${u} ${p}-pool-set-ctl{max-width:100%;flex-wrap:wrap}
+ ${u} ${p}-pool-set-ctl select{min-width:0;max-width:100%}
+}
+`;
+		}
+		/** 根据页签与保存栏的实际吸附位置显示边界。 */
+		function updateStickyTabs(page) {
+			const tabs = page.querySelector("[role=\"tablist\"][class$=\"-panels\"]");
+			const stuck = tabs !== null && page.scrollTop > 0 && tabs.getBoundingClientRect().top <= page.getBoundingClientRect().top + 1;
+			page.dataset.tabsStuck = String(stuck);
+			const viewportBottom = page.getBoundingClientRect().bottom;
+			for (const bar of Array.from(page.querySelectorAll("[class$=\"-pool-save-row\"],[class$=\"-pool-save-bar\"]"))) {
+				const visible = bar.getClientRects().length > 0;
+				const bottom = Number.parseFloat(getComputedStyle(bar).bottom) || 0;
+				bar.dataset.saveStuck = String(visible && Math.abs(bar.getBoundingClientRect().bottom + bottom - viewportBottom) <= 1);
+			}
+		}
+		//#endregion
+		//#region src/client/icon.ts
+		/**
+		* Plugin icon (LD brand logo, 64px) shared across the same-family plugins.
+		* Same data URI used by `dsh-subagent-default-model` so the external image
+		* stays consistent.
+		*/
+		const TRAE_PLUGIN_ICON = "data:image/png;base64,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";
+		//#endregion
+		//#region src/client/plugin-icon.tsx
+		const storageKey = "dsh-connect-trae.icon-style";
+		const changeEvent = storageKey + ".changed";
+		/**
+		* Appearance is local to this browser; account and provider settings are untouched.
+		*
+		* THE DEFAULT IS THIS PLUGIN'S OWN ICON ('original'), not the Claude skin.
+		*
+		* This shipped the other way round at first — an unset preference read as
+		* 'claude' — which meant every new user got a re-drawn silhouette before they
+		* had asked for anything, and the plugin's own artwork was the option they had
+		* to go find. A preference whose unset state is the non-default is a poor
+		* default: it makes the product's identity something you have to opt back into.
+		*
+		* An explicit 'claude' in storage still wins, so anyone who already chose the
+		* skin keeps it. Only the ABSENT case changed.
+		*/
+		function iconStyleSnapshot() {
+			try {
+				return window.localStorage.getItem(storageKey) === "claude" ? "claude" : "original";
+			} catch {
+				return "original";
+			}
+		}
+		function subscribe(listener) {
+			const onStorage = (event) => {
+				if (event.key === storageKey || event.key === null) listener();
+			};
+			window.addEventListener(changeEvent, listener);
+			window.addEventListener("storage", onStorage);
+			return () => {
+				window.removeEventListener(changeEvent, listener);
+				window.removeEventListener("storage", onStorage);
+			};
+		}
+		function setIconStyle(value) {
+			window.localStorage.setItem(storageKey, value);
+			window.dispatchEvent(new Event(changeEvent));
+		}
+		function PluginIcon(props) {
+			const saved = (0, react.useSyncExternalStore)(subscribe, iconStyleSnapshot, () => "original");
+			const variant = props.variant ?? saved;
+			const shared = {
+				className: props.className,
+				width: props.size ?? 16,
+				height: props.size ?? 16,
+				style: {
+					...props.style,
+					flexShrink: 0
+				},
+				"aria-hidden": true
+			};
+			if (variant === "original") return (0, react.createElement)("img", {
+				...shared,
+				src: TRAE_PLUGIN_ICON,
+				alt: ""
+			});
+			return (0, react.createElement)("svg", {
+				...shared,
+				viewBox: "0 0 24 24",
+				fill: "currentColor",
+				"data-icon-style": "claude",
+				"data-plugin-icon": "trae"
+			}, (0, react.createElement)("path", { d: "M4.5 5.5h3v11h3l3-3v4l-2 2h-7z" }), (0, react.createElement)("path", { d: "M10.5 5.5H15a7 7 0 0 1 0 14h-2v-3h2a4 4 0 0 0 0-8h-1.5v2l-3 3z" }));
+		}
+		/** Each choice previews the real icon and immediately persists its selection. */
+		function IconStylePreference({ t }) {
+			const selected = (0, react.useSyncExternalStore)(subscribe, iconStyleSnapshot, () => "original");
+			const [error, setError] = (0, react.useState)(false);
+			return (0, react.createElement)("div", { className: "dsm-icon-preference" }, (0, react.createElement)("div", { className: "dsm-icon-preference-copy" }, (0, react.createElement)("b", null, t("row.iconStyleLabel")), (0, react.createElement)("span", null, t("row.iconStyleHint"))), (0, react.createElement)("div", {
+				className: "dsm-icon-choices",
+				role: "radiogroup",
+				"aria-label": t("row.iconStyleLabel")
+			}, ...["claude", "original"].map((variant) => (0, react.createElement)("button", {
+				key: variant,
+				type: "button",
+				role: "radio",
+				"aria-checked": selected === variant,
+				tabIndex: selected === variant ? 0 : -1,
+				onKeyDown: (event) => {
+					if (![
+						"ArrowLeft",
+						"ArrowRight",
+						"ArrowUp",
+						"ArrowDown",
+						"Home",
+						"End"
+					].includes(event.key)) return;
+					event.preventDefault();
+					const next = event.key === "Home" ? "claude" : event.key === "End" ? "original" : variant === "claude" ? "original" : "claude";
+					try {
+						setIconStyle(next);
+						setError(false);
+						(event.currentTarget.parentElement?.querySelectorAll("[role=radio]")[next === "claude" ? 0 : 1])?.focus();
+					} catch {
+						setError(true);
+					}
+				},
+				onClick: () => {
+					try {
+						setIconStyle(variant);
+						setError(false);
+					} catch {
+						setError(true);
+					}
+				}
+			}, (0, react.createElement)(PluginIcon, {
+				variant,
+				size: 20
+			}), t(variant === "claude" ? "row.iconStyleClaude" : "row.iconStyleOriginal")))), error ? (0, react.createElement)("p", {
+				role: "alert",
+				className: "dsm-icon-save-error"
+			}, t("row.iconStyleSaveFailed")) : null);
+		}
+		//#endregion
 		//#region src/region.ts
 		/** Every panel, in card tab order. */
 		const TRAE_PANELS = [
@@ -327,6 +574,45 @@ window.__ModuleLoader__.load({
 			});
 		}
 		/**
+		* The automatic-refresh cadences this plugin offers, in MINUTES.
+		*
+		* The list is the setting's whole value domain: the schema validates against
+		* exactly these, so a hand-edited `7` is refused at write time instead of
+		* silently producing a cadence nobody chose. `1` is the floor because every
+		* usage read costs two upstream requests and a tighter loop would turn a
+		* background refresh into traffic the user never asked for.
+		*/
+		const TRAE_REFRESH_INTERVAL_MINUTES = [
+			1,
+			5,
+			10,
+			30,
+			60
+		];
+		const REFRESH_INTERVAL_SET = new Set(TRAE_REFRESH_INTERVAL_MINUTES);
+		/**
+		* How often the plugin refreshes on its own, in minutes.
+		*
+		* Anything that is not one of {@link TRAE_REFRESH_INTERVAL_MINUTES} reads as
+		* the default — absent (a profile written before the setting existed), a
+		* hand-edited `7`, a string `'5'`, or a live reference that resolves to none of
+		* those. Falling back rather than refusing to refresh is deliberate: a readout
+		* that stops updating because of an unrecognized value is the failure this
+		* setting must never introduce, and the schema already refuses such a value on
+		* the write path.
+		*
+		* `value` is the whole settings section (this field is plugin-wide, not
+		* per-region — see `Config.refreshIntervalMinutes`).
+		*/
+		function refreshIntervalMinutesOf(value) {
+			const stored = unwrapVolatileDeep(value)?.refreshIntervalMinutes;
+			return typeof stored === "number" && REFRESH_INTERVAL_SET.has(stored) ? stored : 5;
+		}
+		/** The same cadence as a millisecond period, for `setInterval`. */
+		function refreshIntervalMsOf(value) {
+			return refreshIntervalMinutesOf(value) * 6e4;
+		}
+		/**
 		* One panel's saved pool PREFERENCES, as the card's settings block edits them.
 		*
 		* Read from the settings document rather than from the usage answer for the same
@@ -500,6 +786,123 @@ window.__ModuleLoader__.load({
 			if (max !== void 0 && max >= 5e5 && (dev === void 0 || 5e5 > dev)) push(TRAE_CONTEXT_BUDGET_MID);
 			push(max);
 			return options.sort((left, right) => left - right);
+		}
+		//#endregion
+		//#region src/reasoning.ts
+		/**
+		* The DSH thinking levels this plugin can carry, in ascending order.
+		*
+		* `max` is the fifth level Trae's own client advertises — its bundle ships the
+		* i18n keys `trae-chat-core.model.reasoning_effort.{low,medium,high,extra_high,max}`
+		* and `ai.model.reasoning_effort.{low,medium,high,xhigh,max}`, and publishes the
+		* per-model list from a remote config (`AI.agent.model.reasoning_effort_level_by_agent_model_v2`).
+		* Leaving it out of this list meant a level the vendor could start serving was
+		* filtered away at PARSE time, before anything downstream could decide (issue
+		* #60). Listing it does not fabricate the level: `supported` is still built
+		* only from what the upstream response actually contains, so a model that does
+		* not advertise `max` never offers it.
+		*
+		* `minimal` is kept for the same reason in reverse — it is a DSH level, so the
+		* type must be able to represent it even though no CN model has advertised it.
+		*/
+		const TRAE_REASONING_EFFORTS = [
+			"minimal",
+			"low",
+			"medium",
+			"high",
+			"xhigh",
+			"max"
+		];
+		//#endregion
+		//#region src/default-effort.ts
+		/**
+		* Which thinking level a model runs at when the caller names none.
+		*
+		* ## Why this module exists
+		*
+		* Trae's directory already tells us each model's own default level
+		* (`reasoning_effort_config.default_level`, parsed into `reasoning.defaultEffort`
+		* by `model-metadata.ts`) — measured 2026-11-03 on a live CN credential:
+		* `deepseek-v4.1-flash` says `high`, `glm-5.3` says `xhigh`. The card's meta row
+		* names the tiers it accepts, so the fact is known.
+		*
+		* DSH's model picker nevertheless reads **Default**, because the adapter never
+		* reports that level upward (`reasoning.defaultEffort` is absent from what
+		* {@link toPiModel} hands the kernel). The picker therefore cannot say which
+		* tier a request will run at, and the request itself carries no
+		* `reasoning_effort` — the upstream falls back to the same level it already
+		* published, so nothing is broken, but nothing is knowable either, and the user
+		* has no way to say "always use high on this model, regardless of what Trae
+		* ships as its default".
+		*
+		* ## The three seams that must agree (any one missing and the picker still says Default)
+		*
+		* 1. **The adapter** must report the level as `LlmResolvedModelInfo.reasoning.defaultEffort`.
+		*    The kernel materialises that into every request that names no effort
+		*    (`dsh-llm` `resolveCallWithInfo`: `const effective = requested ?? reasoning.defaultEffort`),
+		*    and DSH's model picker takes its "current level" from the same metadata.
+		* 2. **A per-model saved choice** must survive a settings save. The settings
+		*    channel rebuilds the whole region document through its schema, so a field
+		*    absent from that schema is dropped on every save — the failure that once
+		*    reset `wireConfigName` (see the `modelConfig` schema).
+		* 3. **The bridge** must translate the level it receives into Trae's wire name.
+		*    `solo-bridge.ts` already does exactly that through the model's own
+		*    `reasoningEfforts` table, and deletes the field when the model does not
+		*    advertise it — so a level is never sent under a name the vendor never said.
+		*
+		* ## Precedence
+		*
+		* The user's explicit choice > the level upstream declares > this model's own
+		* middle tier.
+		*
+		* @module dsh-connect-trae/default-effort
+		*/
+		/**
+		* The tier to fall back to when a model publishes a tier list but names no
+		* default of its own and the user has never chosen one.
+		*
+		* `medium` is tried first because it is the only middle tier shared by the
+		* families seen so far. It is deliberately not the only fallback: a model that
+		* publishes `low / high` (measured on `Doubao-Seed-2.1-Pro` and
+		* `step-5-preview`) has no `medium` at all, and picking its weakest tier instead
+		* would silently mean "thinking off" — that is not a fallback, that is the worst
+		* possible default.
+		*/
+		const TRAE_FALLBACK_EFFORT = "medium";
+		/**
+		* The tiers a model actually declares, filtered to ones DSH can name.
+		*
+		* Upstream's vocabulary is not DSH's: Trae publishes `light / high / extra_high`
+		* and the parser maps them to `low / high / xhigh` (`EFFORT_MAP`). Anything that
+		* still fails to land in DSH's six names is dropped rather than passed through —
+		* a level the kernel cannot name would be rejected with
+		* `UNSUPPORTED_REASONING_EFFORT` and take the whole request with it.
+		*
+		* The result keeps `TRAE_REASONING_EFFORTS` order, so it reads weakest-first.
+		*/
+		function declaredEfforts(model) {
+			const supported = model.supported ?? [];
+			return TRAE_REASONING_EFFORTS.filter((level) => supported.includes(level));
+		}
+		/**
+		* The tier this model should run at when a request names none.
+		*
+		* @param model - the model, with the tiers it declares and its upstream default.
+		* @param saved - the user's per-model choices (model id -> tier). A missing key
+		*   means the user never chose, which is different from choosing the tier that
+		*   happens to equal the upstream default.
+		* @returns a tier **this model declares**, or `undefined` when it declares none.
+		*/
+		function defaultEffortFor(model, saved = {}) {
+			const declared = declaredEfforts(model);
+			if (declared.length === 0) return void 0;
+			const asked = saved[model.id];
+			const chosen = declared.find((level) => level === asked);
+			if (chosen !== void 0) return chosen;
+			const upstream = declared.find((level) => level === model.defaultEffort);
+			if (upstream !== void 0) return upstream;
+			if (declared.includes("medium")) return TRAE_FALLBACK_EFFORT;
+			return declared[Math.floor((declared.length - 1) / 2)];
 		}
 		//#endregion
 		//#region src/model-order.ts
@@ -820,14 +1223,6 @@ window.__ModuleLoader__.load({
 			}
 		}
 		//#endregion
-		//#region src/client/icon.ts
-		/**
-		* Plugin icon (LD brand logo, 64px) shared across the LaoDing plugin family.
-		* Same data URI used by `dsh-subagent-default-model` so the external image
-		* stays consistent.
-		*/
-		const TRAE_PLUGIN_ICON = "data:image/png;base64,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";
-		//#endregion
 		//#region src/client/styles.ts
 		/**
 		* Client styles for the Trae plugin card.
@@ -836,6 +1231,16 @@ window.__ModuleLoader__.load({
 		* button primitives, same `--dsw-alias-*` token palette).
 		*/
 		const TRAE_CARD_CSS = `
+.dsm-icon-preference{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;color:var(--dsw-alias-label-primary,#e6e6e6)}
+.dsm-icon-preference-copy{display:flex;flex-direction:column;gap:4px;flex:1;min-width:180px;font-size:13px}
+.dsm-icon-preference-copy>span{font-size:12px;line-height:1.5;color:var(--dsw-alias-label-tertiary,#999)}
+.dsm-icon-choices{display:flex;flex-wrap:wrap;gap:6px}
+.dsm-icon-choices>button{appearance:none;display:inline-flex;align-items:center;gap:8px;font:inherit;font-size:12px;line-height:20px;color:inherit;background:transparent;border:1px solid var(--dsw-alias-border-l2,#777);border-radius:8px;padding:7px 10px;cursor:pointer}
+.dsm-icon-choices>button[aria-checked="true"]{border-color:var(--dsw-alias-brand-primary,#cf795b);background:var(--dsw-alias-bg-layer-2,#25262b)}
+.dsm-icon-choices>button:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#cf795b);outline-offset:2px}
+.dsm-icon-save-error{flex-basis:100%;margin:0;color:var(--dsw-alias-state-error-primary,#c33);font-size:12px}
+.dsm-trae-pool-auto-checkin{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.dsm-trae-pool-auto-checkin-status{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary,#999)}
 .dsm-plugin-card{border:1px solid var(--dsw-alias-border-l2,#36373b);background:var(--dsw-alias-bg-layer-3,#202126);border-radius:12px;list-style:none;transition:border-color .16s,background .16s}
 .dsm-plugin-card:hover{border-color:var(--dsw-alias-label-dimmed,#777)}
 .dsm-plugin-card-open{background:var(--dsw-alias-bg-layer-2,#25262b);border-color:var(--dsw-alias-label-dimmed,#777)}
@@ -883,6 +1288,21 @@ window.__ModuleLoader__.load({
 .dsm-trae-tab-switch{flex:none;margin-left:auto;padding-left:10px;border-left:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.24))}
 .dsm-trae-tab-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:7px;vertical-align:baseline}
 .dsm-trae-tab-hint{margin:0;padding:0 2px;color:var(--dsw-alias-label-tertiary,#999);font-size:12px;line-height:18px}
+/* THE TWO SETTINGS-SURFACE TWEAKS, SCOPED (learned the hard way, post-release).
+ *
+ * 下面两条原本是**无作用域**的：一条把供应商说明行视觉隐藏，一条把分栏条改成
+ * sticky 并加一层底色。它们写的时候只想到设置面板那一列（564px、外壳自带滚动），
+ * 但那两处 DOM 是**三个界面共用的**——卡片、整页、设置页画的是同一棵树。
+ *
+ * 结果在卡片上是两个回归（实测）：说明行在卡片里也消失了（卡片有自己的宽度、
+ * 有自己的节奏，那里根本没有纵向空间压力），分栏条拿到 position:sticky 却没有
+ * 滚动祖先，且底色取了 layer-2 而卡片本身是 layer-3，于是在卡片上压出一条
+ * 比周围更浅的色带。
+ *
+ * 所以两条都挪到 .dsm-trae-section 之下——那是"只在设置面板里生效"的结构标记，
+ * 也是这些改动的唯一理由所在（外壳的滚动列与 564px 的宽度）。卡片与整页保持
+ * 原样：它们没有面板外壳，也就没有这些约束。 */
+.dsm-trae-section .dsm-trae-tab-hint{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
 /* SECTION TABS: the card's own top-level split (account / models / diagnostics).
  *
  * Deliberately NOT the boxed chips above. Those are the REGION scope — a
@@ -897,7 +1317,25 @@ window.__ModuleLoader__.load({
  * inactive panel out of the accessibility tree, which is exactly what
  * role="tabpanel" wants — unlike display:none reached by a CSS class, the user
  * agent's own rule for [hidden] cannot be overridden by a later declaration. */
+/* 分栏条钉在外壳的滚动列顶部（STICKY, not a second scroller）。
+ *
+ * 站点：本插件**不**接管滚动。设置面板的 .options 列本来就负责滚动（它自己的
+ * CSS 注释写明了这一点），在里面再套一层 overflow:auto 就是两根滚动条，滚轮
+ * 会在两者之间来回跳。所以这里既不写 height:100%，也不写 overflow。
+ *
+ * 但「不接管滚动」不等于「分栏条可以滚走」：账号池在折叠线以下，滚到那里时
+ * 「模型 / 诊断」已经跟着滚出了视野，想切分栏只能先把整页滚回顶部。sticky 让它
+ * 在任何滚动位置都留在顶部，代价只是 z-index 与一层不透明底色——否则滚上来的
+ * 账号卡片会从字缝里透出来（外壳的 layer-2 正是这一列自己的底色）。
+ *
+ * top:-1px 而不是 0：分栏条自己的 border-bottom 画在盒子外侧，写成 0 会在它上方
+ * 留一条 1px 的缝，滚动的行会从这条缝里露出来。 */
 .dsm-trae-panels{display:flex;align-items:stretch;gap:2px;margin:4px 0 0;border-bottom:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.24))}
+/* 分栏条只在设置面板里钉住（见上方 .dsm-trae-tab-hint 的长注释：这两条原本无
+ * 作用域，在卡片上留下两个回归）。卡片与整页没有"外壳的滚动列"，那里的分栏条
+ * 跟着内容正常滚走即可；sticky 在没有滚动祖先时不会生效，却会把底色带进来——
+ * 而底色取 layer-2，卡片本身是 layer-3，色差在卡片上就成了一条浅色带。 */
+.dsm-trae-section .dsm-trae-usage .dsm-trae-panels{position:sticky;top:-1px;z-index:2;padding:0;background:var(--dsw-alias-bg-layer-2,#24262c)}
 .dsm-trae-panel-tab{appearance:none;font:inherit;cursor:pointer;border:0;background:transparent;padding:7px 11px;margin-bottom:-1px;border-bottom:2px solid transparent;color:var(--dsw-alias-label-tertiary,#999);font-size:13px;font-weight:600;line-height:20px;white-space:nowrap;transition:color .15s,border-color .15s}
 .dsm-trae-panel-tab:hover:not(.dsm-trae-panel-tab-active){color:var(--dsw-alias-label-primary,#e6e6e6)}
 .dsm-trae-panel-tab:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#5686fe);outline-offset:1px}
@@ -905,6 +1343,12 @@ window.__ModuleLoader__.load({
 /* No top margin of its own: the strip above already carries a border, and the
    card's 16px stack gap would double the separation. */
 .dsm-trae-panel{margin-top:0}
+/* The one-line note at the top of a section that holds controls but no Save
+ * button. A section with switches and no footer is the first thing a reader
+ * doubts — "did that press stick?" — so the note answers it before the doubt
+ * forms, and it is styled as a muted paragraph rather than a warning because
+ * "takes effect immediately" is a fact, not a caveat. */
+.dsm-trae-panel-note{margin:0 0 4px;padding:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary,#9aa0a8)}
 /* DIAGNOSTICS: a two-column fact table rather than prose. Each row is one thing
  * the card actually READ, so a bug report can quote a line instead of
  * paraphrasing the UI. No control lives here on purpose — a diagnostics panel
@@ -950,6 +1394,20 @@ window.__ModuleLoader__.load({
 .dsm-trae-prefs{display:flex;flex-direction:column;gap:14px;padding:2px 2px 0}
 .dsm-trae-pref{display:flex;align-items:flex-start;gap:10px;font-size:13px;line-height:18px;color:var(--dsw-alias-label-secondary,#c6c9d0);cursor:pointer}
 .dsm-trae-pref input{flex:none;cursor:pointer;accent-color:var(--dsw-alias-brand-primary,#5686fe)}
+/* The icon picker inside the 「能力」 list.
+ *
+ * It is a shared component (plugin-icon.tsx) that also renders standalone, so
+ * its own rule carries a 12px block padding for that standalone use. Inside the
+ * prefs column that padding doubles up with the container's 14px gap and the row
+ * drifts away from its three neighbours, which are bare lines with no padding of
+ * their own. Strip it here rather than in the shared rule: the standalone
+ * spacing is still correct wherever else this component is mounted.
+ *
+ * min-width:0 on the copy because the labels here are Chinese sentences, not the
+ * short English words the 180px floor was chosen for; without it a long hint
+ * pushes the two icon buttons out of the 564px column instead of wrapping. */
+.dsm-trae-prefs .dsm-icon-preference{padding:0;align-items:flex-start}
+.dsm-trae-prefs .dsm-icon-preference-copy{min-width:0}
 .dsm-trae-pref-check{inline-size:15px;block-size:15px;margin:3px 0 0}
 /* The label and its explanation used to run together as one wrapped blob
    ("在输入框工具栏显示积分读数 在输入框工具栏显示可点击读数…"), which is what made
@@ -984,6 +1442,19 @@ window.__ModuleLoader__.load({
    question and sits beside the words that ask it. */
 .dsm-trae-credit-position{flex:none;max-width:none;margin-top:0;padding:3px 8px;font-size:12px;line-height:16px;border:1px solid var(--dsw-alias-border-l2,#3a3d45);border-radius:7px;background:var(--dsw-alias-bg-layer-3,#2a2c33);color:var(--dsw-alias-label-primary,#e6e6e6);cursor:pointer}
 .dsm-trae-credit-position:disabled{cursor:default}
+/* The automatic-refresh picker, a sibling of the seat picker above and styled
+   to match it — the two answer the same kind of question ("how this readout
+   behaves") and sit on consecutive lines, so a second visual idiom would read
+   as an unrelated control.
+
+   Its OWN class, deliberately NOT the seat picker's: a test that selects the
+   seat picker by class must not start finding the cadence picker the moment
+   this row is added, which is exactly the failure the seat picker's own comment
+   records. The row borrows the checkbox column's padding for the same reason
+   its sibling does. */
+.dsm-trae-refresh-interval-pref{align-items:flex-start;padding-left:25px}
+.dsm-trae-refresh-interval{flex:none;max-width:none;margin-top:0;padding:3px 8px;font-size:12px;line-height:16px;border:1px solid var(--dsw-alias-border-l2,#3a3d45);border-radius:7px;background:var(--dsw-alias-bg-layer-3,#2a2c33);color:var(--dsw-alias-label-primary,#e6e6e6);cursor:pointer}
+.dsm-trae-refresh-interval:disabled{cursor:default}
 /* The card's checkboxes are the platform's own, styled only with
    accent-color 鈥?the SAME idiom .dsm-trae-mainui-switch-label above already
    uses for the composer-line switch, and the one the sibling
@@ -1021,7 +1492,7 @@ window.__ModuleLoader__.load({
 /* The account rows: two lines each 鈥?who the account is, then what it is worth
    鈥?with the one action that applies to THAT row on the right. A four-column
    table was the wrong instrument here: every field demanded its own header, the
-   columns drifted with the content ("LaoDing" vs a full expiry stamp), and the
+   columns drifted with the content (a short nickname vs a full expiry stamp), and the
    bound row repeated its "in use" badge in two different columns. */
 /* The account table, shaped like the sibling WorkBuddy card's pool table: a
    bordered container, a tinted header row, and one grid row per account whose
@@ -1052,6 +1523,10 @@ window.__ModuleLoader__.load({
 .dsm-trae-account-meta{display:flex;align-items:center;gap:5px;flex-wrap:wrap;font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary,#9aa0a8);min-width:0}
 .dsm-trae-account-meta i{font-style:normal;opacity:.4}
 .dsm-trae-account-note{font-size:11px;line-height:16px;color:var(--dsw-alias-state-error-primary,#ef4444)}
+/* A transient overload / timeout (issue #89) is not a failure: give it a
+   readable size and a calm warning tone so it cannot be mistaken for a dead
+   button the way the 11px red error line was. */
+.dsm-trae-account-note-busy{font-size:12px;line-height:18px;color:var(--dsw-alias-state-warn-primary,#b45309)}
 /* Its own track, in tabular figures, so digits in different rows sit on the same
    column of the grid instead of jittering with the glyph widths. */
 .dsm-trae-account-worth{display:flex;flex-direction:column;gap:1px;min-width:0;font-variant-numeric:tabular-nums}
@@ -1270,11 +1745,33 @@ window.__ModuleLoader__.load({
 .dsm-trae-model-promo-offPeak{color:var(--dsw-alias-brand-primary,#5686fe);border-color:color-mix(in srgb,var(--dsw-alias-brand-primary,#5686fe) 40%,transparent);background:color-mix(in srgb,var(--dsw-alias-brand-primary,#5686fe) 10%,transparent)}
 .dsm-trae-model-meta{display:flex;align-items:center;gap:7px 12px;flex-wrap:wrap;color:var(--dsw-alias-label-tertiary,#999);font-size:11px;line-height:16px}
 .dsm-trae-model-options{display:flex;align-items:center;justify-content:flex-end;gap:12px;flex:none}
+/* The thinking-level picker, on the meta row. Deliberately shaped like the
+   quiet meta text beside it (11px, secondary label) rather than like the
+   options row: it edits a standing preference, and a control that shouts
+   would read as a per-request input the way the image checkbox is. */
+.dsm-trae-model-effort{display:inline-flex;align-items:center;min-width:0}
+.dsm-trae-model-effort label{display:inline-flex;align-items:center;gap:4px;cursor:pointer}
+.dsm-trae-model-effort-select{max-width:112px;padding:0 2px;border:1px solid transparent;border-radius:4px;background:transparent;color:var(--dsw-alias-label-secondary,#c6c9d0);font:inherit;cursor:pointer}
+.dsm-trae-model-effort-select:hover{border-color:var(--dsw-alias-border-l2,#36373b)}
+.dsm-trae-model-effort-select:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#5686fe);outline-offset:1px}
+.dsm-trae-model-effort-select:disabled{opacity:.6;cursor:not-allowed}
 .dsm-trae-model-image{display:inline-flex;align-items:center;gap:4px;color:var(--dsw-alias-label-secondary,#c6c9d0);font-size:11px;line-height:16px;cursor:pointer}
 .dsm-trae-model-image input{margin:0;accent-color:var(--dsw-alias-brand-primary,#5686fe)}
+/* The context-budget control: one select per row, not a row of radios.
+ *
+ * The fieldset stays as the grouping element — it carries the accessible name
+ * and the hint title, and a select has no group of its own. flex:none keeps
+ * it from stealing width from the model name, which is the thing that has to
+ * stay readable on a 564px column.
+ *
+ * The select width is FIXED rather than content-sized: with 2-3 options the
+ * widest label dictates the width, and a per-row width made the list ragged
+ * (a 3-option row's control was visibly wider than its neighbours). */
 .dsm-trae-context-budget{display:flex;align-items:center;justify-content:flex-end;gap:12px;flex:none;margin:0;padding:0;border:0;color:var(--dsw-alias-label-secondary,#c6c9d0);font-size:11px;line-height:16px}
 .dsm-trae-context-budget label{display:inline-flex;align-items:center;gap:4px;cursor:pointer}
 .dsm-trae-context-budget input{margin:0;accent-color:var(--dsw-alias-brand-primary,#5686fe)}
+.dsm-trae-context-select{flex:none;width:96px;max-width:none;padding:2px 6px;font:inherit;font-size:11px;line-height:16px;color:var(--dsw-alias-label-primary,#e6e6e6);background:var(--dsw-alias-bg-layer-3,#2a2c33);border:1px solid var(--dsw-alias-border-l2,#3a3d45);border-radius:7px;cursor:pointer}
+.dsm-trae-context-select:disabled{cursor:default;opacity:.6}
 .dsm-trae-model-capability-note{margin:0;color:var(--dsw-alias-label-tertiary,#999);font-size:12px;line-height:18px}
 .dsm-trae-model-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid var(--dsw-alias-border-l2,#36373b);padding-top:12px}
 .dsm-trae-model-actions-buttons{display:flex;align-items:center;justify-content:flex-end;gap:8px}
@@ -1450,7 +1947,25 @@ window.__ModuleLoader__.load({
 .dsm-trae-pool-subnote{margin:2px 0 0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary,#9aa0a8)}
 .dsm-trae-pool-select-actions{display:flex;flex:none;gap:6px}
 .dsm-trae-pool-select-actions .dsm-btn,.dsm-trae-pool-row-actions .dsm-btn{padding:4px 10px;font-size:12px;line-height:1.4}
-.dsm-trae-pool-table{--dsm-trae-pool-cols:minmax(0,1.4fr) 128px minmax(0,1.2fr) 96px 128px;display:flex;flex-direction:column;border:1px solid var(--dsw-alias-border-l2,#3a3d45);border-radius:var(--dsm-trae-pool-radius);overflow:hidden;background:var(--dsw-alias-bg-layer-2,#24262c)}
+/* CONTAINMENT ROOT（learned from workbuddy 5.19.0 的同一次迁移）。
+ *
+ * 这张卡同时画在三处，宽度与窗口毫无关系：输入框卡片、整页版（上限 860px）、
+ * 以及设置面板的内容列（1400px 屏上是 564px）。本文件里所有 @media 断点测的
+ * 都是**视口**，所以在设置面板里它们永远不触发——564px 的列拿到了五列桌面表格，
+ * 每个单元格都在截断（实测账号列被压到 76px，一个 9 位数字账号名只剩前 5 个字符）。
+ *
+ * container-type:inline-size 让下面的断点改测**这张表**的宽度，那才是行真正要
+ * 塞进去的宽度。
+ *
+ * 特意放在表格上而不是祖先上：container-type 会让这个元素成为 position:fixed
+ * 后代的包含块。忙碌遮罩 .dsm-trae-veil 与账号导入对话框都是这张表的兄弟节点
+ * （挂在 .dsm-trae-pool 或 cardBody 上，不在表格里），放在表格上就让它们继续
+ * 相对视口定位——全屏遮罩本来该在那里。表格内部只有表头与成员行，没有 fixed 后代。
+ *
+ * overflow:hidden 与 container-type 冲突：容器查询要求这个盒子能被"测量"，而
+ * overflow 会改变它的块格式化上下文。这里原本就有 overflow:hidden（用来裁圆角），
+ * 二者在本例中兼容——表格自身不滚动，只是裁掉子元素的直角。 */
+.dsm-trae-pool-table{--dsm-trae-pool-cols:minmax(0,1.4fr) 128px minmax(0,1.2fr) 96px 128px;container-type:inline-size;display:flex;flex-direction:column;border:1px solid var(--dsw-alias-border-l2,#3a3d45);border-radius:var(--dsm-trae-pool-radius);overflow:hidden;background:var(--dsw-alias-bg-layer-2,#24262c)}
 .dsm-trae-pool-table-no-checkin{--dsm-trae-pool-cols:minmax(0,1.4fr) 128px minmax(0,1.2fr) 128px}
 .dsm-trae-pool-row{display:grid;grid-template-columns:var(--dsm-trae-pool-cols);align-items:start;gap:10px;padding:var(--dsm-trae-pool-pad-y) var(--dsm-trae-pool-pad-x);border-top:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.18))}
 .dsm-trae-pool-row:first-child{border-top:0}
@@ -1463,7 +1978,23 @@ window.__ModuleLoader__.load({
    reads as a selection control, and the checkbox beside it already is one. */
 .dsm-trae-pool-row-current{background:rgba(86,134,254,.07);box-shadow:inset 3px 0 0 var(--dsw-alias-brand-primary,#5686fe)}
 .dsm-trae-pool-row-ghost{opacity:.7}
-.dsm-trae-pool-row-actions{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
+/* The row's buttons: RIGHT side of the row, pulled there by the auto margin
+ * (learned from dsh-connect-workbuddy, which had the same complaint).
+ *
+ * WHY THE AUTO MARGIN AND NOT JUST justify-content. In the wide grid this cell
+ * IS the last track, so justify-content:flex-end was enough. But in the
+ * NARROW form the row becomes a wrapping flex line, and this cell is a sibling
+ * of the account line rather than a track beside it -- so it claimed a line of
+ * its own and the row spent a whole line on two small buttons.
+ *
+ * margin-inline-start:auto moves it to the END of whatever line has room. In
+ * the narrow form that is the account line, which is the SHORTEST line in the
+ * row, so the buttons land beside the account name where the eye already is
+ * instead of under it.
+ *
+ * flex:none is load-bearing: the account name may truncate, the buttons may
+ * not, and a shrunken button is unclickable. */
+.dsm-trae-pool-row-actions{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;flex:none;margin-inline-start:auto}
 .dsm-trae-pool-account{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:2px 8px;min-width:0}
 .dsm-trae-pool-check{display:inline-flex;align-items:center;flex:none;grid-column:1;grid-row:1;cursor:pointer}
 .dsm-trae-pool-check input{flex:none;margin:0;cursor:pointer;accent-color:var(--dsw-alias-brand-primary,#5686fe)}
@@ -1518,6 +2049,94 @@ window.__ModuleLoader__.load({
 .dsm-trae-pool-save-row{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid var(--dsw-alias-border-l2,#36373b);padding-top:12px;position:sticky;bottom:0;z-index:2;padding-bottom:8px;background:var(--dsw-alias-bg-layer-3,#2a2c33)}
 .dsm-trae-pool-save-buttons{display:flex;align-items:center;justify-content:flex-end;gap:8px}
 .dsm-trae-pool-save-row .dsm-btn{padding:5px 14px;font-size:13px;line-height:1.5}
+
+/* THE TABLE'S NARROW FORM — measured against the table, not the window
+ * (learned from workbuddy 5.19.0, which hit the identical bug in the identical
+ * move from a plugin card to a settings.section page).
+ *
+ * 上面的 @media 断点测的都是视口。这张卡现在画在设置面板的内容列里（564px），
+ * 视口媒体查询在那里永远不触发：五列表格被塞进 564px，固定轨道 128+96+128 加
+ * 四条 10px 间隙与两倍 14px 内边距之后，留给账号名与探针两条弹性轨道的只剩
+ * ~144px，实测账号名列 = 76px。
+ *
+ * 一个阈值，不是两个。中间再插一档「稍微窄一点就少一列」是没有价值的分支：
+ * 设置面板那一列正好落在中档里，用户会拿到一个表头对不上的 2×2 网格。表格没有
+ * 「稍微窄」的形态值得保留——要么放得下这些列，要么放不下。
+ *
+ * 放不下的时候，每行变成一张**堆叠卡片**：同样是那五个事实，宽的时候从左往右
+ * 读，现在从上往下读。这是让窄行可读而不只是能塞下的关键。
+ *
+ * 三行，不是五行：整体 flex-direction:column 会把每个单元格推成独立一行，行高翻
+ * 倍、读起来像表单而不是一个账号。账号与操作各占满一整行（最需要辨认的一端与
+ * 最需要操作的一端），中间三个事实共享中间一行，只有真的放不下时才在自己之间换行。
+ *
+ * .dsm-trae-pool-row-head 隐藏：它的标签描述的是已经不存在的轨道。 */
+@container (max-width:700px){
+  /* The dsm-trae-usage hop is load-bearing: series-layout.ts appends a
+     dsm-trae-usage dsm-trae-pool-row rule inside this same container query, and
+     at 0,2,0 it beat the plain dsm-trae-pool-row below (0,1,0). Measured after
+     the 4.14.0 merge: display came back as flex, rows grew 75 -> 111px and the
+     check-in fell to line 2 again, while the grid COLUMN rules still applied —
+     a half-applied layout, which is why it looked like a padding problem rather
+     than a specificity one. */
+  .dsm-trae-usage .dsm-trae-pool-row{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px;padding:var(--dsm-trae-pool-pad-y) 12px}
+  .dsm-trae-pool-row-head{display:none}
+  /* TWO ROWS, EXPLICITLY PLACED. Not "let flex wrap and hope".
+   *
+   * 每一行账号只有两行：
+   *
+   *   第一行  [勾选 + 账号名 + 标签]            [签到状态 + 按钮]  [积分]
+   *   第二行  [状态 · 测得时间 · 来源]                            [测速] [删除]
+   *
+   * 以前是 flex-wrap，由内容决定怎么折——结果是同一个表格里的行落在不同的
+   * 位置（实测三行分别占地 4 / 4 / 3 个纵向位置），有的积分被挤到中间（x=588）。
+   * 网格把每个事实钉在一个格子里：无论账号名多长，积分永远停在同一右缘，
+   * 「签到」永远和名字同一行。
+   *
+   * 列的含义：
+   *   1fr   —— 会伸缩的那一列（账号名、状态）。
+   *   auto  —— 签到：宽度由文字决定（「已签到」「未签到」「本设备今日已用」）。
+   *   auto  —— 积分：贴在右缘，flex:none，不许被压缩。
+   *
+   * 积分为什么单独成列而不是跟在名字后面：余额是这一行里唯一会被**跨行横向比对**
+   * 的数字（「哪个账号还剩得多」），而跟着名字走时三行分别落在 593 / 614 / 498，
+   * 眼睛没法竖着扫。等宽字形让小数点也对齐。
+   *
+   * 状态那一格（probe）独占第二行：它讲的是「能不能用」，与「还剩多少」不是同一个
+   * 问题；按钮也放在第二行，因为第一行已经有三个事实，再塞两个按钮会把账号名压窄。 */
+  .dsm-trae-usage .dsm-trae-pool-row:not(.dsm-trae-pool-row-head){
+    display:grid;grid-template-columns:minmax(0,1fr) auto auto;
+    align-items:center;gap:4px 10px}
+  .dsm-trae-pool-account{grid-column:1;grid-row:1;display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;min-width:0}
+  .dsm-trae-pool-checkin{grid-column:2;grid-row:1;justify-self:end;flex:none}
+  .dsm-trae-pool-credit{grid-column:3;grid-row:1;justify-self:end;flex:none;flex-direction:row;align-items:baseline;gap:2px 8px;text-align:right;font-variant-numeric:tabular-nums}
+  .dsm-trae-pool-probe{grid-column:1;grid-row:2;min-width:0}
+  /* Spans from the check-in column to the edge: the buttons sit under the figures
+     they act on, flush with the credit above them. */
+  .dsm-trae-pool-row-actions{grid-column:2/-1;grid-row:2;justify-self:end;justify-content:flex-end;margin-inline-start:0;padding-top:0}
+  /* THE PROBE CELL'S OWN COLUMN, collapsed to one line.
+   *
+   * 这一条是最容易漏掉的：.dsm-trae-pool-probe 只是个 min-width:0 的外层包装，
+   * 真正竖排的是它内部的 .dsm-trae-pool-probe-cell（flex-direction:column）。
+   * 只改外层包装的话，状态列仍然一句一行，被挤成「正常 / 测得 3 天前 / 来自测速 /
+   * upstream answered」四行——旁边只有 12px 间距，整行高度就被这一格撑到 100px
+   * 以上，账号名也跟着被压窄（实测截成前几个字符「用户7」）。
+   *
+   * 改成横排并允许在自己内部换行：这四个事实读起来本来就是一句话
+   * （「正常 · 测得 3 天前 · 来自测速 · upstream answered」），宽时从左排到右，
+   * 窄时在它们自己之间折行，而不是各自独占一行。 */
+  .dsm-trae-pool-probe-cell{flex-direction:row;flex-wrap:wrap;align-items:baseline;gap:2px 8px}
+  /* THE ACCOUNT CELL'S OWN GRID, collapsed the same way.
+   *
+   * 宽的时候它是个三行网格（名字 / 标签 / 探针时间），第一列固定给勾选框。
+   * 在窄列里这三行没有理由继续各占一行——它们本来就是一句话
+   * （「demo-usr · 已在池中 · 测试于 11/03, 06:35」），横排后名字与这两条短事实
+   * 共享一行，只有真的放不下时才折行。勾选框仍然排在最前，并保持垂直居中对齐
+   * 到第一行基线（align-self:baseline 会让它沉到行底）。 */
+  .dsm-trae-pool-account{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px}
+  .dsm-trae-pool-account-name,.dsm-trae-pool-account-tags,.dsm-trae-pool-account-note{grid-column:auto;grid-row:auto}
+  .dsm-trae-pool-check{align-self:center}
+}
 .dsm-trae-pool-dirty{padding:0 6px;border-radius:999px;background:var(--dsw-alias-state-warn-tertiary,#fef3c7);color:var(--dsw-alias-state-warn-primary,#b45309);font-size:10px;line-height:16px}
 .dsm-trae-pool-save-error{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-state-error-primary,#d92d20)}
 .dsm-trae-pool-target{display:flex;flex-direction:column;gap:6px;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary,#c6c9d0)}
@@ -1534,7 +2153,48 @@ window.__ModuleLoader__.load({
 .dsm-trae-pool-log-warn{border-left-color:var(--dsw-alias-state-warn-primary,#b45309)}
 .dsm-trae-pool-log-error{border-left-color:var(--dsw-alias-state-error-primary,#d92d20)}
 .dsm-trae-pool-log-text{overflow-wrap:anywhere}
-`;
+/* THE OPTIONAL SIDEBAR PAGE (Config.sidebarPanel).
+ *
+ * The same card body, drawn as a full page in the centre column: no card border
+ * or header, its own heading, and a scrolling column so a long pool log cannot
+ * push the header off screen. Widths are capped at the host's own reading width
+ * rather than the viewport, which is what keeps a wide monitor from stretching
+ * the account table into unreadable rows.
+ *
+ * The page's back control reuses the card's own button shape but not its
+ * dsm-btn class: this one is navigation, not an action. Its caret is drawn in
+ * CSS, for the same reason the card's chevron is — the host primitives' icon
+ * names are not a stable contract across DSH releases. */
+.dsm-trae-page{box-sizing:border-box;height:100%;display:flex;flex-direction:column;align-items:center;gap:20px;padding:28px clamp(24px,4vw,48px) 48px;overflow:auto;color:var(--dsw-alias-label-primary,#e6e6e6)}
+.dsm-trae-page>*{width:100%;max-width:860px}
+.dsm-trae-page-head{display:flex;flex-direction:column;gap:6px}
+.dsm-trae-page-back{appearance:none;font:inherit;cursor:pointer;border:1px solid var(--dsw-alias-border-l2,#36373b);background:var(--dsw-alias-bg-layer-1,#17181b);color:var(--dsw-alias-label-secondary,#c7c7c7);border-radius:8px;padding:5px 12px;display:inline-flex;align-items:center;gap:6px;align-self:flex-start;font-size:13px;line-height:20px}
+.dsm-trae-page-back:hover{color:var(--dsw-alias-label-primary,#e6e6e6);border-color:var(--dsw-alias-label-dimmed,#777)}
+.dsm-trae-page-back-caret{display:inline-block;width:7px;height:7px;border-left:1.6px solid currentColor;border-bottom:1.6px solid currentColor;transform:rotate(45deg);margin-right:2px}
+.dsm-trae-page-icon{width:40px;height:40px;border-radius:9px;align-self:flex-start;margin-top:14px}
+.dsm-trae-page-title{margin:0;font-size:20px;font-weight:600;line-height:1.4}
+.dsm-trae-page-desc{margin:0;font-size:13px;line-height:1.5;color:var(--dsw-alias-label-tertiary,#999)}
+.dsm-trae-page-body .dsm-trae-usage{padding:20px 20px 8px;border:1px solid var(--dsw-alias-border-l2,#36373b);background:var(--dsw-alias-bg-layer-3,#202126);border-radius:12px}
+/* The settings.section page. The shell already owns the panel, the nav row and
+ * the scrolling .options column (which brings its own 24px side padding), so
+ * this surface adds NO frame of its own: no second border, no second card, and
+ * deliberately no negative margins to "reclaim" the shell's padding. It is a
+ * plain column so the sections below stack the same way they do in the card. */
+.dsm-trae-section{display:flex;flex-direction:column;gap:14px;color:var(--dsw-alias-label-primary,#e6e6e6)}
+/* 页头两行：标题一行，简介一行（learned from workbuddy 5.19.0）。
+ *
+ * 原来是 18px/600 的大标题加一行 13px 说明，在 564px 的列里要占 70px。压到
+ * 15px/22px 的标题加 12px/18px 的说明后是 60px，省下的 10px 直接给了账号池——
+ * 而面板本身已有一层标题栏，「设置」已经写在最上面，这里再喊一遍大标题是本插件
+ * 自己的第二层标题，不是外壳的。
+ *
+ * 用 grid 而不是两个 flex 子项：标题和说明各自成行，中间不留 flex gap，行距由
+ * row-gap:2px 精确控制（flex 的 gap 会同时作用在两者之间，量出来是 6px）。 */
+.dsm-trae-section-head{display:grid;grid-template-columns:minmax(0,1fr);row-gap:2px;align-items:start}
+.dsm-trae-section-title{margin:0;font-size:15px;font-weight:600;line-height:22px}
+.dsm-trae-section-desc{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary,#999)}
+.dsm-trae-panel-icon{display:block;border-radius:4px;flex:none}
+` + seriesLayoutCss("trae");
 		/**
 		* Composer-row readout styles, injected by the readout itself.
 		*
@@ -1570,9 +2230,15 @@ window.__ModuleLoader__.load({
 /* The panel is portaled to document.body and positioned from the trigger, so it
    MUST be fixed 鈥?otherwise the left/top it measures are ignored and it lands in
    document flow. All material comes from shell tokens so it follows the theme. */
+/* 264px, not the 248px this started as (m02477). The header holds a title plus
+   two icon+word controls now, and measured in the browser the English pair
+   ("Refresh" + "Settings") needed 233px of content where 248px of panel leaves
+   222 — the settings pill overflowed its own header by 11px. Widening the panel
+   is the honest fix: the alternative is renaming the owner's words, and
+   "Refresh"/「刷新」 are what they asked for. */
 .dsm-trae-composer-panel{
   position:fixed;z-index:1100;box-sizing:border-box;
-  width:min(248px,calc(100vw - 24px));padding:12px;
+  width:min(264px,calc(100vw - 24px));padding:12px;
   border:1px solid var(--dsw-alias-border-l1,rgba(127,127,127,.28));
   border-radius:var(--dsw-radius-lg,14px);
   background:var(--dsw-specific-menu,Canvas);
@@ -1581,19 +2247,128 @@ window.__ModuleLoader__.load({
   font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary,#444);
 }
 .dsm-trae-composer-panel-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
-.dsm-trae-composer-panel-title{font-size:13px;font-weight:600;color:var(--dsw-alias-label-primary,CanvasText)}
-/* Self-contained: the dsm-btn primitive lives in TRAE_CARD_CSS, which the
-   composer never loads, so the refresh button must style itself. */
-.dsm-trae-composer-panel-refresh{
-  appearance:none;flex:none;margin-left:auto;padding:3px 10px;
-  border:1px solid var(--dsw-alias-border-l2,rgba(127,127,127,.34));
-  border-radius:7px;background:transparent;
+/* nowrap: the header is a title plus an 11px control in a ~250px popover, and
+   without it the TITLE broke across two lines the moment the settings control
+   joined the row — measured on the live Desktop host for the sibling plugin.
+   The title is the one thing that must stay on one line; what follows it is
+   short by construction. */
+.dsm-trae-composer-panel-title{flex:none;white-space:nowrap;font-size:13px;font-weight:600;color:var(--dsw-alias-label-primary,CanvasText)}
+/* The header's right-hand control: the link to this plugin's settings.
+   A wrapper rather than an auto margin on the button, because the button is NOT
+   always rendered (a host with no route renders none) and a wrapper that is
+   always present keeps the header layout identical either way. */
+.dsm-trae-composer-panel-actions{flex:none;margin-left:auto;display:flex;align-items:center;gap:6px}
+/* THE POOL TEST BUTTON (m02091, restyled m02477), sitting to the settings
+   pill's left.
+
+   A GHOST control: no border, no fill, an icon plus a word — and the FILL
+   appears only on hover. That shape is the owner's call (the reference shows a
+   bare circular arrow and 「刷新」 beside the tinted settings pill) and it also
+   reads correctly: the two controls are different kinds of thing. Settings
+   navigates, so it carries the brand fill and behaves like a pill; this one
+   re-runs a batch in place, so it stays quiet until the pointer arrives.
+
+   What the earlier bordered pill got wrong: a 1px outline at rest made it look
+   like the card's dsm-btn-outline (a save/cancel control), and two bordered or
+   two tinted shapes in a 264px header read as one segmented control instead of
+   two different actions. The icon is a circular arrow, not a gear — same family,
+   different verb. */
+.dsm-trae-composer-panel-test{
+  appearance:none;flex:none;
+  display:inline-flex;align-items:center;gap:4px;
+  padding:3px 6px;
+  border:1px solid transparent;border-radius:999px;background:transparent;
   color:var(--dsw-alias-label-secondary,#444);
-  font:inherit;font-size:11px;line-height:16px;cursor:pointer;
+  font:inherit;font-size:11px;line-height:16px;
+  white-space:nowrap;cursor:pointer;
+  transition:background-color .12s ease,border-color .12s ease,color .12s ease;
 }
-.dsm-trae-composer-panel-refresh:hover:not(:disabled){border-color:var(--dsw-alias-label-dimmed,rgba(127,127,127,.6));color:var(--dsw-alias-label-primary,CanvasText)}
-.dsm-trae-composer-panel-refresh:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#5686fe);outline-offset:1px}
-.dsm-trae-composer-panel-refresh:disabled{opacity:.5;cursor:default}
+.dsm-trae-composer-panel-test:hover:not(:disabled){
+  background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.10));
+  border-color:transparent;
+  color:var(--dsw-alias-label-primary,CanvasText);
+}
+.dsm-trae-composer-panel-test:active{background:rgba(127,127,127,.16)}
+.dsm-trae-composer-panel-test:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#5686fe);outline-offset:1px}
+.dsm-trae-composer-panel-test:disabled{opacity:.5;cursor:default}
+/* The arrow does not shrink when the label is a longer word ("Refresh" vs
+   「刷新」): a flex item defaults to shrinking, which squashes the 12px icon into
+   an oval on a narrow popover — the same trap the gear beside it documents. */
+.dsm-trae-composer-panel-test-icon{flex:none;display:block}
+/* While the batch runs the arrow TURNS — 900ms a revolution. A disabled button
+   whose icon sits still reads as broken, and this batch is serial: the slowest
+   account decides when it ends, so "did my press land?" is a real question for
+   as long as the panel is open. Fast enough to read as motion, slow enough not
+   to look like a rendering fault. */
+.dsm-trae-composer-panel-test-icon-spin{animation:dsm-trae-panel-test-spin .9s linear infinite}
+@keyframes dsm-trae-panel-test-spin{to{transform:rotate(360deg)}}
+/* The label never wraps. Two lines in a 16px-tall control would push the header
+   taller and unstick the table below it. */
+.dsm-trae-composer-panel-test-label{flex:none;white-space:nowrap}
+/* Reduced motion: the colour transition is decoration, and the hover state is
+   still fully visible without it. */
+@media (prefers-reduced-motion:reduce){
+  .dsm-trae-composer-panel-test{transition:none}
+  /* The motion is dropped but the STATE SIGNAL must not be: the icon keeps a
+     distinct dimmed look, and the label already switches to 「刷新中…」. Without
+     this the spinning arrow would simply freeze at an arbitrary angle and read
+     as a static icon — i.e. exactly the "did my press land?" silence that the
+     rotation was added to fix. */
+  .dsm-trae-composer-panel-test-icon-spin{animation:none;opacity:.5}
+}
+/* The batch's own outcome line: a NOTE (it succeeded but not everything
+   answered), not an error. Sized like the footer so it reads as a report. */
+.dsm-trae-composer-panel-note{
+  margin:8px 0 0;font-size:11px;line-height:16px;
+  color:var(--dsw-alias-label-secondary,#444);
+}
+/* PORTED VERBATIM IN SHAPE from the sibling dsh-connect-workbuddy
+   (ComposerCredits), so the two connectors' popovers agree: a quiet tinted
+   PILL, not a bordered button and not an underlined link.
+
+   Why not the bordered button this started as: navigating away is not the
+   header's primary action, and a bordered box beside a 13px title reads as a
+   toolbar. Why not an underlined link: a one-word underline reads as body text
+   that happens to be clickable — in a 13px header the eye does not register it
+   as a control at all. The tinted fill plus the gear give it a SHAPE at rest,
+   which is where the affordance is actually needed (the underline only appeared
+   on hover, i.e. after the user already knew). The fill is the brand colour at
+   10%, so it reads as "secondary action in this product" rather than as a fourth
+   grey chip beside the title.
+
+   Self-contained: the dsm-btn primitive lives in TRAE_CARD_CSS, which the
+   composer never loads. */
+.dsm-trae-composer-panel-settings{
+  appearance:none;flex:none;
+  display:inline-flex;align-items:center;gap:4px;
+  padding:3px 8px 3px 6px;
+  border:1px solid transparent;border-radius:999px;
+  background:rgba(86,134,254,.10);
+  color:var(--dsw-alias-brand-primary,#5686fe);
+  font:inherit;font-size:11px;line-height:16px;font-weight:500;
+  cursor:pointer;
+  transition:background-color .12s ease,border-color .12s ease,color .12s ease;
+}
+.dsm-trae-composer-panel-settings:hover:not(:disabled){
+  background:rgba(86,134,254,.18);
+  border-color:rgba(86,134,254,.34);
+  color:var(--dsw-alias-brand-primary,#5686fe);
+}
+.dsm-trae-composer-panel-settings:active{background:rgba(86,134,254,.26)}
+.dsm-trae-composer-panel-settings:focus-visible{outline:2px solid var(--dsw-alias-brand-primary,#5686fe);outline-offset:1px}
+.dsm-trae-composer-panel-settings:disabled{opacity:.5;cursor:default}
+/* The gear does not shrink when the label is a longer word ("Settings" vs
+   "设置"): a flex item defaults to shrinking, which would squash the icon into
+   an oval on a narrow popover. */
+.dsm-trae-composer-panel-settings-icon{flex:none;display:block}
+/* The label never wraps. Two lines in a 16px-tall pill would push the header
+   taller and unstick the table below it. */
+.dsm-trae-composer-panel-settings-label{flex:none;white-space:nowrap}
+/* Reduced motion: the colour transition is decoration, and the hover state is
+   still fully visible without it. */
+@media (prefers-reduced-motion:reduce){
+  .dsm-trae-composer-panel-settings{transition:none}
+}
 /* The panel is a TABLE: one row per account in the region, one figure (the
    general balance) per row, and a row click switches accounts.
 
@@ -1758,6 +2533,94 @@ window.__ModuleLoader__.load({
 			});
 		}
 		//#endregion
+		//#region src/client/pool-test.ts
+		/**
+		* How long one `test` request may take before the caller gives up.
+		*
+		* A probe has its own upstream deadline, but a stalled connection (a restarting
+		* Host, a dropped keep-alive) has none: without this the run button stays
+		* disabled until the page is reloaded, which reads as "测速卡住了". Sized for a
+		* full batch — a serial run with a gap between accounts — rather than for one
+		* account, because aborting a healthy batch half way through would report the
+		* members it never reached as failures.
+		*/
+		const POOL_TEST_TIMEOUT_MS = 18e4;
+		/**
+		* Handle ONE NDJSON line of a `test` answer. A non-JSON line is skipped; a
+		* `{reason:'pool-failed'}` line reports the failure and counts as "saw
+		* something". Returns whether the line was usable, so the caller can tell "the
+		* route answered nothing parseable" (a bug to surface) from "not finished yet".
+		*/
+		function applyTestLine(line, t, onRow, onFailure) {
+			if (line.trim() === "") return false;
+			let parsed;
+			try {
+				parsed = JSON.parse(line);
+			} catch {
+				return false;
+			}
+			if (parsed.row !== void 0) {
+				onRow(parsed.row);
+				return true;
+			}
+			if (parsed.rows !== void 0) {
+				for (const r of parsed.rows) onRow(r);
+				return true;
+			}
+			if (parsed.reason === "pool-failed") {
+				onFailure(parsed.error ?? t("row.poolLogGeneric"));
+				return true;
+			}
+			return false;
+		}
+		/**
+		* Read the answer line by line AS IT ARRIVES.
+		*
+		* The Host streams one line per account, but `response.text()` waits for the
+		* whole body: with a slow probe the surface sat on "逐个处理账号中…" and looked
+		* frozen (a single member could take half a minute). Reading the body stream
+		* makes each finished account appear immediately, and an empty/failed stream
+		* still ends the loop instead of hanging the busy state forever.
+		*/
+		async function* testLinesOf(response) {
+			const body = response.body;
+			if (body === null) {
+				for (const line of (await response.text()).split(/\r?\n/)) yield line;
+				return;
+			}
+			const reader = body.getReader();
+			const decoder = new TextDecoder();
+			let buffer = "";
+			for (;;) {
+				const { done, value } = await reader.read();
+				if (done) break;
+				buffer += decoder.decode(value, { stream: true });
+				let cut = buffer.indexOf("\n");
+				while (cut >= 0) {
+					yield buffer.slice(0, cut);
+					buffer = buffer.slice(cut + 1);
+					cut = buffer.indexOf("\n");
+				}
+			}
+			buffer += decoder.decode();
+			if (buffer.trim() !== "") yield buffer;
+		}
+		/** A human label for every value of {@link TraeWebPoolOutcome}. */
+		function outcomeLabel(outcome, t) {
+			switch (outcome) {
+				case "ok": return t("row.poolProbeOk");
+				case "rate-limited": return t("row.poolProbeRateLimited");
+				case "model-busy": return t("row.poolProbeModelBusy");
+				case "out-of-credit": return t("row.poolProbeOutOfCredit");
+				case "credential-rejected": return t("row.poolProbeCredentialRejected");
+				case "policy-rejected": return t("row.poolProbePolicyRejected");
+				case "plan-gated": return t("row.poolProbePlanGated");
+				case "unavailable": return t("row.poolProbeUnavailable");
+				case "not-found": return t("row.poolProbeNotFound");
+				case "failed": return t("row.poolProbeFailed");
+			}
+		}
+		//#endregion
 		//#region src/client/AccountPool.tsx
 		/**
 		* The account-pool card UI for Trae, ported from the WorkBuddy sibling.
@@ -1828,21 +2691,6 @@ window.__ModuleLoader__.load({
 			if (hours < 24) return t("row.poolAgoHour", { n: hours });
 			return t("row.poolAgoDay", { n: Math.round(hours / 24) });
 		}
-		/** A human label for every value of {@link TraeWebPoolOutcome}. */
-		function outcomeLabel(outcome, t) {
-			switch (outcome) {
-				case "ok": return t("row.poolProbeOk");
-				case "rate-limited": return t("row.poolProbeRateLimited");
-				case "model-busy": return t("row.poolProbeModelBusy");
-				case "out-of-credit": return t("row.poolProbeOutOfCredit");
-				case "credential-rejected": return t("row.poolProbeCredentialRejected");
-				case "policy-rejected": return t("row.poolProbePolicyRejected");
-				case "plan-gated": return t("row.poolProbePlanGated");
-				case "unavailable": return t("row.poolProbeUnavailable");
-				case "not-found": return t("row.poolProbeNotFound");
-				case "failed": return t("row.poolProbeFailed");
-			}
-		}
 		/** A human label for every value of {@link TraeWebPoolExclusion}. */
 		function exclusionLabel(exclusion, t) {
 			switch (exclusion) {
@@ -1893,81 +2741,14 @@ window.__ModuleLoader__.load({
 			}
 			return t("row.poolErrGeneric", { status: String(status) });
 		}
-		/**
-		* Handle ONE NDJSON line of a `test` answer. A non-JSON line is skipped; a
-		* `{reason:'pool-failed'}` line reports the failure and counts as "saw
-		* something". Returns whether the line was usable, so the caller can tell "the
-		* route answered nothing parseable" (a bug to surface) from "not finished yet".
-		*/
-		function applyTestLine(line, t, onRow, onFailure) {
-			if (line.trim() === "") return false;
-			let parsed;
-			try {
-				parsed = JSON.parse(line);
-			} catch {
-				return false;
-			}
-			if (parsed.row !== void 0) {
-				onRow(parsed.row);
-				return true;
-			}
-			if (parsed.rows !== void 0) {
-				for (const r of parsed.rows) onRow(r);
-				return true;
-			}
-			if (parsed.reason === "pool-failed") {
-				onFailure(parsed.error ?? t("row.poolLogGeneric"));
-				return true;
-			}
-			return false;
-		}
-		/**
-		* Read the answer line by line AS IT ARRIVES.
-		*
-		* The Host streams one line per account, but `response.text()` waits for the
-		* whole body: with a slow probe the card sat on "逐个处理账号中…" and looked
-		* frozen (a single member could take half a minute). Reading the body stream
-		* makes each finished account appear immediately, and an empty/failed stream
-		* still ends the loop instead of hanging the busy state forever.
-		*/
-		async function* testLinesOf(response) {
-			const body = response.body;
-			if (body === null) {
-				for (const line of (await response.text()).split(/\r?\n/)) yield line;
-				return;
-			}
-			const reader = body.getReader();
-			const decoder = new TextDecoder();
-			let buffer = "";
-			for (;;) {
-				const { done, value } = await reader.read();
-				if (done) break;
-				buffer += decoder.decode(value, { stream: true });
-				let cut = buffer.indexOf("\n");
-				while (cut >= 0) {
-					yield buffer.slice(0, cut);
-					buffer = buffer.slice(cut + 1);
-					cut = buffer.indexOf("\n");
-				}
-			}
-			buffer += decoder.decode();
-			if (buffer.trim() !== "") yield buffer;
-		}
-		/**
-		* How long one `test` request may take before the card gives up.
-		*
-		* A probe has its own upstream deadline, but a stalled connection (a restarting
-		* Host, a dropped keep-alive) has none: without this the run button stays
-		* disabled until the page is reloaded, which reads as "测速卡住了". Sized for a
-		* batch: a few seconds per account plus room for the slowest upstream.
-		*/
-		const TEST_TIMEOUT_MS = 18e4;
+		/** Whether one row is a saved member (dictates the in-pool tag / ghost badge). */
 		function AccountPool({ panel, pool, models, t, settingsScope, onChanged, onRefresh, tools, topActions, details, claims, onClaim, deviceClaimed = false, onBind, bindingBusy }) {
 			const [settingsTick, setSettingsTick] = (0, react.useState)(0);
 			const saved = (0, react.useMemo)(() => {
 				const base = regionPoolOf(settingsScope?.getSnapshot().value, panel);
 				return {
 					enabled: base.enabled === true,
+					autoCheckin: base.autoCheckin === true,
 					targetModelId: base.targetModelId ?? pool.targetModelId ?? pool.staleTargetModelId ?? "",
 					memberAccountIds: [...base.memberAccountIds ?? []],
 					probeInputTokens: numberOr(base.probeInputTokens, numberOr(pool.probeInputTokens, 0))
@@ -1991,6 +2772,7 @@ window.__ModuleLoader__.load({
 			*/
 			const probeSupported = typeof pool.probeInputTokens === "number";
 			const [enabled, setEnabled] = (0, react.useState)(saved.enabled);
+			const [autoCheckin, setAutoCheckin] = (0, react.useState)(saved.autoCheckin);
 			const [targetModelId, setTargetModelId] = (0, react.useState)(saved.targetModelId ?? "");
 			const [probeInputTokens, setProbeInputTokens] = (0, react.useState)(saved.probeInputTokens);
 			const [selected, setSelected] = (0, react.useState)(() => new Set(saved.memberAccountIds ?? []));
@@ -2042,8 +2824,11 @@ window.__ModuleLoader__.load({
 				pool,
 				knownIds
 			]);
-			const dirty = enabled !== saved.enabled || (targetModelId ?? "") !== (saved.targetModelId ?? "") || probeSupported && probeInputTokens !== saved.probeInputTokens || !sameIds([...selected], saved.memberAccountIds);
+			const dirty = enabled !== saved.enabled || autoCheckin !== saved.autoCheckin || (targetModelId ?? "") !== (saved.targetModelId ?? "") || probeSupported && probeInputTokens !== saved.probeInputTokens || !sameIds([...selected], saved.memberAccountIds);
 			const writable = settingsScope?.getSnapshot().writable === true;
+			(0, react.useEffect)(() => {
+				setAutoCheckin(saved.autoCheckin);
+			}, [panel, saved.autoCheckin]);
 			const savedMemberKey = (0, react.useMemo)(() => [...saved.memberAccountIds ?? []].sort().join("\0"), [saved]);
 			(0, react.useEffect)(() => {
 				setEnabled(saved.enabled);
@@ -2081,6 +2866,7 @@ window.__ModuleLoader__.load({
 			const selectNone = () => setSelected(/* @__PURE__ */ new Set());
 			const discard = () => {
 				setEnabled(saved.enabled);
+				setAutoCheckin(saved.autoCheckin);
 				setTargetModelId(saved.targetModelId ?? "");
 				setProbeInputTokens(saved.probeInputTokens);
 				setSelected(new Set(saved.memberAccountIds ?? []));
@@ -2095,13 +2881,14 @@ window.__ModuleLoader__.load({
 				try {
 					const next = {
 						enabled,
+						autoCheckin,
 						...targetModelId === "" ? {} : { targetModelId },
 						memberAccountIds: [...selected],
 						...probeSupported ? { probeInputTokens } : {}
 					};
 					await writeSettingsField(settingsScope, "regions", nextRegionPool(settingsScope.getSnapshot().value, panel, next), (readBack) => {
 						const readPool = regionPoolOf(readBack, panel);
-						return readPool.enabled === (next.enabled ?? false) && sameIds(readPool.memberAccountIds, next.memberAccountIds) && (readPool.targetModelId ?? "") === (next.targetModelId ?? "") && (!probeSupported || (readPool.probeInputTokens ?? 0) === probeInputTokens);
+						return readPool.autoCheckin === next.autoCheckin && readPool.enabled === (next.enabled ?? false) && sameIds(readPool.memberAccountIds, next.memberAccountIds) && (readPool.targetModelId ?? "") === (next.targetModelId ?? "") && (!probeSupported || (readPool.probeInputTokens ?? 0) === probeInputTokens);
 					});
 					pushLog("ok", t("row.poolLogSaved"));
 					onChanged?.();
@@ -2134,7 +2921,7 @@ window.__ModuleLoader__.load({
 				const controller = new AbortController();
 				const timer = setTimeout(() => {
 					controller.abort();
-				}, TEST_TIMEOUT_MS);
+				}, POOL_TEST_TIMEOUT_MS);
 				try {
 					const response = await fetch(withTraePoolAction(panel, "test"), {
 						method: "POST",
@@ -2181,7 +2968,7 @@ window.__ModuleLoader__.load({
 				const controller = new AbortController();
 				const timer = setTimeout(() => {
 					controller.abort();
-				}, TEST_TIMEOUT_MS);
+				}, POOL_TEST_TIMEOUT_MS);
 				try {
 					const response = await fetch(withTraePoolAccount(panel, "test", account.accountId), {
 						method: "POST",
@@ -2378,39 +3165,82 @@ window.__ModuleLoader__.load({
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 						className: "dsm-trae-pool-settings dsm-trae-pool-modebar",
-						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-							className: "dsm-trae-pool-modebar-row",
-							children: [
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("label", {
-									className: "dsm-trae-switch dsm-trae-switch-pill",
-									children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
-										type: "checkbox",
-										checked: enabled,
-										disabled: busy !== void 0 || !writable,
-										"aria-label": t("row.poolEnabled"),
-										onChange: (e) => {
-											setEnabled(e.target.checked);
-										}
-									})
-								}),
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("b", {
-									className: "dsm-trae-pool-modebar-label",
-									children: t("row.poolEnabled")
-								}),
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: "dsm-trae-pool-modebar-state",
-									children: pool.enabled === true ? t("row.poolModeAuto") : t("row.poolModeManual")
-								}),
-								dirty ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: "dsm-trae-pool-dirty",
-									role: "status",
-									children: t("row.poolDirty")
-								}) : null
-							]
-						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-							className: "dsm-trae-pool-note",
-							children: t("row.poolEnabledHint")
-						})]
+						children: [
+							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+								className: "dsm-trae-pool-modebar-row",
+								children: [
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("label", {
+										className: "dsm-trae-switch dsm-trae-switch-pill",
+										children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
+											type: "checkbox",
+											checked: enabled,
+											disabled: busy !== void 0 || !writable,
+											"aria-label": t("row.poolEnabled"),
+											onChange: (e) => {
+												setEnabled(e.target.checked);
+											}
+										})
+									}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("b", {
+										className: "dsm-trae-pool-modebar-label",
+										children: t("row.poolEnabled")
+									}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "dsm-trae-pool-modebar-state",
+										children: pool.enabled === true ? t("row.poolModeAuto") : t("row.poolModeManual")
+									}),
+									dirty ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "dsm-trae-pool-dirty",
+										role: "status",
+										children: t("row.poolDirty")
+									}) : null
+								]
+							}),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("p", {
+								className: "dsm-trae-pool-note",
+								children: [
+									t("row.poolEnabledHint"),
+									" ",
+									t("row.poolFailoverHint")
+								]
+							}),
+							panel === "cn" && pool.checkinSupported && typeof pool.autoCheckin === "boolean" ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+								className: "dsm-trae-pool-auto-checkin",
+								children: [
+									/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+										className: "dsm-trae-pool-modebar-row",
+										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("label", {
+											className: "dsm-trae-switch dsm-trae-switch-pill",
+											children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
+												type: "checkbox",
+												checked: autoCheckin,
+												disabled: busy !== void 0 || !writable,
+												"aria-label": t("row.poolAutoCheckin"),
+												onChange: (event) => {
+													setAutoCheckin(event.target.checked);
+												}
+											})
+										}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("b", {
+											className: "dsm-trae-pool-modebar-label",
+											children: t("row.poolAutoCheckin")
+										})]
+									}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+										className: "dsm-trae-pool-note",
+										children: t("row.poolAutoCheckinHint")
+									}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+										className: "dsm-trae-pool-note",
+										children: t("row.poolAutoCheckinDeviceHint")
+									}),
+									pool.autoCheckin === true ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+										className: "dsm-trae-pool-auto-checkin-status",
+										role: "status",
+										children: pool.autoCheckinState?.deviceBlocked === true ? t("row.poolAutoCheckinDeviceDone") : pool.autoCheckinState !== void 0 ? t(pool.autoCheckinState.failures > 0 ? "row.poolAutoCheckinRetry" : "row.poolAutoCheckinProgress", { count: pool.autoCheckinState.done }) : t("row.poolAutoCheckinWaiting")
+									}) : null
+								]
+							}) : null
+						]
 					}),
 					pool.enabled === true && serving !== void 0 && serving.member !== true ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 						className: "dsm-trae-pool-note dsm-trae-pool-serving-note",
@@ -3635,15 +4465,15 @@ window.__ModuleLoader__.load({
 		* is precisely why this section has no 「保存」 of its own — the model catalog,
 		* which does, lives in its own section.
 		*/
-		function TraeAccountPanel({ t, settingsScope, panel, status, statusLabel, credentialRegionIsAi, regionOn, showPointsInMainUi, onToggleShowPoints, creditPosition, onCreditPositionChange, savingPreferences, creditsLabelId, creditsHintId, rows, busy, rescanNote, onRescan, switchingAccount, onSwitchAccount, onClaim, onTransferChanged, poolDetails, poolClaims, models, deviceClaimed, onPoolChanged, onPoolRefresh, creditsUnavailable, creditsExpiry, alternatives, onSwitchToAlternative }) {
+		function TraeAccountPanel({ t, settingsScope, panel, status, statusLabel, credentialRegionIsAi, regionOn, showPointsInMainUi, onToggleShowPoints, creditPosition, onCreditPositionChange, refreshIntervalMinutes, onRefreshIntervalChange, sidebarPanelOn, sidebarPanelBusy, onToggleSidebarPanel, savingPreferences, creditsLabelId, creditsHintId, rows, busy, rescanNote, onRescan, switchingAccount, onSwitchAccount, onClaim, onTransferChanged, poolDetails, poolClaims, models = [], deviceClaimed = false, onPoolChanged = () => {}, onPoolRefresh = () => {}, creditsUnavailable, creditsExpiry, alternatives, onSwitchToAlternative, section = "all" }) {
 			const writable = settingsScope?.getSnapshot().writable === true;
 			const signedIn = status.status === "signed-in";
 			const accounts = signedIn ? status.accounts : [];
 			const pool = signedIn ? status.pool : void 0;
-			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
-				/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: "dsm-trae-prefs",
-					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
+			if (section === "prefs") return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(react_jsx_runtime.Fragment, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: "dsm-trae-prefs",
+				children: [
+					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
 						className: "dsm-trae-pref",
 						title: t(credentialRegionIsAi ? "row.showPointsInMainUiHintAi" : "row.showPointsInMainUiHint"),
 						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
@@ -3667,7 +4497,8 @@ window.__ModuleLoader__.load({
 								children: t(credentialRegionIsAi ? "row.showPointsInMainUiHintAi" : "row.showPointsInMainUiHint")
 							})]
 						})]
-					}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("label", {
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("label", {
 						className: "dsm-trae-pref dsm-trae-credit-position-pref",
 						title: t("row.creditPositionHint"),
 						children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
@@ -3698,8 +4529,64 @@ window.__ModuleLoader__.load({
 								children: t("row.creditPositionHint")
 							})]
 						})
-					})]
-				}),
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("label", {
+						className: "dsm-trae-pref dsm-trae-refresh-interval-pref",
+						title: t("row.refreshIntervalHint"),
+						children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+							className: "dsm-trae-pref-copy",
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+								className: "dsm-trae-pref-lead",
+								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+									className: "dsm-trae-pref-label",
+									children: t("row.refreshIntervalLabel")
+								}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("select", {
+									className: "dsm-trae-refresh-interval",
+									value: String(refreshIntervalMinutes),
+									disabled: !writable || savingPreferences,
+									"aria-label": t("row.refreshIntervalAria"),
+									onChange: (event) => {
+										const picked = Number(event.currentTarget.value);
+										const match = TRAE_REFRESH_INTERVAL_MINUTES.find((each) => each === picked);
+										if (match !== void 0) onRefreshIntervalChange(match);
+									},
+									children: TRAE_REFRESH_INTERVAL_MINUTES.map((minutes) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
+										value: String(minutes),
+										children: t("row.refreshIntervalOption", { minutes: String(minutes) })
+									}, minutes))
+								})]
+							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								className: "dsm-trae-pref-hint",
+								children: t("row.refreshIntervalHint")
+							})]
+						})
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
+						className: "dsm-trae-pref",
+						title: t("row.sidebarPanelHint"),
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
+							type: "checkbox",
+							className: "dsm-trae-pref-check",
+							checked: sidebarPanelOn,
+							disabled: sidebarPanelBusy || savingPreferences,
+							onChange: (event) => {
+								onToggleSidebarPanel(event.currentTarget.checked);
+							}
+						}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+							className: "dsm-trae-pref-copy",
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								className: "dsm-trae-pref-label",
+								children: t("row.sidebarPanelLabel")
+							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								className: "dsm-trae-pref-hint",
+								children: t("row.sidebarPanelHint")
+							})]
+						})]
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(IconStylePreference, { t })
+				]
+			}) });
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
 				pool !== void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
 					className: "dsm-trae-accounts",
 					"aria-label": t("row.accountsTitle"),
@@ -3779,8 +4666,8 @@ window.__ModuleLoader__.load({
 														children: warning.text
 													}),
 													row.error === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-														className: "dsm-trae-account-note",
-														role: "alert",
+														className: row.errorTone === "busy" ? "dsm-trae-account-note dsm-trae-account-note-busy" : "dsm-trae-account-note",
+														role: "status",
 														children: row.error
 													})
 												]
@@ -3905,9 +4792,9 @@ window.__ModuleLoader__.load({
 						className: "dsm-trae-usage-error",
 						children: t("row.checkinDisabled")
 					}) : null,
-					status.checkinError === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+					status.checkinError === void 0 || status.checkin?.checkedIn === true || status.checkin?.didCheckedIn === true || status.pool?.autoCheckinState?.deviceBlocked === true ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 						className: "dsm-trae-usage-error",
-						children: t("row.checkinError", { message: status.checkinError })
+						children: t("row.checkinStatusError", { message: status.checkinError })
 					})
 				] }) : null
 			] });
@@ -3959,6 +4846,130 @@ window.__ModuleLoader__.load({
 			return verdict.tier === void 0 ? t(verdict.label) : verdict.tier;
 		}
 		//#endregion
+		//#region src/client/panel-switch.ts
+		/**
+		* Whether the OPTIONAL sidebar panel is switched on, as the browser half sees
+		* it, plus the tiny subscription the registration controller needs.
+		*
+		* Ported from the sibling `dsh-connect-workbuddy` plugin (its PR #188, off by
+		* default since), because the same two facts decide the shape here:
+		*
+		* ## Why this is a module-level store and not component state
+		*
+		* The `sidebar.panellist` row is built from ENTRY METADATA, not from the
+		* component: the host's sidebar maps the slot's entries into a row button whose
+		* label comes from `options.label` and whose glyph is `renderSlot(...)`. A
+		* component that returns `null` therefore does not hide the row — it renders a
+		* BLANK, still-clickable nav button. That is why the panel cannot use the
+		* `ComposerPointsGate` trick the credit readout uses (that seat renders a list
+		* of components, so `null` means absent). The row has to be registered only
+		* while the switch is on, and unregistered when it goes off.
+		*
+		* Registering conditionally in turn means something must OWN the re-register on
+		* a settings change, and that something lives in the entry (`apply`), not in a
+		* component. This module is the seam between the two: the card publishes a
+		* value here after it has verified a write landed, and the entry subscribes to
+		* register or dispose.
+		*
+		* ## Why the Host is the seed
+		*
+		* The value is DELIVERED by the Host on the status document
+		* (`sidebarPanelEnabled`), for the reason every other switch in this plugin is
+		* Host-carried: this namespace's browser mirror is documented as stale on the
+		* affected 0.1.7 deployments. Reading only the settings scope at startup would
+		* let a stale `false` hide a row the Host believes it is serving — with nothing
+		* to re-evaluate it afterwards, the panel would then be gone for the session.
+		*
+		* Turning the panel OFF while the page is open needs no special handling here:
+		* the host's layout service drops an `activePanelId` whose `main` key no longer
+		* exists, so the centre column returns to the conversation by itself.
+		*/
+		/** Listeners waiting for a change to the opt-in state. */
+		const listeners = /* @__PURE__ */ new Set();
+		/**
+		* The current answer, defaulting to OFF.
+		*
+		* OFF is the whole point of this switch: an absent or unreadable value must
+		* never turn the row on. See `Config.sidebarPanel` in `src/index.ts`.
+		*/
+		let wanted = false;
+		/** Whether the sidebar panel should currently be registered. */
+		function sidebarPanelWanted() {
+			return wanted;
+		}
+		/**
+		* Set the opt-in state and notify the registration controller.
+		*
+		* Idempotent: the controller re-registers on every call, and a settings
+		* subscription can legitimately report the same value twice. Callers that
+		* cannot tell whether the value changed need not check first.
+		*
+		* @param next - the desired state.
+		*/
+		function setSidebarPanelWanted(next) {
+			if (wanted === next) return;
+			wanted = next;
+			for (const listener of [...listeners]) try {
+				listener();
+			} catch {}
+		}
+		/**
+		* Observe changes to the opt-in state.
+		*
+		* @param listener - invoked after each change.
+		* @returns the disposer removing this listener.
+		*/
+		function subscribeSidebarPanelWanted(listener) {
+			listeners.add(listener);
+			return () => {
+				listeners.delete(listener);
+			};
+		}
+		/**
+		* Read the opt-in switch out of a settings snapshot.
+		*
+		* Only an explicit `true` is ON, matching the schema's `default(false)` and
+		* every other switch this plugin owns: the row claims a GLOBAL sidebar seat
+		* shared by every installed bundle, so an absent or malformed value must read
+		* as "did not ask for this", never as consent.
+		*
+		* The value is deep-unwrapped because DSH 0.1.7 hands volatile-marked fields
+		* back as `{get(): T}` live references, which are truthy non-booleans.
+		*
+		* @param configured - the whole settings snapshot (or any object carrying the
+		*   field).
+		* @returns whether the panel row should exist.
+		*/
+		function sidebarPanelEnabledOf(configured) {
+			const value = configured?.["sidebarPanel"];
+			return (value !== null && typeof value === "object" && typeof value.get === "function" ? value.get() : value) === true;
+		}
+		function checkinTimeoutMs() {
+			return 3e4;
+		}
+		/** A temporary server-side overload — not a bad request and not a plugin bug. */
+		function busyNotice(code) {
+			return code === 9074 ? {
+				key: "row.checkinBusy",
+				tone: "busy"
+			} : void 0;
+		}
+		/** The claim route never answered within the bound. */
+		function timeoutNotice() {
+			return {
+				key: "row.checkinTimeout",
+				tone: "busy"
+			};
+		}
+		/** A genuine refusal or transport failure, reported verbatim. */
+		function errorNotice(message) {
+			return {
+				key: "row.checkinError",
+				params: { message },
+				tone: "error"
+			};
+		}
+		//#endregion
 		//#region src/client/TraeUsageCard.tsx
 		/**
 		* Trae usage card contributed to Harness Plugin configuration.
@@ -3982,7 +4993,16 @@ window.__ModuleLoader__.load({
 			}
 			return `HTTP ${status}`;
 		}
-		const POLL_INTERVAL_MS = 6e4;
+		/**
+		* The card's own poll period is NOT a constant: the cadence is the user's
+		* (`Config.refreshIntervalMinutes`, default 5 minutes), read through
+		* {@link refreshIntervalMsOf} so the card and the composer readout cannot drift
+		* apart. It used to be a fixed 60_000 here while the composer readout polled
+		* every five minutes — two cadences for the same two upstream routes, decided
+		* by which surface you happened to be looking at. The floor of the offered
+		* values is one minute; every read is two read-only upstream calls, which is
+		* why the setting does not go below that.
+		*/
 		const TRAE_GITHUB_URL = "https://github.com/dingminhua/dsh-connect-trae";
 		/**
 		* Write one settings field and confirm the value actually landed.
@@ -4141,9 +5161,20 @@ window.__ModuleLoader__.load({
 			});
 		}
 		/** Render Trae sign-in state and the total usage summary as one expandable card. */
-		function TraeUsageCard({ t, settingsScope, view }) {
+		function TraeUsageCard({ t, settingsScope, view, surface, backToConversation }) {
 			if (t === void 0) throw new Error("Trae usage card requires its translation function");
-			const [open, setOpen] = (0, react.useState)(view === "page");
+			/**
+			* The two FULL-BODY surfaces (the sidebar row's `main` panel and the
+			* `settings.section` page) have no card chrome to collapse: they are always
+			* expanded, and the collapse button is not rendered, so `setOpen` is simply
+			* unused there. Keeping ONE `open` value lets every polling effect below stay
+			* untouched.
+			*/
+			const pageSurface = surface === "page";
+			const sectionSurface = surface === "section";
+			const fullSurface = pageSurface || sectionSurface;
+			const [cardOpen, setCardOpen] = (0, react.useState)(view === "page");
+			const open = fullSurface || cardOpen;
 			/** The region whose tab is on screen; each tab is its own provider stack. */
 			const [activeRegion, setActiveRegion] = (0, react.useState)("cn");
 			/**
@@ -4281,7 +5312,7 @@ window.__ModuleLoader__.load({
 			* shown next to the row that caused it rather than in one global error line,
 			* because the check-in button now lives per account.
 			*/
-			const [claimErrorByRegion, setClaimErrorByRegion] = (0, react.useState)({
+			const [claimNoticeByRegion, setClaimNoticeByRegion] = (0, react.useState)({
 				cn: {},
 				enterprise: {},
 				ai: {}
@@ -4305,6 +5336,18 @@ window.__ModuleLoader__.load({
 			* the control would flip and then quietly snap back on the next snapshot.
 			*/
 			const [writeError, setWriteError] = (0, react.useState)(void 0);
+			/**
+			* The optional sidebar row's switch (see `Config.sidebarPanel`).
+			*
+			* `undefined` means "no local flip in flight": the box then renders the
+			* committed value from the settings document, or — when that namespace is not
+			* served yet — the Host's own answer on the usage document. Both are read here
+			* rather than echoed from local state for the reason every other switch in
+			* this card reads them: a write made elsewhere (the DSH settings form, another
+			* window) must show up instead of being shadowed by a stale copy.
+			*/
+			const [sidebarPanelEdit, setSidebarPanelEdit] = (0, react.useState)(void 0);
+			const [sidebarPanelBusy, setSidebarPanelBusy] = (0, react.useState)(false);
 			const mounted = (0, react.useRef)(true);
 			(0, react.useEffect)(() => {
 				mounted.current = true;
@@ -4326,7 +5369,20 @@ window.__ModuleLoader__.load({
 			* local state: a write made elsewhere (the DSH settings form, another window)
 			* then shows up here instead of being shadowed by a stale copy.
 			*/
-			const committedSettings = { showPointsInMainUi: unwrapVolatileDeep(settingsScope?.getSnapshot().value)?.showPointsInMainUi === true };
+			const committedSettings = {
+				showPointsInMainUi: unwrapVolatileDeep(settingsScope?.getSnapshot().value)?.showPointsInMainUi === true,
+				/**
+				* The automatic-refresh cadence (`Config.refreshIntervalMinutes`).
+				*
+				* Read through the SHARED reader rather than off the document here: the
+				* composer readout reads the same field through the same function, and the
+				* two surfaces disagreeing about the cadence is exactly what a second
+				* interpretation would produce. It also owns the fallback for a document
+				* that never went through the schema (a hand-edited file), so the card
+				* cannot end up on a cadence the write path would have refused.
+				*/
+				refreshIntervalMinutes: refreshIntervalMinutesOf(settingsScope?.getSnapshot().value)
+			};
 			/**
 			* Ids for the block's label/hint wiring. `useId`, not constants: DSH can mount
 			* this card twice at once (the settings ROW and the expanded PAGE), and two
@@ -4338,10 +5394,24 @@ window.__ModuleLoader__.load({
 			* over it. Reading BOTH sources here is what lets the write above stay simple —
 			* it never has to write into component state that a Host refresh would fight.
 			*/
-			const settingsEdits = { showPointsInMainUi: optimisticSettings.current.showPointsInMainUi ?? committedSettings.showPointsInMainUi };
+			const settingsEdits = {
+				showPointsInMainUi: optimisticSettings.current.showPointsInMainUi ?? committedSettings.showPointsInMainUi,
+				refreshIntervalMinutes: optimisticSettings.current.refreshIntervalMinutes ?? committedSettings.refreshIntervalMinutes
+			};
 			const settingsIds = (0, react.useId)();
 			const creditsLabelId = `${settingsIds}-credits`;
 			const creditsHintId = `${settingsIds}-credits-hint`;
+			/**
+			* The poll period, in milliseconds, as the CARD uses it.
+			*
+			* Derived from the committed-plus-optimistic value above rather than from the
+			* document directly, so a pick shows its effect immediately: the timer is
+			* rebuilt from this on the next render (see the poll effect's dependency
+			* list). Reading it here also keeps the number and the picker in one place —
+			* a picker on one cadence and a timer on another is precisely the class of
+			* bug this setting replaced.
+			*/
+			const refreshIntervalMs = settingsEdits.refreshIntervalMinutes * 6e4;
 			/**
 			* Write ONE preference switch, on the click that flipped it.
 			*
@@ -4377,6 +5447,87 @@ window.__ModuleLoader__.load({
 						setSettingsRevision((revision) => revision + 1);
 					}
 					if (mounted.current) setSavingSettings(false);
+				}
+			};
+			/**
+			* Change how often the plugin refreshes on its own
+			* (`Config.refreshIntervalMinutes`).
+			*
+			* Same shape as {@link writePreference}, and for the same reason: this is a
+			* standing preference, so it commits on the pick and is read-back verified —
+			* a picker that merely LOOKS changed while the timer keeps its old period is
+			* the failure mode worth guarding against here. The read-back compares
+			* through `refreshIntervalMinutesOf`, so the value has to land as one of the
+			* offered cadences rather than merely being present.
+			*
+			* The write alone changes nothing on screen until the settings snapshot
+			* notifies, which the poll effect below is keyed on: the interval is rebuilt
+			* from the new value on the next render, so the old timer is cleared and a
+			* fresh one started. That is deliberate — a cadence change must take effect
+			* without a reload, and it must not leave the previous interval running.
+			*/
+			const writeRefreshInterval = async (value) => {
+				if (settingsScope === void 0 || settingsScope.getSnapshot().writable !== true) return;
+				setSavingSettings(true);
+				setWriteError(void 0);
+				optimisticSettings.current = {
+					...optimisticSettings.current,
+					refreshIntervalMinutes: value
+				};
+				setSettingsRevision((revision) => revision + 1);
+				try {
+					await writeSettingsField(settingsScope, "refreshIntervalMinutes", value, (readBack) => refreshIntervalMinutesOf(readBack) === value);
+				} catch (error) {
+					if (mounted.current) setWriteError(error instanceof Error ? error.message : t("row.requestFailed"));
+				} finally {
+					if (mounted.current) {
+						optimisticSettings.current = {
+							...optimisticSettings.current,
+							refreshIntervalMinutes: void 0
+						};
+						setSettingsRevision((revision) => revision + 1);
+					}
+					if (mounted.current) setSavingSettings(false);
+				}
+			};
+			/**
+			* Flip the OPTIONAL sidebar row on or off (`Config.sidebarPanel`).
+			*
+			* Two things happen on a verified write, and BOTH are required:
+			*
+			*  1. the settings document is updated through `writeSettingsField`, which
+			*     read-back checks — a switch that only *looks* on while the Host
+			*     disagrees would leave a nav row that vanishes on the next reload;
+			*  2. {@link setSidebarPanelWanted} publishes the value, which is what makes
+			*     the registration appear or disappear WITHOUT a reload. The row is built
+			*     from slot ENTRY METADATA, so it cannot be hidden from inside the
+			*     component — the entry has to register or dispose, and it subscribes to
+			*     that store.
+			*
+			* Serialized by its own `sidebarPanelBusy` rather than `savingSettings`: this
+			* write touches one scalar, and making it share the credit switch's veil would
+			* grey the whole card out for a nav-row toggle.
+			*
+			* A NOT-writable scope still flips the store. That is deliberate: the row is a
+			* client-side registration, and a read-only host (no settings form bound yet)
+			* would otherwise leave the user no way to open the page at all. The box reads
+			* committed-or-Host value, so the next snapshot is what the user sees.
+			*/
+			const writeSidebarPanel = async (value) => {
+				if (sidebarPanelBusy) return;
+				setSidebarPanelBusy(true);
+				setWriteError(void 0);
+				setSidebarPanelEdit(value);
+				try {
+					if (settingsScope !== void 0 && settingsScope.getSnapshot().writable === true) await writeSettingsField(settingsScope, "sidebarPanel", value, (readBack) => sidebarPanelEnabledOf(readBack) === value);
+					setSidebarPanelWanted(value);
+				} catch (error) {
+					if (mounted.current) setWriteError(error instanceof Error ? error.message : t("row.requestFailed"));
+				} finally {
+					if (mounted.current) {
+						setSidebarPanelEdit(void 0);
+						setSidebarPanelBusy(false);
+					}
 				}
 			};
 			/**
@@ -4601,7 +5752,7 @@ window.__ModuleLoader__.load({
 				const controller = new AbortController();
 				const timer = window.setInterval(() => {
 					refreshUsage(activeRegion, controller.signal);
-				}, POLL_INTERVAL_MS);
+				}, refreshIntervalMs);
 				return () => {
 					window.clearInterval(timer);
 					controller.abort();
@@ -4611,7 +5762,8 @@ window.__ModuleLoader__.load({
 				activeRegion,
 				activeRegionOn,
 				refreshUsage,
-				status.status
+				status.status,
+				refreshIntervalMs
 			]);
 			const rescanAccounts = async () => {
 				setBusy(true);
@@ -4665,7 +5817,6 @@ window.__ModuleLoader__.load({
 					if (mounted.current) {
 						const message = error instanceof Error ? error.message : t("row.requestFailed");
 						setRescanNote(t("row.accountsRescanFailed", { message }));
-						setWriteError(message);
 					}
 				} finally {
 					if (mounted.current) setBusy(false);
@@ -4757,7 +5908,7 @@ window.__ModuleLoader__.load({
 			const claimFor = async (accountId) => {
 				if (activeRegion !== "cn") return;
 				setClaimingFor(accountId);
-				setClaimErrorByRegion((prev) => {
+				setClaimNoticeByRegion((prev) => {
 					const next = { ...prev[activeRegion] };
 					delete next[accountId];
 					return {
@@ -4773,6 +5924,10 @@ window.__ModuleLoader__.load({
 						[activeRegion]: next
 					};
 				});
+				const controller = new AbortController();
+				const timer = setTimeout(() => {
+					controller.abort();
+				}, checkinTimeoutMs());
 				try {
 					const response = await fetch(withTraeRegion(TRAE_CHECKIN_PATH, activeRegion), {
 						method: "POST",
@@ -4781,7 +5936,8 @@ window.__ModuleLoader__.load({
 							"content-type": "application/json"
 						},
 						credentials: "same-origin",
-						body: JSON.stringify({ accountId })
+						body: JSON.stringify({ accountId }),
+						signal: controller.signal
 					});
 					const body = await response.json().catch(() => void 0);
 					if (!response.ok) throw new Error(body?.error ?? `HTTP ${response.status}`);
@@ -4797,21 +5953,36 @@ window.__ModuleLoader__.load({
 						await reloadAccountStatuses(activeRegion);
 						return;
 					}
-					if (body?.claimed === false && body.alreadyCheckedIn !== true) throw new Error(body.message === void 0 || body.message === "" ? t("row.checkinRefused", { code: String(body.code ?? "") }) : `${t("row.checkinRefused", { code: String(body.code ?? "") })}: ${body.message}`);
+					if (body?.claimed === false && body.alreadyCheckedIn !== true) {
+						const busy = busyNotice(body.code);
+						if (busy !== void 0) {
+							if (mounted.current) setClaimNoticeByRegion((prev) => ({
+								...prev,
+								[activeRegion]: {
+									...prev[activeRegion],
+									[accountId]: busy
+								}
+							}));
+							return;
+						}
+						const message = body.message === void 0 || body.message === "" ? t("row.checkinRefused", { code: String(body.code ?? "") }) : `${t("row.checkinRefused", { code: String(body.code ?? "") })}: ${body.message}`;
+						throw new Error(message);
+					}
 					await refreshUsage(activeRegion);
 					await reloadAccountStatuses(activeRegion);
 				} catch (error) {
 					if (mounted.current) {
-						const message = error instanceof Error ? error.message : t("row.requestFailed");
-						setClaimErrorByRegion((prev) => ({
+						const notice = controller.signal.aborted ? timeoutNotice() : errorNotice(error instanceof Error ? error.message : t("row.requestFailed"));
+						setClaimNoticeByRegion((prev) => ({
 							...prev,
 							[activeRegion]: {
 								...prev[activeRegion],
-								[accountId]: message
+								[accountId]: notice
 							}
 						}));
 					}
 				} finally {
+					clearTimeout(timer);
 					if (mounted.current) setClaimingFor(void 0);
 				}
 			};
@@ -5011,6 +6182,16 @@ window.__ModuleLoader__.load({
 			const slotContextBudgets = typeof regionSlot?.contextBudgets === "object" && regionSlot.contextBudgets !== null ? regionSlot.contextBudgets : void 0;
 			const legacyContextBudgets = legacySlot && typeof settingsValue === "object" && settingsValue !== null && typeof settingsValue.contextBudgets === "object" && settingsValue.contextBudgets !== null ? settingsValue.contextBudgets : void 0;
 			const savedContextBudgets = slotContextBudgets ?? legacyContextBudgets ?? {};
+			/**
+			* The saved thinking-level choice per model for this panel.
+			*
+			* A missing key is a real statement — "follow this model's own default" — so
+			* it is preserved everywhere below as an absent entry rather than being
+			* filled in with the level the model would run at anyway. Writing that level
+			* here would freeze today's upstream default into the config, and the model
+			* would then ignore upstream when it changed its mind.
+			*/
+			const savedThinkingEfforts = typeof regionSlot?.thinkingEfforts === "object" && regionSlot.thinkingEfforts !== null ? Object.fromEntries(Object.entries(regionSlot.thinkingEfforts).filter((entry) => typeof entry[1] === "string" && entry[1] !== "")) : {};
 			const slotImageIds = Array.isArray(regionSlot?.imageModelIds) ? regionSlot.imageModelIds.filter((id) => typeof id === "string") : void 0;
 			const legacyImageIds = legacySlot && typeof settingsValue === "object" && settingsValue !== null && Array.isArray(settingsValue.imageModelIds) ? settingsValue.imageModelIds.filter((id) => typeof id === "string") : [];
 			const savedImageIds = new Set(slotImageIds ?? legacyImageIds);
@@ -5132,6 +6313,7 @@ window.__ModuleLoader__.load({
 			* the single surface.
 			*/
 			const activeContextBudgets = draft?.contextBudgets ?? savedContextBudgets;
+			const activeThinkingEfforts = draft?.thinkingEfforts ?? savedThinkingEfforts;
 			const dirty = draft !== void 0;
 			/** Apply an edit to the ACTIVE tab's draft, seeding it from the current view. */
 			const editDraft = (edit) => {
@@ -5141,7 +6323,8 @@ window.__ModuleLoader__.load({
 						models: [...visibleModels],
 						enabledIds: new Set(activeEnabledIds),
 						imageIds: new Set(activeImageIds),
-						contextBudgets: { ...activeContextBudgets }
+						contextBudgets: { ...activeContextBudgets },
+						thinkingEfforts: { ...activeThinkingEfforts }
 					})
 				}));
 			};
@@ -5173,6 +6356,25 @@ window.__ModuleLoader__.load({
 					return {
 						...current,
 						contextBudgets: next
+					};
+				});
+			};
+			/**
+			* Record one model's thinking level; an empty value means "follow the
+			* upstream default" and therefore DELETES the key.
+			*
+			* Deletion is the point. Keeping the level that happens to equal today's
+			* default would look identical on screen while quietly pinning it — the model
+			* would stop following upstream the moment Trae changed its own default.
+			*/
+			const setThinkingEffort = (modelId, effort) => {
+				editDraft((current) => {
+					const next = { ...current.thinkingEfforts };
+					if (effort === "") delete next[modelId];
+					else next[modelId] = effort;
+					return {
+						...current,
+						thinkingEfforts: next
 					};
 				});
 			};
@@ -5252,11 +6454,15 @@ window.__ModuleLoader__.load({
 						})),
 						enabledModelIds: [...activeEnabledIds],
 						imageModelIds: [...activeImageIds].filter((id) => activeEnabledIds.has(id)),
-						contextBudgets: activeContextBudgets
+						contextBudgets: activeContextBudgets,
+						thinkingEfforts: activeThinkingEfforts
 					};
 					await writeSettingsField(settingsScope, "regions", nextRegionDirectory(configuredRegions, activeRegion, nextSlot), (readBack) => {
-						const ids = regionSlotsOf(readBack)[activeRegion]?.enabledModelIds;
-						return Array.isArray(ids) && ids.length === nextSlot.enabledModelIds.length && nextSlot.enabledModelIds.every((id) => ids.includes(id));
+						const slot = regionSlotsOf(readBack)[activeRegion];
+						const ids = slot?.enabledModelIds;
+						if (!Array.isArray(ids) || ids.length !== nextSlot.enabledModelIds.length || !nextSlot.enabledModelIds.every((id) => ids.includes(id))) return false;
+						const savedLevels = slot?.thinkingEfforts;
+						return (typeof savedLevels === "object" && savedLevels !== null ? Object.keys(savedLevels).filter((id) => activeThinkingEfforts[id] !== void 0) : []).length === Object.keys(activeThinkingEfforts).length;
 					});
 					discardModels();
 					await refreshUsage(activeRegion);
@@ -5265,6 +6471,49 @@ window.__ModuleLoader__.load({
 				} finally {
 					if (mounted.current) setSaving(false);
 				}
+			};
+			/**
+			* The thinking-level picker for one model row, or nothing when Trae published
+			* no tier list for it.
+			*
+			* The first option is deliberately the interesting one: it names the level
+			* this model will actually run at with no choice made. A picker that only
+			* listed tiers would leave "nothing chosen" unlabelled, so the reader cannot
+			* tell what they are overriding — and the previous UI could not state it at
+			* all, which is why DSH's own picker said `Default`.
+			*
+			* Options are the model's OWN tiers, unlocalised: `low / high / xhigh` need no
+			* translation, and a shared ladder across models would list levels that cannot
+			* be selected.
+			*/
+			const effortPicker = (model) => {
+				const efforts = model.reasoning?.supported ?? [];
+				if (efforts.length === 0) return null;
+				const chosen = activeThinkingEfforts[model.id] ?? "";
+				const upstream = model.reasoning?.defaultEffort;
+				const effective = defaultEffortFor({
+					id: model.id,
+					supported: efforts,
+					defaultEffort: upstream
+				}, activeThinkingEfforts);
+				return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+					className: "dsm-trae-model-effort",
+					children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("row.modelReasoningLabel") }), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("select", {
+						className: "dsm-trae-model-effort-select",
+						disabled: settingsScope?.getSnapshot().writable !== true || saving,
+						value: chosen,
+						onChange: (event) => {
+							setThinkingEffort(model.id, event.target.value);
+						},
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
+							value: "",
+							children: effective === void 0 ? t("row.modelReasoningFollowUpstream") : t("row.modelReasoningFollowUpstreamNamed", { effort: effective })
+						}), efforts.map((effort) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
+							value: effort,
+							children: effort
+						}, effort))]
+					})] })
+				});
 			};
 			const title = t("row.title");
 			/**
@@ -5388,7 +6637,7 @@ window.__ModuleLoader__.load({
 			const accountRows = status.status === "error" ? [] : (status.accounts ?? []).map((account) => {
 				const current = status.status === "signed-in" ? account.id === status.accountId : account.selected === true;
 				const state = accountStatusByRegion[activeRegion][account.id];
-				const error = claimErrorByRegion[activeRegion][account.id];
+				const notice = claimNoticeByRegion[activeRegion][account.id];
 				return {
 					id: account.id,
 					accountName: account.accountName,
@@ -5397,7 +6646,8 @@ window.__ModuleLoader__.load({
 					meta: `${editionLabel(account.edition)} · ${sourceLabel(account.source)}`,
 					value: rowValue(state),
 					refreshExpiresAtMs: account.refreshExpiresAtMs,
-					error: error === void 0 ? void 0 : t("row.checkinError", { message: error }),
+					error: notice === void 0 ? void 0 : t(notice.key, notice.params),
+					errorTone: notice?.tone,
 					claim: isCnPool ? (() => {
 						const view = claimViewOf(account.id, state);
 						return {
@@ -5431,6 +6681,966 @@ window.__ModuleLoader__.load({
 				}];
 			}));
 			const label = loading ? t("row.accountsLoading") : status.status === "signed-in" ? t("row.signedIn", { accountName: status.accountName }) : status.status === "error" ? t("row.requestFailed") : t("row.signedOut");
+			/**
+			* Whether the sidebar row's box is ticked.
+			*
+			* Precedence: an in-flight flip, then the committed settings value when this
+			* namespace is actually served, then the HOST's answer on the usage document.
+			* The Host is the fallback rather than the first source because the card can
+			* be bound before the mirror settles; it is consulted at all because that
+			* mirror is documented as stale on the affected 0.1.7 deployments, so a stale
+			* `false` alone would make a served row look switched off.
+			*/
+			const sidebarPanelOn = sidebarPanelEdit ?? (settingsScope === void 0 ? void 0 : sidebarPanelEnabledOf(unwrapVolatileDeep(settingsScope.getSnapshot().value))) ?? loaded?.sidebarPanelEnabled === true;
+			/**
+			* The body BOTH surfaces draw: the region tabs, the section tabs and every
+			* section below them.
+			*
+			* Kept as one value because a page duplicate would be a copy that drifts —
+			* the SURFACE changes the chrome around this tree, nothing inside it.
+			*/
+			const cardBody = /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: "dsm-trae-usage",
+				children: [
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className: "dsm-trae-tabs",
+						role: "tablist",
+						"aria-label": title,
+						children: TRAE_PANELS.map((item) => {
+							const regionStatus = statusByRegion[item];
+							const on = regionOn(item);
+							return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+								className: "dsm-trae-tab-cell",
+								role: "presentation",
+								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+									type: "button",
+									role: "tab",
+									"aria-selected": item === activeRegion,
+									className: `dsm-trae-tab${item === activeRegion ? " dsm-trae-tab-active" : ""}${on ? "" : " dsm-trae-tab-off"}`,
+									onClick: () => {
+										setActiveRegion(item);
+									},
+									children: [regionStatus === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										"aria-hidden": "true",
+										className: "dsm-trae-tab-dot",
+										style: dotStyle(regionStatus.status)
+									}), item === "cn" ? t("row.tabCn") : item === "enterprise" ? t("row.tabEnterprise") : t("row.tabAi")]
+								}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("label", {
+									className: "dsm-trae-switch dsm-trae-tab-switch",
+									title: t("row.tabSwitchHint"),
+									children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
+										type: "checkbox",
+										checked: on,
+										disabled: settingsScope?.getSnapshot().writable !== true || togglingRegion !== void 0,
+										"aria-label": t("row.tabSwitchAria", { region: item === "cn" ? t("row.tabCn") : item === "enterprise" ? t("row.tabEnterprise") : t("row.tabAi") }),
+										onChange: (event) => {
+											toggleRegion(item, event.currentTarget.checked);
+										}
+									})
+								})]
+							}, item);
+						})
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+						className: "dsm-trae-region-summary",
+						children: [
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+								className: "dsm-trae-models-summary dsm-trae-tab-hint",
+								children: t("row.tabHint")
+							}),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+								className: "dsm-trae-models-summary",
+								children: t("row.tabCredentialHint")
+							}),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+								className: "dsm-trae-models-summary dsm-trae-free-quota-warn",
+								children: t("row.tabFreeQuotaWarn")
+							})
+						]
+					}),
+					writeError === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+						className: "dsm-trae-usage-error",
+						role: "alert",
+						children: t("row.settingsWriteFailed", { message: writeError })
+					}),
+					regionOn(activeRegion) ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+						className: "dsm-trae-tab-off-notice",
+						role: "status",
+						children: t("row.tabOffNotice")
+					}),
+					signedIn ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+						className: "dsm-trae-panels",
+						role: "tablist",
+						"aria-label": t("row.panelAria"),
+						children: [
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+								type: "button",
+								role: "tab",
+								id: "dsm-trae-tab-accounts",
+								"aria-controls": "dsm-trae-panel-accounts",
+								"aria-selected": panel === "accounts",
+								className: `dsm-trae-panel-tab${panel === "accounts" ? " dsm-trae-panel-tab-active" : ""}`,
+								onClick: () => {
+									setPanel("accounts");
+								},
+								children: t("row.panelAccounts")
+							}),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+								type: "button",
+								role: "tab",
+								id: "dsm-trae-tab-models",
+								"aria-controls": "dsm-trae-panel-models",
+								"aria-selected": panel === "models",
+								className: `dsm-trae-panel-tab${panel === "models" ? " dsm-trae-panel-tab-active" : ""}`,
+								onClick: () => {
+									setPanel("models");
+								},
+								children: t("row.panelModels")
+							}),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+								type: "button",
+								role: "tab",
+								id: "dsm-trae-tab-capabilities",
+								"aria-controls": "dsm-trae-panel-capabilities",
+								"aria-selected": panel === "capabilities",
+								className: `dsm-trae-panel-tab${panel === "capabilities" ? " dsm-trae-panel-tab-active" : ""}`,
+								onClick: () => {
+									setPanel("capabilities");
+								},
+								children: t("row.panelCapabilities")
+							}),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+								type: "button",
+								role: "tab",
+								id: "dsm-trae-tab-diag",
+								"aria-controls": "dsm-trae-panel-diag",
+								"aria-selected": panel === "diag",
+								className: `dsm-trae-panel-tab${panel === "diag" ? " dsm-trae-panel-tab-active" : ""}`,
+								onClick: () => {
+									setPanel("diag");
+								},
+								children: t("row.panelDiag")
+							})
+						]
+					}) : null,
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className: "dsm-trae-panel",
+						role: "tabpanel",
+						id: "dsm-trae-panel-accounts",
+						"aria-labelledby": "dsm-trae-tab-accounts",
+						hidden: signedIn && panel !== "accounts",
+						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(TraeAccountPanel, {
+							t,
+							settingsScope,
+							section: "accounts",
+							panel: activeRegion,
+							status,
+							statusLabel: label,
+							credentialRegionIsAi,
+							regionOn: activeRegionOn,
+							showPointsInMainUi: settingsEdits.showPointsInMainUi,
+							onToggleShowPoints: (value) => {
+								writePreference("showPointsInMainUi", value);
+							},
+							creditPosition: creditPositionOn(activeRegion),
+							onCreditPositionChange: (position) => {
+								changeCreditPosition(activeRegion, position);
+							},
+							refreshIntervalMinutes: settingsEdits.refreshIntervalMinutes,
+							onRefreshIntervalChange: (minutes) => {
+								writeRefreshInterval(minutes);
+							},
+							sidebarPanelOn,
+							sidebarPanelBusy,
+							onToggleSidebarPanel: (value) => {
+								writeSidebarPanel(value);
+							},
+							savingPreferences: savingSettings,
+							creditsLabelId,
+							creditsHintId,
+							rows: accountRows,
+							busy,
+							rescanNote,
+							onRescan: () => {
+								rescanAccounts();
+							},
+							switchingAccount,
+							onSwitchAccount: (accountId) => {
+								switchAccount(accountId);
+							},
+							onClaim: (accountId) => {
+								claimFor(accountId);
+							},
+							onTransferChanged: async () => {
+								const fresh = await refreshUsage(activeRegion);
+								if (fresh !== void 0) setStatusByRegion((current) => ({
+									...current,
+									[activeRegion]: fresh
+								}));
+							},
+							poolDetails,
+							poolClaims: status.status === "signed-in" && status.pool?.checkinSupported === true ? Object.fromEntries(status.accounts.map((account) => [account.id, claimViewOf(account.id, accountStatusByRegion[activeRegion][account.id])])) : void 0,
+							models: visibleModels,
+							deviceClaimed: deviceClaimedToday,
+							onPoolChanged: async () => {
+								const fresh = await refreshUsage(activeRegion);
+								if (fresh !== void 0) setStatusByRegion((current) => ({
+									...current,
+									[activeRegion]: fresh
+								}));
+							},
+							onPoolRefresh: async () => {
+								const fresh = await refreshUsage(activeRegion);
+								if (fresh !== void 0) setStatusByRegion((current) => ({
+									...current,
+									[activeRegion]: fresh
+								}));
+							},
+							creditsUnavailable: status.status === "signed-in" ? status.creditsUnavailable : void 0,
+							creditsExpiry: status.status === "signed-in" ? status.credits?.expiry : void 0,
+							alternatives: status.status === "signed-in" ? status.alternatives : void 0,
+							onSwitchToAlternative: (accountId) => {
+								switchAccount(accountId);
+							}
+						})
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+						className: "dsm-trae-panel",
+						role: "tabpanel",
+						id: "dsm-trae-panel-capabilities",
+						"aria-labelledby": "dsm-trae-tab-capabilities",
+						hidden: signedIn && panel !== "capabilities",
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+							className: "dsm-trae-panel-note",
+							children: t("row.panelCapabilitiesHint")
+						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(TraeAccountPanel, {
+							t,
+							settingsScope,
+							section: "prefs",
+							panel: activeRegion,
+							status,
+							statusLabel: label,
+							credentialRegionIsAi,
+							regionOn: activeRegionOn,
+							showPointsInMainUi: settingsEdits.showPointsInMainUi,
+							onToggleShowPoints: (value) => {
+								writePreference("showPointsInMainUi", value);
+							},
+							creditPosition: creditPositionOn(activeRegion),
+							onCreditPositionChange: (position) => {
+								changeCreditPosition(activeRegion, position);
+							},
+							refreshIntervalMinutes: settingsEdits.refreshIntervalMinutes,
+							onRefreshIntervalChange: (minutes) => {
+								writeRefreshInterval(minutes);
+							},
+							sidebarPanelOn,
+							sidebarPanelBusy,
+							onToggleSidebarPanel: (value) => {
+								writeSidebarPanel(value);
+							},
+							savingPreferences: savingSettings,
+							creditsLabelId,
+							creditsHintId,
+							rows: accountRows,
+							busy,
+							rescanNote,
+							onRescan: () => {
+								rescanAccounts();
+							},
+							switchingAccount,
+							onSwitchAccount: (accountId) => {
+								switchAccount(accountId);
+							},
+							onClaim: (accountId) => {
+								claimFor(accountId);
+							},
+							onTransferChanged: async () => {
+								const fresh = await refreshUsage(activeRegion);
+								if (fresh !== void 0) setStatusByRegion((current) => ({
+									...current,
+									[activeRegion]: fresh
+								}));
+							},
+							creditsUnavailable: status.status === "signed-in" ? status.creditsUnavailable : void 0,
+							creditsExpiry: status.status === "signed-in" ? status.credits?.expiry : void 0,
+							alternatives: status.status === "signed-in" ? status.alternatives : void 0,
+							onSwitchToAlternative: (accountId) => {
+								switchAccount(accountId);
+							}
+						})]
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className: "dsm-trae-panel",
+						role: "tabpanel",
+						id: "dsm-trae-panel-models",
+						"aria-labelledby": "dsm-trae-tab-models",
+						hidden: !signedIn || panel !== "models",
+						children: signedIn ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(react_jsx_runtime.Fragment, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
+							className: "dsm-trae-models",
+							"aria-label": t("row.modelsTitle"),
+							children: [
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+									className: "dsm-trae-models-head",
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h3", {
+										className: "dsm-trae-models-title",
+										children: t("row.modelsTitle")
+									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+										className: "dsm-trae-models-summary",
+										children: t("row.modelsSummary", { count: activeEnabledIds.size })
+									})] }), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+										className: "dsm-trae-models-actions",
+										children: [
+											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+												type: "button",
+												className: "dsm-btn dsm-btn-outline",
+												disabled: busy,
+												onClick: () => {
+													refreshModels();
+												},
+												children: busy ? t("row.modelsRefreshing") : t("row.modelsRefresh")
+											}),
+											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+												type: "button",
+												className: "dsm-btn dsm-btn-outline",
+												disabled: busy || testing !== void 0 || activeEnabledIds.size === 0,
+												title: t("row.modelsTestHint"),
+												onClick: () => {
+													testEnabledModels();
+												},
+												children: testing === void 0 ? t("row.modelsTestEnabled") : t("row.modelsTesting", {
+													done: testing.done,
+													total: testing.total
+												})
+											}),
+											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+												type: "button",
+												className: "dsm-btn dsm-btn-outline",
+												disabled: busy || testing !== void 0 || visibleModels.length === 0,
+												title: t("row.modelsTestAllHint"),
+												onClick: () => {
+													testAllModels();
+												},
+												children: testing === void 0 ? t("row.modelsTestAll") : t("row.modelsTesting", {
+													done: testing.done,
+													total: testing.total
+												})
+											})
+										]
+									})]
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+									className: "dsm-trae-models-hint",
+									children: t("row.modelsTestHint")
+								}),
+								testSummary === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+									className: "dsm-trae-models-summary",
+									children: testSummary
+								}),
+								testError === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+									className: "dsm-trae-usage-error",
+									role: "alert",
+									children: testError
+								}),
+								orderedModels.length > commonModelCount ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+									className: "dsm-trae-models-view",
+									role: "group",
+									"aria-label": t("row.modelsViewLabel"),
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+										type: "button",
+										className: "dsm-trae-models-view-opt",
+										"aria-pressed": modelView === "common",
+										title: t("row.modelsViewCommonHint"),
+										onClick: () => {
+											setModelView("common");
+										},
+										children: t("row.modelsViewCommon", { count: commonModelCount })
+									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+										type: "button",
+										className: "dsm-trae-models-view-opt",
+										"aria-pressed": modelView === "all",
+										title: t("row.modelsViewAllHint"),
+										onClick: () => {
+											setModelView("all");
+										},
+										children: t("row.modelsViewAll", { count: orderedModels.length })
+									})]
+								}) : null,
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+									className: "dsm-trae-models-search",
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
+										type: "search",
+										className: "dsm-trae-models-search-input",
+										value: modelQuery,
+										placeholder: t("row.modelsSearchPlaceholder"),
+										"aria-label": t("row.modelsSearch"),
+										onChange: (event) => {
+											setModelQuery(event.target.value);
+											setClosedModelGroups(/* @__PURE__ */ new Set());
+										}
+									}), modelQueryActive ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "dsm-trae-models-search-count",
+										children: t("row.modelsSearchCount", {
+											shown: shownModels.length,
+											total: scopedModels.length
+										})
+									}) : null]
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+									className: "dsm-trae-model-list",
+									children: [modelGroups.length === 0 ? matchesOutsideView > 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("p", {
+										className: "dsm-trae-models-empty",
+										children: [t("row.modelsSearchOutsideView", {
+											query: modelQuery.trim(),
+											count: matchesOutsideView
+										}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+											type: "button",
+											className: "dsm-trae-models-widen",
+											onClick: () => {
+												setModelView("all");
+											},
+											children: t("row.modelsViewShowAll")
+										})]
+									}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+										className: "dsm-trae-models-empty",
+										children: t("row.modelsSearchEmpty", { query: modelQuery.trim() })
+									}) : null, modelGroups.map((group) => {
+										const groupKey = `${activeRegion}|${group.channel ?? ""}`;
+										const groupOpen = modelQueryActive || !closedModelGroups.has(groupKey);
+										return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("details", {
+											className: "dsm-trae-model-group",
+											open: groupOpen,
+											onToggle: (event) => {
+												const open = event.currentTarget.open;
+												setClosedModelGroups((current) => {
+													if (open === !current.has(groupKey)) return current;
+													const next = new Set(current);
+													if (open) next.delete(groupKey);
+													else next.add(groupKey);
+													return next;
+												});
+											},
+											children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("summary", {
+												className: "dsm-trae-model-group-head",
+												children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+													className: "dsm-trae-model-group-name",
+													children: modelChannelLabel(group.channel, t)
+												}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+													className: "dsm-trae-model-group-count",
+													children: t("row.modelsGroupCount", { count: group.rows.length })
+												})]
+											}), group.rows.map((model) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+												className: `dsm-trae-model${activeEnabledIds.has(model.id) ? "" : " dsm-trae-model-disabled"}`,
+												children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+													className: "dsm-trae-model-head",
+													children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
+														className: "dsm-trae-model-enabled",
+														children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
+															type: "checkbox",
+															checked: activeEnabledIds.has(model.id),
+															disabled: settingsScope?.getSnapshot().writable !== true || saving,
+															onChange: () => {
+																toggleModel(model.id);
+															}
+														}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+															className: "dsm-trae-model-copy",
+															children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+																className: "dsm-trae-model-name",
+																children: [
+																	model.name,
+																	activeRegion === "enterprise" || model.creditMultiplier === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+																		className: "dsm-trae-model-name-rate",
+																		children: ["· x", model.creditMultiplier.toFixed(2)]
+																	}),
+																	probeBadge(probeByRegion[activeRegion][model.id], t)
+																]
+															}), promoBadge(model, t, nowForPromo)]
+														})]
+													}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+														className: "dsm-trae-model-options",
+														children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
+															className: "dsm-trae-model-image",
+															children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
+																type: "checkbox",
+																checked: rowAcceptsImage(model),
+																disabled: rowImageIsAutomatic(model) || settingsScope?.getSnapshot().writable !== true || saving,
+																title: rowImageIsAutomatic(model) ? t("row.modelImageAuto") : void 0,
+																onChange: () => {
+																	toggleImage(model.id);
+																}
+															}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("row.modelImage") })]
+														}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("fieldset", {
+															className: "dsm-trae-context-budget",
+															"aria-label": t("row.contextBudget"),
+															title: t("row.contextBudgetHint"),
+															children: (() => {
+																const options = contextBudgetOptions(model);
+																const selectable = model.maxContextWindow !== void 0;
+																const current = activeContextBudgets[model.id] ?? model.contextWindow;
+																return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("select", {
+																	className: "dsm-trae-context-select",
+																	"aria-label": t("row.contextBudget"),
+																	title: t("row.contextBudgetHint"),
+																	value: current === void 0 ? "" : String(current),
+																	disabled: !selectable || settingsScope?.getSnapshot().writable !== true || saving,
+																	onChange: (event) => {
+																		setContextBudget(model.id, Number(event.currentTarget.value));
+																	},
+																	children: options.map((option) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
+																		value: String(option),
+																		children: formatCapacity(option, t("row.modelUnknown"))
+																	}, option))
+																});
+															})()
+														})]
+													})]
+												}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+													className: "dsm-trae-model-meta",
+													children: [
+														/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("row.modelContext", { context: formatCapacity(model.maxContextWindow ?? model.contextWindow, t("row.modelUnknown")) }) }),
+														model.maxTokens === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("row.modelOutput", { output: formatCapacity(model.maxTokens, t("row.modelUnknown")) }) }),
+														effortPicker(model)
+													]
+												})]
+											}, model.id))]
+										}, groupKey);
+									})]
+								}),
+								enabledOutsideView.length === 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("p", {
+									className: "dsm-trae-models-note",
+									children: [t("row.modelsEnabledOutsideView", { count: enabledOutsideView.length }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+										type: "button",
+										className: "dsm-trae-models-widen",
+										onClick: () => {
+											setModelView("all");
+										},
+										children: t("row.modelsViewShowAll")
+									})]
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+									className: "dsm-trae-context-bulk",
+									children: [
+										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+											type: "button",
+											className: "dsm-btn dsm-btn-outline",
+											disabled: busy || saving || settingsScope?.getSnapshot().writable !== true || !visibleModels.some((model) => contextBudgetOptions(model).includes(5e5)),
+											title: t("row.contextAllMidHint"),
+											onClick: setAllContextMid,
+											children: t("row.contextAllMid")
+										}),
+										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+											type: "button",
+											className: "dsm-btn dsm-btn-outline",
+											disabled: busy || saving || settingsScope?.getSnapshot().writable !== true || !visibleModels.some((model) => model.maxContextWindow !== void 0),
+											title: t("row.contextAllMaxHint"),
+											onClick: setAllContextMax,
+											children: t("row.contextAllMax")
+										}),
+										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+											type: "button",
+											className: "dsm-btn dsm-btn-outline",
+											disabled: busy || saving || settingsScope?.getSnapshot().writable !== true || Object.keys(activeContextBudgets).length === 0,
+											title: t("row.contextAllDefaultHint"),
+											onClick: resetAllContextBudgets,
+											children: t("row.contextAllDefault")
+										})
+									]
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+									className: "dsm-trae-model-capability-note",
+									children: t("row.contextBudgetHint")
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
+									className: "dsm-trae-draw-image",
+									"data-disabled": drawImageServable ? void 0 : "true",
+									title: drawImageServable ? t("row.drawImageHint") : drawImageUnavailableHint,
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
+										type: "checkbox",
+										checked: drawImageOn,
+										disabled: !drawImageServable || busy || saving || savingSettings || settingsScope?.getSnapshot().writable !== true,
+										onChange: (event) => {
+											writeDrawImage(event.target.checked);
+										}
+									}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", { children: [t("row.drawImage"), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+										className: "dsm-trae-draw-image-hint",
+										children: [" ", drawImageServable ? t("row.drawImageHint") : drawImageUnavailableHint]
+									})] })]
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+									className: "dsm-trae-model-capability-note",
+									children: t("row.modelCapabilityPending")
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+									className: "dsm-trae-model-actions",
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("a", {
+										className: "dsm-trae-usage-cheer",
+										href: TRAE_GITHUB_URL,
+										target: "_blank",
+										rel: "noopener noreferrer",
+										children: [t("row.cheer"), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+											className: "dsm-trae-usage-cheer-star",
+											"aria-hidden": "true",
+											children: "★"
+										})]
+									}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+										className: "dsm-trae-model-actions-buttons",
+										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+											type: "button",
+											className: "dsm-btn dsm-btn-outline",
+											disabled: !dirty || saving,
+											onClick: discardModels,
+											children: t("row.discard")
+										}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+											type: "button",
+											className: "dsm-btn dsm-btn-primary",
+											disabled: !dirty || saving || activeEnabledIds.size === 0,
+											onClick: () => {
+												saveModels();
+											},
+											children: saving ? t("row.saving") : t("row.save")
+										})]
+									})]
+								})
+							]
+						}) }) : null
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className: "dsm-trae-panel",
+						role: "tabpanel",
+						id: "dsm-trae-panel-diag",
+						"aria-labelledby": "dsm-trae-tab-diag",
+						hidden: !signedIn || panel !== "diag",
+						children: status.status !== "signed-in" || panel !== "diag" ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+							className: "dsm-trae-diag",
+							children: [
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+									className: "dsm-trae-diag-row",
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "dsm-trae-diag-label",
+										children: t("row.diagRegion")
+									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "dsm-trae-diag-value",
+										children: activeRegion === "cn" ? t("row.tabCn") : activeRegion === "enterprise" ? t("row.tabEnterprise") : t("row.tabAi")
+									})]
+								}),
+								status.unsupportedRegion === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+									className: "dsm-trae-diag-row",
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "dsm-trae-diag-label",
+										children: t("row.diagUnsupportedRegion")
+									}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+										className: "dsm-trae-diag-value dsm-trae-diag-bad",
+										children: [
+											status.unsupportedRegion.region.toUpperCase(),
+											" · ",
+											status.unsupportedRegion.accounts.join(", ")
+										]
+									})]
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+									className: "dsm-trae-diag-row",
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "dsm-trae-diag-label",
+										children: t("row.diagProvider")
+									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "dsm-trae-diag-value dsm-trae-diag-mono",
+										children: providerOfPanel(activeRegion)
+									})]
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+									className: "dsm-trae-diag-row",
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "dsm-trae-diag-label",
+										children: t("row.diagAccount")
+									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "dsm-trae-diag-value",
+										children: status.accountName
+									})]
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+									className: "dsm-trae-diag-row",
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "dsm-trae-diag-label",
+										children: t("row.diagToken")
+									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "dsm-trae-diag-value dsm-trae-diag-mono",
+										children: formatDateTime(status.tokenExpiresAtMs)
+									})]
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+									className: "dsm-trae-diag-row",
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "dsm-trae-diag-label",
+										children: t("row.diagRefresh")
+									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "dsm-trae-diag-value dsm-trae-diag-mono",
+										children: status.refreshExpiresAtMs === void 0 ? t("row.diagRefreshNone") : formatDateTime(status.refreshExpiresAtMs)
+									})]
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+									className: "dsm-trae-diag-row",
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "dsm-trae-diag-label",
+										children: t("row.diagCatalog")
+									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "dsm-trae-diag-value",
+										children: formatNumber(status.models.length)
+									})]
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+									className: "dsm-trae-diag-row",
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "dsm-trae-diag-label",
+										children: t("row.diagEnabled")
+									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "dsm-trae-diag-value",
+										children: formatNumber(status.enabledModelIds.length)
+									})]
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+									className: "dsm-trae-diag-row",
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "dsm-trae-diag-label",
+										children: t("row.diagPool")
+									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "dsm-trae-diag-value",
+										children: status.pool === void 0 ? t("row.diagPoolOff") : status.pool.enabled ? t("row.diagPoolOn", { count: status.pool.effectiveMemberAccountIds?.length ?? status.pool.accounts.length }) : t("row.diagPoolOff")
+									})]
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+									className: "dsm-trae-diag-row",
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "dsm-trae-diag-label",
+										children: t("row.diagCheckin")
+									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "dsm-trae-diag-value",
+										children: status.checkin !== void 0 || status.pool?.checkinSupported === true ? t("row.diagCheckinOn") : t("row.diagCheckinOff")
+									})]
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+									className: "dsm-trae-diag-row",
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "dsm-trae-diag-label",
+										children: t("row.diagRaw")
+									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "dsm-trae-diag-value dsm-trae-diag-mono",
+										children: status.rawChat === void 0 ? t("row.diagRawOff") : status.rawChat.state
+									})]
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+									className: "dsm-trae-diag-row",
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "dsm-trae-diag-label",
+										children: t("row.diagFailures")
+									}), (() => {
+										const failures = [];
+										if (status.creditsError !== void 0) failures.push(status.creditsError);
+										if (status.payStatusError !== void 0) failures.push(status.payStatusError);
+										if (status.checkinError !== void 0) failures.push(status.checkinError);
+										if (writeError !== void 0) failures.push(writeError);
+										return failures.length === 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+											className: "dsm-trae-diag-value",
+											children: t("row.diagNoFailures")
+										}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+											className: "dsm-trae-diag-value dsm-trae-diag-bad dsm-trae-diag-mono",
+											children: failures.join(" · ")
+										});
+									})()]
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+									className: "dsm-trae-diag-row",
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "dsm-trae-diag-label",
+										children: t("row.diagQuarantine")
+									}), status.quarantined === void 0 || status.quarantined.length === 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "dsm-trae-diag-value",
+										children: t("row.diagQuarantineNone")
+									}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "dsm-trae-diag-value dsm-trae-diag-bad dsm-trae-diag-mono",
+										children: status.quarantined.map((item) => item.quarantinedAs).join(" · ")
+									})]
+								})
+							]
+						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+							className: "dsm-trae-diag-hint",
+							children: t("row.diagHint")
+						})] })
+					}),
+					status.status === "signed-out" && loading ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(react_jsx_runtime.Fragment, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+						className: "dsm-trae-usage-text",
+						role: "status",
+						children: t("row.accountsLoading")
+					}) }) : null,
+					status.status === "signed-out" && !loading ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+							className: "dsm-trae-usage-text",
+							children: status.message ?? t("row.signedOutHint")
+						}),
+						status.unsupportedRegion === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("details", {
+							className: "dsm-trae-quarantine",
+							open: true,
+							children: [
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("summary", { children: t("row.unsupportedRegionTitle") }),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+									className: "dsm-trae-quarantine-hint",
+									children: t("row.unsupportedRegionHint")
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("ul", {
+									className: "dsm-trae-quarantine-list",
+									children: status.unsupportedRegion.accounts.map((name) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("li", { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("code", { children: name }) }, name))
+								})
+							]
+						}),
+						status.quarantined && status.quarantined.length > 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("details", {
+							className: "dsm-trae-quarantine",
+							open: true,
+							children: [
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("summary", { children: [
+									t("row.quarantineTitle"),
+									" (",
+									status.quarantined.length,
+									")"
+								] }),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+									className: "dsm-trae-quarantine-hint",
+									children: t("row.quarantineHint")
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("ul", {
+									className: "dsm-trae-quarantine-list",
+									children: status.quarantined.map((item) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("li", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("code", { children: item.quarantinedAs }), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+										className: "dsm-trae-quarantine-reason",
+										children: [
+											item.accounts === void 0 ? t("row.quarantineAccountsUnknown") : t("row.quarantineAccounts", { count: item.accounts }),
+											" · ",
+											t("row.quarantineBytes", { bytes: item.bytes })
+										]
+									})] }, item.quarantinedAs))
+								})
+							]
+						}) : null,
+						status.searched && status.searched.length > 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("details", {
+							className: "dsm-trae-searched",
+							children: [
+								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("summary", { children: [
+									t("row.searchedTitle"),
+									" (",
+									status.searched.length,
+									")"
+								] }),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+									className: "dsm-trae-searched-hint",
+									children: t("row.searchedHint")
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("ul", {
+									className: "dsm-trae-searched-list",
+									children: status.searched.map((item) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("li", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("code", { children: item.path }), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+										className: "dsm-trae-searched-reason",
+										children: [
+											t(item.source === "cli" ? "row.sourceCli" : "row.sourceDesktop"),
+											" · ",
+											t(item.reason === "missing" ? "row.reasonMissing" : item.reason === "unreadable" ? "row.reasonUnreadable" : "row.reasonInvalid")
+										]
+									})] }, `${item.source}:${item.path}`))
+								})
+							]
+						}) : null
+					] }) : null,
+					status.status === "error" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+						className: "dsm-trae-usage-error",
+						children: status.message
+					}) : null
+				]
+			});
+			/**
+			* The page header, drawn only by the sidebar row's `main` panel.
+			*
+			* A settings card has the Plugins page's own chrome around it; a full page has
+			* nothing, so it has to say what it is and how to leave. The back control
+			* reuses the host's `layout.selectPanel(null)` (handed down as
+			* `backToConversation`), which is the only public contract for returning the
+			* centre column to the conversation — and it is omitted, not drawn dead, on a
+			* host that does not declare `layout`.
+			*/
+			const pageHead = pageSurface ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: "dsm-trae-page-head",
+				children: [
+					backToConversation === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+						type: "button",
+						className: "dsm-trae-page-back",
+						onClick: backToConversation,
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							"aria-hidden": "true",
+							className: "dsm-trae-page-back-caret"
+						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("row.pageBack") })]
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(PluginIcon, { className: "dsm-trae-page-icon" }),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+						className: "dsm-trae-page-title",
+						children: title
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+						className: "dsm-trae-page-desc",
+						children: t("row.desc")
+					})
+				]
+			}) : null;
+			/**
+			* The section head, drawn only by the `settings.section` page.
+			*
+			* Deliberately NOT {@link pageHead} minus a button: the settings shell already
+			* paints the nav row (which carries the icon registered into
+			* `settings.section.icon`), the close control and the scroll column, so a
+			* second 40px brand mark and a second title here would say the same thing
+			* twice in one dialog. What the shell does NOT supply is a statement of what
+			* the page is for, which is this heading plus the one-line description.
+			*
+			* No back control: the shell's close button is the way out of a modal, and a
+			* "back to conversation" in here would either duplicate it or — worse — move
+			* the centre column behind an open dialog.
+			*/
+			const sectionHead = sectionSurface ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: "dsm-trae-section-head",
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h2", {
+					className: "dsm-trae-section-title",
+					children: title
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+					className: "dsm-trae-section-desc",
+					children: t("row.desc")
+				})]
+			}) : null;
+			if (pageSurface) return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: "dsm-trae-page",
+				onScroll: (event) => {
+					updateStickyTabs(event.currentTarget);
+				},
+				ref: (page) => {
+					if (page !== null) requestAnimationFrame(() => {
+						updateStickyTabs(page);
+					});
+				},
+				children: [
+					pageHead,
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className: "dsm-trae-page-body",
+						children: cardBody
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(BusyOverlay, {
+						visible: saving || savingSettings,
+						message: t("row.veilSaving")
+					})
+				]
+			});
+			if (sectionSurface) return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: "dsm-trae-section",
+				children: [
+					sectionHead,
+					cardBody,
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(BusyOverlay, {
+						visible: saving || savingSettings,
+						message: t("row.veilSaving")
+					})
+				]
+			});
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("li", {
 				className: `dsm-plugin-card${open ? " dsm-plugin-card-open" : ""}`,
 				children: [
@@ -5440,14 +7650,10 @@ window.__ModuleLoader__.load({
 						"aria-expanded": open,
 						"aria-label": `${t(open ? "row.collapse" : "row.expand")}: ${title}`,
 						onClick: () => {
-							setOpen(!open);
+							setCardOpen(!open);
 						},
 						children: [
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("img", {
-								className: "dsm-plugin-card-icon",
-								src: TRAE_PLUGIN_ICON,
-								alt: ""
-							}),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)(PluginIcon, { className: "dsm-plugin-card-icon" }),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
 								className: "dsm-plugin-card-head",
 								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
@@ -5467,751 +7673,7 @@ window.__ModuleLoader__.load({
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 						className: "dsm-plugin-card-body",
 						hidden: !open,
-						children: open ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-							className: "dsm-trae-usage",
-							children: [
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-									className: "dsm-trae-tabs",
-									role: "tablist",
-									"aria-label": title,
-									children: TRAE_PANELS.map((item) => {
-										const regionStatus = statusByRegion[item];
-										const on = regionOn(item);
-										return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-											className: "dsm-trae-tab-cell",
-											role: "presentation",
-											children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
-												type: "button",
-												role: "tab",
-												"aria-selected": item === activeRegion,
-												className: `dsm-trae-tab${item === activeRegion ? " dsm-trae-tab-active" : ""}${on ? "" : " dsm-trae-tab-off"}`,
-												onClick: () => {
-													setActiveRegion(item);
-												},
-												children: [regionStatus === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													"aria-hidden": "true",
-													className: "dsm-trae-tab-dot",
-													style: dotStyle(regionStatus.status)
-												}), item === "cn" ? t("row.tabCn") : item === "enterprise" ? t("row.tabEnterprise") : t("row.tabAi")]
-											}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("label", {
-												className: "dsm-trae-switch dsm-trae-tab-switch",
-												title: t("row.tabSwitchHint"),
-												children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
-													type: "checkbox",
-													checked: on,
-													disabled: settingsScope?.getSnapshot().writable !== true || togglingRegion !== void 0,
-													"aria-label": t("row.tabSwitchAria", { region: item === "cn" ? t("row.tabCn") : item === "enterprise" ? t("row.tabEnterprise") : t("row.tabAi") }),
-													onChange: (event) => {
-														toggleRegion(item, event.currentTarget.checked);
-													}
-												})
-											})]
-										}, item);
-									})
-								}),
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-									className: "dsm-trae-tab-hint",
-									children: t("row.tabHint")
-								}),
-								writeError === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-									className: "dsm-trae-usage-error",
-									role: "alert",
-									children: t("row.settingsWriteFailed", { message: writeError })
-								}),
-								regionOn(activeRegion) ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-									className: "dsm-trae-tab-off-notice",
-									role: "status",
-									children: t("row.tabOffNotice")
-								}),
-								signedIn ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-									className: "dsm-trae-panels",
-									role: "tablist",
-									"aria-label": t("row.panelAria"),
-									children: [
-										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-											type: "button",
-											role: "tab",
-											id: "dsm-trae-tab-accounts",
-											"aria-controls": "dsm-trae-panel-accounts",
-											"aria-selected": panel === "accounts",
-											className: `dsm-trae-panel-tab${panel === "accounts" ? " dsm-trae-panel-tab-active" : ""}`,
-											onClick: () => {
-												setPanel("accounts");
-											},
-											children: t("row.panelAccounts")
-										}),
-										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-											type: "button",
-											role: "tab",
-											id: "dsm-trae-tab-models",
-											"aria-controls": "dsm-trae-panel-models",
-											"aria-selected": panel === "models",
-											className: `dsm-trae-panel-tab${panel === "models" ? " dsm-trae-panel-tab-active" : ""}`,
-											onClick: () => {
-												setPanel("models");
-											},
-											children: t("row.panelModels")
-										}),
-										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-											type: "button",
-											role: "tab",
-											id: "dsm-trae-tab-diag",
-											"aria-controls": "dsm-trae-panel-diag",
-											"aria-selected": panel === "diag",
-											className: `dsm-trae-panel-tab${panel === "diag" ? " dsm-trae-panel-tab-active" : ""}`,
-											onClick: () => {
-												setPanel("diag");
-											},
-											children: t("row.panelDiag")
-										})
-									]
-								}) : null,
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-									className: "dsm-trae-panel",
-									role: "tabpanel",
-									id: "dsm-trae-panel-accounts",
-									"aria-labelledby": "dsm-trae-tab-accounts",
-									hidden: signedIn && panel !== "accounts",
-									children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(TraeAccountPanel, {
-										t,
-										settingsScope,
-										panel: activeRegion,
-										status,
-										statusLabel: label,
-										credentialRegionIsAi,
-										regionOn: activeRegionOn,
-										showPointsInMainUi: settingsEdits.showPointsInMainUi,
-										onToggleShowPoints: (value) => {
-											writePreference("showPointsInMainUi", value);
-										},
-										creditPosition: creditPositionOn(activeRegion),
-										onCreditPositionChange: (position) => {
-											changeCreditPosition(activeRegion, position);
-										},
-										savingPreferences: savingSettings,
-										creditsLabelId,
-										creditsHintId,
-										rows: accountRows,
-										busy,
-										rescanNote,
-										onRescan: () => {
-											rescanAccounts();
-										},
-										switchingAccount,
-										onSwitchAccount: (accountId) => {
-											switchAccount(accountId);
-										},
-										onClaim: (accountId) => {
-											claimFor(accountId);
-										},
-										onTransferChanged: async () => {
-											const fresh = await refreshUsage(activeRegion);
-											if (fresh !== void 0) setStatusByRegion((current) => ({
-												...current,
-												[activeRegion]: fresh
-											}));
-										},
-										poolDetails,
-										poolClaims: status.status === "signed-in" && status.pool?.checkinSupported === true ? Object.fromEntries(status.accounts.map((account) => [account.id, claimViewOf(account.id, accountStatusByRegion[activeRegion][account.id])])) : void 0,
-										models: visibleModels,
-										deviceClaimed: deviceClaimedToday,
-										onPoolChanged: async () => {
-											const fresh = await refreshUsage(activeRegion);
-											if (fresh !== void 0) setStatusByRegion((current) => ({
-												...current,
-												[activeRegion]: fresh
-											}));
-										},
-										onPoolRefresh: async () => {
-											const fresh = await refreshUsage(activeRegion);
-											if (fresh !== void 0) setStatusByRegion((current) => ({
-												...current,
-												[activeRegion]: fresh
-											}));
-										},
-										creditsUnavailable: status.status === "signed-in" ? status.creditsUnavailable : void 0,
-										creditsExpiry: status.status === "signed-in" ? status.credits?.expiry : void 0,
-										alternatives: status.status === "signed-in" ? status.alternatives : void 0,
-										onSwitchToAlternative: (accountId) => {
-											switchAccount(accountId);
-										}
-									})
-								}),
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-									className: "dsm-trae-panel",
-									role: "tabpanel",
-									id: "dsm-trae-panel-models",
-									"aria-labelledby": "dsm-trae-tab-models",
-									hidden: !signedIn || panel !== "models",
-									children: signedIn ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(react_jsx_runtime.Fragment, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
-										className: "dsm-trae-models",
-										"aria-label": t("row.modelsTitle"),
-										children: [
-											/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-												className: "dsm-trae-models-head",
-												children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h3", {
-													className: "dsm-trae-models-title",
-													children: t("row.modelsTitle")
-												}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-													className: "dsm-trae-models-summary",
-													children: t("row.modelsSummary", { count: activeEnabledIds.size })
-												})] }), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-													className: "dsm-trae-models-actions",
-													children: [
-														/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-															type: "button",
-															className: "dsm-btn dsm-btn-outline",
-															disabled: busy,
-															onClick: () => {
-																refreshModels();
-															},
-															children: busy ? t("row.modelsRefreshing") : t("row.modelsRefresh")
-														}),
-														/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-															type: "button",
-															className: "dsm-btn dsm-btn-outline",
-															disabled: busy || testing !== void 0 || activeEnabledIds.size === 0,
-															title: t("row.modelsTestHint"),
-															onClick: () => {
-																testEnabledModels();
-															},
-															children: testing === void 0 ? t("row.modelsTestEnabled") : t("row.modelsTesting", {
-																done: testing.done,
-																total: testing.total
-															})
-														}),
-														/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-															type: "button",
-															className: "dsm-btn dsm-btn-outline",
-															disabled: busy || testing !== void 0 || visibleModels.length === 0,
-															title: t("row.modelsTestAllHint"),
-															onClick: () => {
-																testAllModels();
-															},
-															children: testing === void 0 ? t("row.modelsTestAll") : t("row.modelsTesting", {
-																done: testing.done,
-																total: testing.total
-															})
-														})
-													]
-												})]
-											}),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-												className: "dsm-trae-models-hint",
-												children: t("row.modelsTestHint")
-											}),
-											testSummary === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-												className: "dsm-trae-models-summary",
-												children: testSummary
-											}),
-											testError === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-												className: "dsm-trae-usage-error",
-												role: "alert",
-												children: testError
-											}),
-											orderedModels.length > commonModelCount ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-												className: "dsm-trae-models-view",
-												role: "group",
-												"aria-label": t("row.modelsViewLabel"),
-												children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-													type: "button",
-													className: "dsm-trae-models-view-opt",
-													"aria-pressed": modelView === "common",
-													title: t("row.modelsViewCommonHint"),
-													onClick: () => {
-														setModelView("common");
-													},
-													children: t("row.modelsViewCommon", { count: commonModelCount })
-												}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-													type: "button",
-													className: "dsm-trae-models-view-opt",
-													"aria-pressed": modelView === "all",
-													title: t("row.modelsViewAllHint"),
-													onClick: () => {
-														setModelView("all");
-													},
-													children: t("row.modelsViewAll", { count: orderedModels.length })
-												})]
-											}) : null,
-											/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-												className: "dsm-trae-models-search",
-												children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
-													type: "search",
-													className: "dsm-trae-models-search-input",
-													value: modelQuery,
-													placeholder: t("row.modelsSearchPlaceholder"),
-													"aria-label": t("row.modelsSearch"),
-													onChange: (event) => {
-														setModelQuery(event.target.value);
-														setClosedModelGroups(/* @__PURE__ */ new Set());
-													}
-												}), modelQueryActive ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													className: "dsm-trae-models-search-count",
-													children: t("row.modelsSearchCount", {
-														shown: shownModels.length,
-														total: scopedModels.length
-													})
-												}) : null]
-											}),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-												className: "dsm-trae-model-list",
-												children: [modelGroups.length === 0 ? matchesOutsideView > 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("p", {
-													className: "dsm-trae-models-empty",
-													children: [t("row.modelsSearchOutsideView", {
-														query: modelQuery.trim(),
-														count: matchesOutsideView
-													}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-														type: "button",
-														className: "dsm-trae-models-widen",
-														onClick: () => {
-															setModelView("all");
-														},
-														children: t("row.modelsViewShowAll")
-													})]
-												}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-													className: "dsm-trae-models-empty",
-													children: t("row.modelsSearchEmpty", { query: modelQuery.trim() })
-												}) : null, modelGroups.map((group) => {
-													const groupKey = `${activeRegion}|${group.channel ?? ""}`;
-													const groupOpen = modelQueryActive || !closedModelGroups.has(groupKey);
-													return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("details", {
-														className: "dsm-trae-model-group",
-														open: groupOpen,
-														onToggle: (event) => {
-															const open = event.currentTarget.open;
-															setClosedModelGroups((current) => {
-																if (open === !current.has(groupKey)) return current;
-																const next = new Set(current);
-																if (open) next.delete(groupKey);
-																else next.add(groupKey);
-																return next;
-															});
-														},
-														children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("summary", {
-															className: "dsm-trae-model-group-head",
-															children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-																className: "dsm-trae-model-group-name",
-																children: modelChannelLabel(group.channel, t)
-															}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-																className: "dsm-trae-model-group-count",
-																children: t("row.modelsGroupCount", { count: group.rows.length })
-															})]
-														}), group.rows.map((model) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-															className: `dsm-trae-model${activeEnabledIds.has(model.id) ? "" : " dsm-trae-model-disabled"}`,
-															children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-																className: "dsm-trae-model-head",
-																children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
-																	className: "dsm-trae-model-enabled",
-																	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
-																		type: "checkbox",
-																		checked: activeEnabledIds.has(model.id),
-																		disabled: settingsScope?.getSnapshot().writable !== true || saving,
-																		onChange: () => {
-																			toggleModel(model.id);
-																		}
-																	}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-																		className: "dsm-trae-model-copy",
-																		children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-																			className: "dsm-trae-model-name",
-																			children: [
-																				model.name,
-																				activeRegion === "enterprise" || model.creditMultiplier === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-																					className: "dsm-trae-model-name-rate",
-																					children: ["· x", model.creditMultiplier.toFixed(2)]
-																				}),
-																				probeBadge(probeByRegion[activeRegion][model.id], t)
-																			]
-																		}), promoBadge(model, t, nowForPromo)]
-																	})]
-																}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-																	className: "dsm-trae-model-options",
-																	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
-																		className: "dsm-trae-model-image",
-																		children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
-																			type: "checkbox",
-																			checked: rowAcceptsImage(model),
-																			disabled: rowImageIsAutomatic(model) || settingsScope?.getSnapshot().writable !== true || saving,
-																			title: rowImageIsAutomatic(model) ? t("row.modelImageAuto") : void 0,
-																			onChange: () => {
-																				toggleImage(model.id);
-																			}
-																		}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("row.modelImage") })]
-																	}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("fieldset", {
-																		className: "dsm-trae-context-budget",
-																		"aria-label": t("row.contextBudget"),
-																		title: t("row.contextBudgetHint"),
-																		children: contextBudgetOptions(model).map((option) => {
-																			const selectable = model.maxContextWindow !== void 0;
-																			const checked = (activeContextBudgets[model.id] ?? model.contextWindow) === option;
-																			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
-																				type: "radio",
-																				name: `context-${model.id}`,
-																				checked,
-																				disabled: !selectable || settingsScope?.getSnapshot().writable !== true || saving,
-																				onChange: () => {
-																					setContextBudget(model.id, option);
-																				}
-																			}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: formatCapacity(option, t("row.modelUnknown")) })] }, option);
-																		})
-																	})]
-																})]
-															}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-																className: "dsm-trae-model-meta",
-																children: [
-																	/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("row.modelContext", { context: formatCapacity(model.maxContextWindow ?? model.contextWindow, t("row.modelUnknown")) }) }),
-																	model.maxTokens === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("row.modelOutput", { output: formatCapacity(model.maxTokens, t("row.modelUnknown")) }) }),
-																	model.reasoning === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t("row.modelReasoning", { efforts: model.reasoning.supported.join(" / ") }) })
-																]
-															})]
-														}, model.id))]
-													}, groupKey);
-												})]
-											}),
-											enabledOutsideView.length === 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("p", {
-												className: "dsm-trae-models-note",
-												children: [t("row.modelsEnabledOutsideView", { count: enabledOutsideView.length }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-													type: "button",
-													className: "dsm-trae-models-widen",
-													onClick: () => {
-														setModelView("all");
-													},
-													children: t("row.modelsViewShowAll")
-												})]
-											}),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-												className: "dsm-trae-context-bulk",
-												children: [
-													/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-														type: "button",
-														className: "dsm-btn dsm-btn-outline",
-														disabled: busy || saving || settingsScope?.getSnapshot().writable !== true || !visibleModels.some((model) => contextBudgetOptions(model).includes(5e5)),
-														title: t("row.contextAllMidHint"),
-														onClick: setAllContextMid,
-														children: t("row.contextAllMid")
-													}),
-													/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-														type: "button",
-														className: "dsm-btn dsm-btn-outline",
-														disabled: busy || saving || settingsScope?.getSnapshot().writable !== true || !visibleModels.some((model) => model.maxContextWindow !== void 0),
-														title: t("row.contextAllMaxHint"),
-														onClick: setAllContextMax,
-														children: t("row.contextAllMax")
-													}),
-													/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-														type: "button",
-														className: "dsm-btn dsm-btn-outline",
-														disabled: busy || saving || settingsScope?.getSnapshot().writable !== true || Object.keys(activeContextBudgets).length === 0,
-														title: t("row.contextAllDefaultHint"),
-														onClick: resetAllContextBudgets,
-														children: t("row.contextAllDefault")
-													})
-												]
-											}),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-												className: "dsm-trae-model-capability-note",
-												children: t("row.contextBudgetHint")
-											}),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
-												className: "dsm-trae-draw-image",
-												"data-disabled": drawImageServable ? void 0 : "true",
-												title: drawImageServable ? t("row.drawImageHint") : drawImageUnavailableHint,
-												children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
-													type: "checkbox",
-													checked: drawImageOn,
-													disabled: !drawImageServable || busy || saving || savingSettings || settingsScope?.getSnapshot().writable !== true,
-													onChange: (event) => {
-														writeDrawImage(event.target.checked);
-													}
-												}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", { children: [t("row.drawImage"), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-													className: "dsm-trae-draw-image-hint",
-													children: [" ", drawImageServable ? t("row.drawImageHint") : drawImageUnavailableHint]
-												})] })]
-											}),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-												className: "dsm-trae-model-capability-note",
-												children: t("row.modelCapabilityPending")
-											}),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-												className: "dsm-trae-model-actions",
-												children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("a", {
-													className: "dsm-trae-usage-cheer",
-													href: TRAE_GITHUB_URL,
-													target: "_blank",
-													rel: "noopener noreferrer",
-													children: [t("row.cheer"), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-														className: "dsm-trae-usage-cheer-star",
-														"aria-hidden": "true",
-														children: "★"
-													})]
-												}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-													className: "dsm-trae-model-actions-buttons",
-													children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-														type: "button",
-														className: "dsm-btn dsm-btn-outline",
-														disabled: !dirty || saving,
-														onClick: discardModels,
-														children: t("row.discard")
-													}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-														type: "button",
-														className: "dsm-btn dsm-btn-primary",
-														disabled: !dirty || saving || activeEnabledIds.size === 0,
-														onClick: () => {
-															saveModels();
-														},
-														children: saving ? t("row.saving") : t("row.save")
-													})]
-												})]
-											})
-										]
-									}) }) : null
-								}),
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-									className: "dsm-trae-panel",
-									role: "tabpanel",
-									id: "dsm-trae-panel-diag",
-									"aria-labelledby": "dsm-trae-tab-diag",
-									hidden: !signedIn || panel !== "diag",
-									children: status.status !== "signed-in" || panel !== "diag" ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-										className: "dsm-trae-diag",
-										children: [
-											/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-												className: "dsm-trae-diag-row",
-												children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													className: "dsm-trae-diag-label",
-													children: t("row.diagRegion")
-												}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													className: "dsm-trae-diag-value",
-													children: activeRegion === "cn" ? t("row.tabCn") : activeRegion === "enterprise" ? t("row.tabEnterprise") : t("row.tabAi")
-												})]
-											}),
-											status.unsupportedRegion === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-												className: "dsm-trae-diag-row",
-												children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													className: "dsm-trae-diag-label",
-													children: t("row.diagUnsupportedRegion")
-												}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-													className: "dsm-trae-diag-value dsm-trae-diag-bad",
-													children: [
-														status.unsupportedRegion.region.toUpperCase(),
-														" · ",
-														status.unsupportedRegion.accounts.join(", ")
-													]
-												})]
-											}),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-												className: "dsm-trae-diag-row",
-												children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													className: "dsm-trae-diag-label",
-													children: t("row.diagProvider")
-												}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													className: "dsm-trae-diag-value dsm-trae-diag-mono",
-													children: providerOfPanel(activeRegion)
-												})]
-											}),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-												className: "dsm-trae-diag-row",
-												children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													className: "dsm-trae-diag-label",
-													children: t("row.diagAccount")
-												}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													className: "dsm-trae-diag-value",
-													children: status.accountName
-												})]
-											}),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-												className: "dsm-trae-diag-row",
-												children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													className: "dsm-trae-diag-label",
-													children: t("row.diagToken")
-												}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													className: "dsm-trae-diag-value dsm-trae-diag-mono",
-													children: formatDateTime(status.tokenExpiresAtMs)
-												})]
-											}),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-												className: "dsm-trae-diag-row",
-												children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													className: "dsm-trae-diag-label",
-													children: t("row.diagRefresh")
-												}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													className: "dsm-trae-diag-value dsm-trae-diag-mono",
-													children: status.refreshExpiresAtMs === void 0 ? t("row.diagRefreshNone") : formatDateTime(status.refreshExpiresAtMs)
-												})]
-											}),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-												className: "dsm-trae-diag-row",
-												children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													className: "dsm-trae-diag-label",
-													children: t("row.diagCatalog")
-												}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													className: "dsm-trae-diag-value",
-													children: formatNumber(status.models.length)
-												})]
-											}),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-												className: "dsm-trae-diag-row",
-												children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													className: "dsm-trae-diag-label",
-													children: t("row.diagEnabled")
-												}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													className: "dsm-trae-diag-value",
-													children: formatNumber(status.enabledModelIds.length)
-												})]
-											}),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-												className: "dsm-trae-diag-row",
-												children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													className: "dsm-trae-diag-label",
-													children: t("row.diagPool")
-												}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													className: "dsm-trae-diag-value",
-													children: status.pool === void 0 ? t("row.diagPoolOff") : status.pool.enabled ? t("row.diagPoolOn", { count: status.pool.effectiveMemberAccountIds?.length ?? status.pool.accounts.length }) : t("row.diagPoolOff")
-												})]
-											}),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-												className: "dsm-trae-diag-row",
-												children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													className: "dsm-trae-diag-label",
-													children: t("row.diagCheckin")
-												}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													className: "dsm-trae-diag-value",
-													children: status.checkin !== void 0 || status.pool?.checkinSupported === true ? t("row.diagCheckinOn") : t("row.diagCheckinOff")
-												})]
-											}),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-												className: "dsm-trae-diag-row",
-												children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													className: "dsm-trae-diag-label",
-													children: t("row.diagRaw")
-												}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													className: "dsm-trae-diag-value dsm-trae-diag-mono",
-													children: status.rawChat === void 0 ? t("row.diagRawOff") : status.rawChat.state
-												})]
-											}),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-												className: "dsm-trae-diag-row",
-												children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													className: "dsm-trae-diag-label",
-													children: t("row.diagFailures")
-												}), (() => {
-													const failures = [];
-													if (status.creditsError !== void 0) failures.push(status.creditsError);
-													if (status.payStatusError !== void 0) failures.push(status.payStatusError);
-													if (status.checkinError !== void 0) failures.push(status.checkinError);
-													if (writeError !== void 0) failures.push(writeError);
-													return failures.length === 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-														className: "dsm-trae-diag-value",
-														children: t("row.diagNoFailures")
-													}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-														className: "dsm-trae-diag-value dsm-trae-diag-bad dsm-trae-diag-mono",
-														children: failures.join(" · ")
-													});
-												})()]
-											}),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-												className: "dsm-trae-diag-row",
-												children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													className: "dsm-trae-diag-label",
-													children: t("row.diagQuarantine")
-												}), status.quarantined === void 0 || status.quarantined.length === 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													className: "dsm-trae-diag-value",
-													children: t("row.diagQuarantineNone")
-												}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-													className: "dsm-trae-diag-value dsm-trae-diag-bad dsm-trae-diag-mono",
-													children: status.quarantined.map((item) => item.quarantinedAs).join(" · ")
-												})]
-											})
-										]
-									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-										className: "dsm-trae-diag-hint",
-										children: t("row.diagHint")
-									})] })
-								}),
-								status.status === "signed-out" && loading ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(react_jsx_runtime.Fragment, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-									className: "dsm-trae-usage-text",
-									role: "status",
-									children: t("row.accountsLoading")
-								}) }) : null,
-								status.status === "signed-out" && !loading ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
-									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-										className: "dsm-trae-usage-text",
-										children: status.message ?? t("row.signedOutHint")
-									}),
-									status.unsupportedRegion === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("details", {
-										className: "dsm-trae-quarantine",
-										open: true,
-										children: [
-											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("summary", { children: t("row.unsupportedRegionTitle") }),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-												className: "dsm-trae-quarantine-hint",
-												children: t("row.unsupportedRegionHint")
-											}),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("ul", {
-												className: "dsm-trae-quarantine-list",
-												children: status.unsupportedRegion.accounts.map((name) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("li", { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("code", { children: name }) }, name))
-											})
-										]
-									}),
-									status.quarantined && status.quarantined.length > 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("details", {
-										className: "dsm-trae-quarantine",
-										open: true,
-										children: [
-											/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("summary", { children: [
-												t("row.quarantineTitle"),
-												" (",
-												status.quarantined.length,
-												")"
-											] }),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-												className: "dsm-trae-quarantine-hint",
-												children: t("row.quarantineHint")
-											}),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("ul", {
-												className: "dsm-trae-quarantine-list",
-												children: status.quarantined.map((item) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("li", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("code", { children: item.quarantinedAs }), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-													className: "dsm-trae-quarantine-reason",
-													children: [
-														item.accounts === void 0 ? t("row.quarantineAccountsUnknown") : t("row.quarantineAccounts", { count: item.accounts }),
-														" · ",
-														t("row.quarantineBytes", { bytes: item.bytes })
-													]
-												})] }, item.quarantinedAs))
-											})
-										]
-									}) : null,
-									status.searched && status.searched.length > 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("details", {
-										className: "dsm-trae-searched",
-										children: [
-											/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("summary", { children: [
-												t("row.searchedTitle"),
-												" (",
-												status.searched.length,
-												")"
-											] }),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-												className: "dsm-trae-searched-hint",
-												children: t("row.searchedHint")
-											}),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("ul", {
-												className: "dsm-trae-searched-list",
-												children: status.searched.map((item) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("li", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("code", { children: item.path }), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-													className: "dsm-trae-searched-reason",
-													children: [
-														t(item.source === "cli" ? "row.sourceCli" : "row.sourceDesktop"),
-														" · ",
-														t(item.reason === "missing" ? "row.reasonMissing" : item.reason === "unreadable" ? "row.reasonUnreadable" : "row.reasonInvalid")
-													]
-												})] }, `${item.source}:${item.path}`))
-											})
-										]
-									}) : null
-								] }) : null,
-								status.status === "error" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-									className: "dsm-trae-usage-error",
-									children: status.message
-								}) : null
-							]
-						}) : null
+						children: open ? cardBody : null
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(BusyOverlay, {
 						visible: saving || savingSettings,
@@ -6350,9 +7812,19 @@ window.__ModuleLoader__.load({
 		* at a time and nothing overlaps.
 		*
 		* The row itself is a bare clickable readout — `Trae CN · 657` — with NO
-		* refresh control. Clicking it opens an anchored panel: a TABLE with one row
+		* controls of its own. Clicking it opens an anchored panel: a TABLE with one row
 		* per account in the region and that account's general balance, where a row
-		* click switches to it. The manual refresh button lives in the panel too.
+		* click switches to it.
+		*
+		* The panel's header carries the account-pool test batch, labelled 「刷新」, and
+		* a SETTINGS pill that opens this plugin's own page in the wide Settings dialog
+		* (`./settings-route.ts`).
+		*
+		* The pill was briefly removed, on the belief that no host seam could open the
+		* dialog on a given section. That belief was wrong — the settings shell
+		* publishes its state as the `sidebar.settings` store seat, whose `openSection(id)`
+		* is exactly that seam — so the pill is back and now lands on this plugin's own
+		* `settings.section` page. The route module records the finding.
 		*
 		* Two deliberate choices in that panel:
 		*
@@ -6391,9 +7863,17 @@ window.__ModuleLoader__.load({
 			}
 		}
 		/**
-		* Automatic refresh period. Five minutes, matching the sidebar line: a credit
-		* balance moves on the scale of model calls, not seconds, and each read is two
-		* read-only upstream calls.
+		* Automatic refresh period when nothing says otherwise.
+		*
+		* Five minutes, matching the sidebar line: a credit balance moves on the scale
+		* of model calls, not seconds, and each read is two read-only upstream calls.
+		*
+		* The LIVE period is the user's `Config.refreshIntervalMinutes` (see
+		* {@link refreshIntervalMsOf}), whose default is this same five minutes — so
+		* this constant is now the fallback for a caller that renders the readout
+		* without a settings scope (a test, or a host that serves none), not the rule.
+		* Both polling surfaces read that ONE field, so the composer row and the card
+		* cannot end up refreshing the same routes at different rates.
 		*/
 		const COMPOSER_POINTS_REFRESH_INTERVAL_MS = 3e5;
 		/**
@@ -6431,13 +7911,22 @@ window.__ModuleLoader__.load({
 			return value.toLocaleString("en-US", { maximumFractionDigits: 0 });
 		}
 		/**
-		* The soonest expiry the chosen tier names, or undefined when none carries one.
+		* The notice this panel would render, or undefined when there is nothing to say.
 		*
-		* Read from the tier the shared ladder picked, so the time shown always belongs
-		* to the horizon the headline claims — the two cannot disagree.
+		* THE ONE GUARD THE RENDER READS. An earlier version asked
+		* `signedIn?.credits?.expiry !== undefined`, which is true whenever upstream sent
+		* the four buckets — even with every `packs` count at 0. The box then rendered
+		* with an empty `<span>` inside and the `lapsed` border (the tone fallback),
+		* i.e. a warning-shaped rectangle containing nothing. Every empty-bucket
+		* document produced one, which is the blank box in the reported screenshot.
+		*
+		* Putting the whole lookup here means the render cannot ask a weaker question
+		* than the copy does: "is there a box" and "is there a sentence" are now the
+		* same boolean.
 		*/
-		function soonestExpiryOf(expiry) {
-			return expiryNotice(expiry)?.soonestExpiresAtMs;
+		function expiryNoticeOf(signedIn) {
+			const expiry = signedIn?.credits?.expiry;
+			return expiry === void 0 ? void 0 : expiryNotice(expiry);
 		}
 		/**
 		* The notice's headline sentence, naming the amount and the pack count.
@@ -6479,10 +7968,20 @@ window.__ModuleLoader__.load({
 			});
 		}
 		function ComposerPoints(props) {
-			const { t, provider, region, settingsScope } = props;
+			const { t, provider, region, settingsScope, onOpenSettings } = props;
 			if (t === void 0) throw new Error("Composer points readout requires its translation function");
 			const owned = provider === void 0 ? void 0 : TRAE_COMPOSER_PROVIDERS[provider];
 			const activeRegion = region ?? owned;
+			/**
+			* The poll period, from the user's own cadence setting.
+			*
+			* Read through the SHARED reader (the card's poll reads the same field the
+			* same way), with the constant above as the fallback when this readout is
+			* rendered with no settings scope at all. It re-reads on every render, so the
+			* scope's notification after a write is enough to rebuild the timer — the
+			* effect below lists it as a dependency for exactly that reason.
+			*/
+			const refreshIntervalMs = settingsScope === void 0 ? COMPOSER_POINTS_REFRESH_INTERVAL_MS : refreshIntervalMsOf(settingsScope.getSnapshot().value);
 			const [usage, setUsage] = (0, react.useState)(void 0);
 			const [accountCredits, setAccountCredits] = (0, react.useState)(void 0);
 			/**
@@ -6495,9 +7994,53 @@ window.__ModuleLoader__.load({
 			* open, for the same reason the credit route does.
 			*/
 			const [accountPlans, setAccountPlans] = (0, react.useState)(void 0);
-			const [busy, setBusy] = (0, react.useState)(false);
 			const [switchingId, setSwitchingId] = (0, react.useState)(void 0);
 			const [failed, setFailed] = (0, react.useState)(false);
+			/**
+			* The settings button was pressed on a host with no route to the page.
+			*
+			* Its own state rather than reusing `failed`: the two say different things
+			* ("the upstream read failed" vs "this host cannot open the settings page"),
+			* and a shared flag would let one press erase the other's explanation.
+			*/
+			const [settingsFailed, setSettingsFailed] = (0, react.useState)(false);
+			/**
+			* The account-pool test batch, driven from this panel's header.
+			*
+			* WHY IT LIVES HERE AT ALL: the rows below ARE the pool's members, and a row's
+			* mark is a MEASUREMENT (`被限流 · 约 6 小时后` is a probe result, not a
+			* setting). Re-reading the usage document cannot improve a stale measurement —
+			* only running it again can — so the question "which of these can serve right
+			* now?" had no answer from the place that asks it. The pool card can do this,
+			* but it is behind the settings page; the reader is already looking at these
+			* accounts.
+			*
+			* `testing` is separate from the panel's other busy states on purpose: this is
+			* a SERIAL batch against one account at a time with a gap (hitting the whole
+			* pool at once is how the upstream's volume limit gets tripped), so it can run
+			* for a minute while a credits read would be merely slow.
+			*
+			* `testFailed` is its own line so the two failures cannot take turns
+			* overwriting each other in one slot. `testNote` carries the last outcome summary, which is what makes the
+			* press feel answered even when the table's marks are subtle.
+			*/
+			const [testing, setTesting] = (0, react.useState)(false);
+			const [testFailed, setTestFailed] = (0, react.useState)(void 0);
+			const [testNote, setTestNote] = (0, react.useState)(void 0);
+			const testingRef = (0, react.useRef)(false);
+			/**
+			* The usage document, mirrored into a ref.
+			*
+			* `fetchAccountPlans` has to read the roster out of it, and reading it as a
+			* `useCallback` DEPENDENCY made that callback a new function on every poll
+			* (every `fetchUsage` stores a fresh object). The open/region effect calls
+			* the callback by identity, so a new identity re-ran it — which meant every
+			* five-minute poll silently re-read the per-account status of every account,
+			* the exact "read on OPEN, not on a cycle" cost the effect's own comment says
+			* it is avoiding. The ref keeps the callback stable while still reading the
+			* newest document.
+			*/
+			const usageRef = (0, react.useRef)(void 0);
 			const [lastRefresh, setLastRefresh] = (0, react.useState)(void 0);
 			const [open, setOpen] = (0, react.useState)(false);
 			const inFlight = (0, react.useRef)(false);
@@ -6510,6 +8053,23 @@ window.__ModuleLoader__.load({
 					mounted.current = false;
 				};
 			}, []);
+			/**
+			* Re-render when the settings document changes, so a cadence picked in the
+			* card reaches THIS readout without a reload.
+			*
+			* The scope is a stable injected reference, so the subscription is set up once
+			* per scope. `settingsRevision` is not read anywhere — bumping it is the whole
+			* point, since `refreshIntervalMs` above is recomputed on every render.
+			*
+			* The gate above (`ComposerPointsGate`) already subscribes for its own two
+			* switches, but a child does not re-render because its PARENT subscribed: this
+			* component is mounted through that gate, so without its own subscription a
+			* cadence change would only land on the next unrelated render.
+			*/
+			const [, setSettingsRevision] = (0, react.useState)(0);
+			(0, react.useEffect)(() => settingsScope?.subscribe(() => {
+				setSettingsRevision((revision) => revision + 1);
+			}), [settingsScope]);
 			const position = useAnchoredPosition({
 				open: open && activeRegion !== void 0,
 				anchorRef: rootRef,
@@ -6522,7 +8082,6 @@ window.__ModuleLoader__.load({
 			const fetchUsage = (0, react.useCallback)(async (signal) => {
 				if (inFlight.current || activeRegion === void 0) return;
 				inFlight.current = true;
-				if (mounted.current) setBusy(true);
 				try {
 					const response = await fetch(withTraeRegion(TRAE_USAGE_PATH, activeRegion), {
 						headers: { accept: "application/json" },
@@ -6532,6 +8091,7 @@ window.__ModuleLoader__.load({
 					if (!response.ok) throw new Error(`HTTP ${response.status}`);
 					const value = await response.json();
 					if (!mounted.current || signal?.aborted === true) return;
+					usageRef.current = value;
 					setUsage(value);
 					setLastRefresh(Date.now());
 					setFailed(false);
@@ -6539,7 +8099,6 @@ window.__ModuleLoader__.load({
 					if (mounted.current && signal?.aborted !== true) setFailed(true);
 				} finally {
 					inFlight.current = false;
-					if (mounted.current) setBusy(false);
 				}
 			}, [activeRegion]);
 			/**
@@ -6572,14 +8131,18 @@ window.__ModuleLoader__.load({
 					if (cancelled) return;
 					timer = window.setInterval(() => {
 						fetchUsage(controller.signal);
-					}, COMPOSER_POINTS_REFRESH_INTERVAL_MS);
+					}, refreshIntervalMs);
 				});
 				return () => {
 					cancelled = true;
 					if (timer !== void 0) window.clearInterval(timer);
 					controller.abort();
 				};
-			}, [owned, fetchUsage]);
+			}, [
+				owned,
+				fetchUsage,
+				refreshIntervalMs
+			]);
 			/**
 			* Every account's PLAN, one status read per account — ai only.
 			*
@@ -6590,7 +8153,8 @@ window.__ModuleLoader__.load({
 			*/
 			const fetchAccountPlans = (0, react.useCallback)(async (signal) => {
 				if (activeRegion !== "ai") return;
-				const roster = usage?.status === "signed-in" ? usage.accounts.filter((account) => account.region === "ai") : [];
+				const document = usageRef.current;
+				const roster = document?.status === "signed-in" ? document.accounts.filter((account) => account.region === "ai") : [];
 				if (roster.length === 0) {
 					setAccountPlans({});
 					return;
@@ -6611,7 +8175,7 @@ window.__ModuleLoader__.load({
 				}));
 				if (!mounted.current || signal?.aborted === true) return;
 				setAccountPlans(Object.fromEntries(entries));
-			}, [activeRegion, usage]);
+			}, [activeRegion]);
 			(0, react.useEffect)(() => {
 				if (!open || activeRegion === void 0) return void 0;
 				const controller = new AbortController();
@@ -6669,6 +8233,100 @@ window.__ModuleLoader__.load({
 					if (mounted.current) setSwitchingId(void 0);
 				}
 			};
+			/**
+			* The header's settings control: open this plugin's page, then close.
+			*
+			* CLOSING IS PART OF THE JOB. The panel is portaled to `document.body` and
+			* floats over the composer; opening the Settings dialog does not remove it, so
+			* leaving it open would park a credits table on top of the dialog the user
+			* just asked for. It is not reopened on return — a popover that comes back by
+			* itself after navigation is a popover the user cannot get rid of.
+			*
+			* `false` (no route on this host) sets the panel's own error line rather than
+			* doing nothing: a press that changes nothing on screen is indistinguishable
+			* from a broken button, and the honest answer here is "this host has no way
+			* there".
+			*/
+			const openSettings = () => {
+				if (!(onOpenSettings === void 0 ? false : onOpenSettings())) {
+					setSettingsFailed(true);
+					return;
+				}
+				setSettingsFailed(false);
+				setOpen(false);
+			};
+			/**
+			* Run the pool's test batch, then re-read what it changed.
+			*
+			* The route is the SAME one the card's "测试勾选的账号" drives — it tests the
+			* pool's checked-in members, not every account listed in this panel — and the
+			* model comes from the Host's saved target rather than from here, so a press
+			* cannot spend credits on a model the user did not choose. Same for the
+			* outcome vocabulary and the NDJSON fold: both live in `./pool-test.ts` so the
+			* card and this header cannot answer one batch two ways.
+			*
+			* The re-read afterwards is not a courtesy. The probes live in the USAGE
+			* document (`usage.pool.accounts[].probe`), so the marks only move once that
+			* document is fetched again; without it the press would leave the table
+			* showing the state it just measured away.
+			*
+			* A failure keeps the previous measurements: nothing was learned about them,
+			* and blanking the marks would look like the addresses had become unusable.
+			*/
+			const testAccounts = async () => {
+				if (activeRegion === void 0 || testingRef.current) return;
+				testingRef.current = true;
+				setTesting(true);
+				setTestFailed(void 0);
+				setTestNote(void 0);
+				const controller = new AbortController();
+				const timer = setTimeout(() => {
+					controller.abort();
+				}, POOL_TEST_TIMEOUT_MS);
+				try {
+					const response = await fetch(withTraePoolAction(activeRegion, "test"), {
+						method: "POST",
+						headers: { accept: "application/json" },
+						credentials: "same-origin",
+						signal: controller.signal
+					});
+					let failure;
+					let sawAny = false;
+					/**
+					* Counted by ACCOUNT ID, not by line.
+					*
+					* The route streams one `{row}` per account and then a `{rows}` summary
+					* that repeats every one of them, so counting lines would report "4 / 2".
+					* The summary is what guarantees a client that only reads the last line
+					* still gets the whole batch, so it cannot simply be ignored.
+					*/
+					const seen = /* @__PURE__ */ new Map();
+					for await (const line of testLinesOf(response)) if (applyTestLine(line, t, (row) => {
+						seen.set(row.accountId, row.outcome);
+					}, (message) => {
+						failure = message;
+					})) sawAny = true;
+					if (!mounted.current) return;
+					if (failure !== void 0) {
+						setTestFailed(failure);
+						return;
+					}
+					if (!sawAny) throw new Error(t("row.poolLogGeneric"));
+					const outcomes = [...seen.values()];
+					setTestNote(t("composer.testDone", {
+						ok: String(outcomes.filter((outcome) => outcome === "ok").length),
+						total: String(outcomes.length)
+					}));
+				} catch {
+					if (mounted.current && !controller.signal.aborted) setTestFailed(t("composer.testFailed"));
+					else if (mounted.current) setTestFailed(t("composer.testTimedOut"));
+				} finally {
+					clearTimeout(timer);
+					testingRef.current = false;
+					if (mounted.current) setTesting(false);
+					await Promise.all([fetchUsage(), fetchAccountCredits()]);
+				}
+			};
 			if (owned === void 0) return null;
 			const signedIn = usage?.status === "signed-in" ? usage : void 0;
 			const signedOut = usage !== void 0 && usage.status === "signed-out";
@@ -6711,6 +8369,15 @@ window.__ModuleLoader__.load({
 				};
 			});
 			const canSwitch = settingsScope !== void 0 && settingsScope.getSnapshot().writable === true;
+			/**
+			* This panel's account pool, when the Host reports one.
+			*
+			* A `pool` carrying no members is still a pool: the test button is drawn (the
+			* Host answers 409 `no-members` and the panel says so) rather than hidden, so
+			* the control's absence always means "this panel has no pool feature", never
+			* "you have not checked anybody in yet".
+			*/
+			const pool = signedIn?.pool;
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
 				ref: rootRef,
 				className: "dsm-trae-composer-points",
@@ -6743,14 +8410,72 @@ window.__ModuleLoader__.load({
 							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 								className: "dsm-trae-composer-panel-title",
 								children: activeRegion === "ai" ? t("composer.panelTitleGlobal") : t("composer.panelTitle")
-							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								type: "button",
-								className: "dsm-trae-composer-panel-refresh",
-								disabled: busy || switchingId !== void 0,
-								onClick: () => {
-									fetchUsage();
-								},
-								children: busy ? t("composer.refreshing") : t("composer.refresh")
+							}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+								className: "dsm-trae-composer-panel-actions",
+								children: [pool === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+									type: "button",
+									className: "dsm-trae-composer-panel-test",
+									title: t("composer.testHint"),
+									"aria-label": t("composer.testHint"),
+									disabled: testing || switchingId !== void 0,
+									onClick: () => {
+										testAccounts();
+									},
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+										className: testing ? "dsm-trae-composer-panel-test-icon dsm-trae-composer-panel-test-icon-spin" : "dsm-trae-composer-panel-test-icon",
+										viewBox: "0 0 16 16",
+										width: "12",
+										height: "12",
+										fill: "none",
+										"aria-hidden": "true",
+										focusable: "false",
+										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", {
+											d: "M13.4 8a5.4 5.4 0 1 1-5.4-5.4c1.5 0 2.95.62 3.96 1.63L13.4 5.6",
+											stroke: "currentColor",
+											strokeWidth: "1.5",
+											strokeLinecap: "round",
+											strokeLinejoin: "round"
+										}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", {
+											d: "M13.4 2.6v3h-3",
+											stroke: "currentColor",
+											strokeWidth: "1.5",
+											strokeLinecap: "round",
+											strokeLinejoin: "round"
+										})]
+									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "dsm-trae-composer-panel-test-label",
+										children: testing ? t("composer.testing") : t("composer.test")
+									})]
+								}), onOpenSettings === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+									type: "button",
+									className: "dsm-trae-composer-panel-settings",
+									title: t("composer.openSettingsHint"),
+									disabled: switchingId !== void 0,
+									onClick: openSettings,
+									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+										className: "dsm-trae-composer-panel-settings-icon",
+										viewBox: "0 0 16 16",
+										width: "12",
+										height: "12",
+										fill: "none",
+										"aria-hidden": "true",
+										focusable: "false",
+										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", {
+											d: "M8 10.2a2.2 2.2 0 1 0 0-4.4 2.2 2.2 0 0 0 0 4.4Z",
+											stroke: "currentColor",
+											strokeWidth: "1.5"
+										}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", {
+											d: "M12.9 9.6a1.2 1.2 0 0 0 .24 1.32l.04.04a1.4 1.4 0 1 1-1.98 1.98l-.04-.04a1.2 1.2 0 0 0-1.32-.24 1.2 1.2 0 0 0-.72 1.1v.12a1.4 1.4 0 1 1-2.8 0v-.07a1.2 1.2 0 0 0-.78-1.1 1.2 1.2 0 0 0-1.32.24l-.04.04a1.4 1.4 0 1 1-1.98-1.98l.04-.04a1.2 1.2 0 0 0 .24-1.32 1.2 1.2 0 0 0-1.1-.72h-.12a1.4 1.4 0 1 1 0-2.8h.07a1.2 1.2 0 0 0 1.1-.78 1.2 1.2 0 0 0-.24-1.32l-.04-.04a1.4 1.4 0 1 1 1.98-1.98l.04.04a1.2 1.2 0 0 0 1.32.24h.05a1.2 1.2 0 0 0 .72-1.1v-.12a1.4 1.4 0 1 1 2.8 0v.07a1.2 1.2 0 0 0 .72 1.1 1.2 1.2 0 0 0 1.32-.24l.04-.04a1.4 1.4 0 1 1 1.98 1.98l-.04.04a1.2 1.2 0 0 0-.24 1.32v.05a1.2 1.2 0 0 0 1.1.72h.12a1.4 1.4 0 1 1 0 2.8h-.07a1.2 1.2 0 0 0-1.1.72Z",
+											stroke: "currentColor",
+											strokeWidth: "1.5",
+											strokeLinecap: "round",
+											strokeLinejoin: "round"
+										})]
+									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+										className: "dsm-trae-composer-panel-settings-label",
+										children: t("composer.openSettings")
+									})]
+								})]
 							})]
 						}),
 						signedOut ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
@@ -6797,12 +8522,12 @@ window.__ModuleLoader__.load({
 								}, row.id);
 							}) })]
 						}),
-						activeRegion === "cn" && signedIn?.credits?.expiry !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-							className: `dsm-trae-expiry ${expiryToneClass(expiryNotice(signedIn.credits.expiry)?.tier ?? "lapsed")}`,
+						activeRegion === "cn" && expiryNoticeOf(signedIn) !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+							className: `dsm-trae-expiry ${expiryToneClass(expiryNoticeOf(signedIn).tier)}`,
 							role: "status",
-							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: expiryMessageOf(signedIn.credits.expiry, t) }), soonestExpiryOf(signedIn.credits.expiry) === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: expiryMessageOf(signedIn.credits.expiry, t) }), expiryNoticeOf(signedIn).soonestExpiresAtMs === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 								className: "dsm-trae-expiry-detail",
-								children: t("row.expiryEarliest", { time: formatDateTime(soonestExpiryOf(signedIn.credits.expiry)) })
+								children: t("row.expiryEarliest", { time: formatDateTime(expiryNoticeOf(signedIn).soonestExpiresAtMs) })
 							})]
 						}) : null,
 						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
@@ -6817,7 +8542,22 @@ window.__ModuleLoader__.load({
 							className: "dsm-trae-composer-panel-error",
 							role: "status",
 							children: t("composer.refreshFailed")
-						}) : null
+						}) : null,
+						settingsFailed ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+							className: "dsm-trae-composer-panel-error",
+							role: "status",
+							children: t("composer.openSettingsFailed")
+						}) : null,
+						testNote === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+							className: "dsm-trae-composer-panel-note",
+							role: "status",
+							children: testNote
+						}),
+						testFailed === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+							className: "dsm-trae-composer-panel-error",
+							role: "status",
+							children: testFailed
+						})
 					]
 				}), document.body)]
 			});
@@ -6911,8 +8651,263 @@ window.__ModuleLoader__.load({
 				t,
 				provider,
 				region,
-				...settingsScope === void 0 ? {} : { settingsScope }
+				...settingsScope === void 0 ? {} : { settingsScope },
+				...props.onOpenSettings === void 0 ? {} : { onOpenSettings: props.onOpenSettings }
 			});
+		}
+		//#endregion
+		//#region src/client/settings-route.ts
+		/**
+		* The route from the composer credit readout to THIS plugin's settings page.
+		*
+		* ## The finding this module encodes (m02517)
+		*
+		* The 4.9.0 line deleted the panel's settings pill on the stated reasoning that
+		* "the host exposes no client service that opens the Settings dialog on a given
+		* section, so the pill had nowhere to go". That reasoning was WRONG, and the
+		* owner said so: clicking through the sidebar DOES open the wide settings on a
+		* chosen page. The route exists; it was simply not the one the old module used.
+		*
+		* The old module (`openBundle` → `layout.selectPanel('plugins')`) targeted the
+		* **Plugins** page, which stopped holding this plugin's configuration the moment
+		* it moved to its own `settings.section` page. So the previous implementation is
+		* not restorable, and a replacement was needed — this is it.
+		*
+		* ## The route: the settings shell's own store seat
+		*
+		* `@deepseek-ai/dsh-client-ui-settings-general` registers the `sidebar.settings`
+		* slot with a **store seat**, and that seat is the shell's public state handle:
+		*
+		*     const shellHandle = createSettingsShellStore()
+		*     const shellInstance = shellHandle.create()
+		*     const shellStore = { ...shellHandle, create: () => shellInstance }
+		*     ctx.slots.register({ name: 'sidebar.settings', store: shellStore, … })
+		*
+		* `createSettingsShellStore().actions` contains exactly the four shell
+		* mutations, and `openSection(id)` is the one that answers this button: it sets
+		* `activeId = id` AND `open = true`, i.e. "open the Settings dialog on the
+		* named section" in a single call. `id` is the same string this plugin already
+		* registers the page under (`TRAE_SETTINGS_ID`), so no translation is needed.
+		*
+		* Note the `create: () => shellInstance` override. A bare handle would mint a
+		* FRESH instance per `create()` call — a private copy whose `openSection` moves
+		* a dialog nobody renders. The shell pins the seat to its one live instance
+		* precisely so a reader of the seat gets the dialog the user actually sees. This
+		* module is that reader.
+		*
+		* ## Why reading the seat is legitimate, and not a private reach-through
+		*
+		*  - `StoredEntry.store` is a documented public field: "Declared store seat
+		*    (instance resolution and lifecycle live with the host machinery)".
+		*  - `slots.entries(key)` is a documented public service method, and reading a
+		*    seat through it is the pattern the harness's OWN client tests use for this
+		*    exact store, e.g. `ui-shortcuts/tests/commands.client.spec.ts`:
+		*    `ctx.slots.entries('sidebar.settings')[0].store.create()`.
+		*  - No other id-targeted seam exists. `settings.launcher` hands `openSettings`
+		*    with no id, `settings.section` receives only `close`, and `openSection` is
+		*    otherwise given only to `settings.onboarding` registrants — reaching it
+		*    from there would mean registering a fake first-run step, which is far more
+		*    intrusive than reading the seat the shell deliberately published.
+		*
+		* ## Why the probe is at PRESS time
+		*
+		* The seat belongs to ANOTHER bundle whose apply order is not ours to assume.
+		* Probing once during `apply()` would capture `undefined` on a page whose
+		* settings bundle applied later, leaving the button dead for the whole session
+		* with nothing to re-evaluate it. `entries()` answers `[]` for a slot that is
+		* not declared yet, so probing per press is free of state and always current.
+		*
+		* ## Why `false` rather than an exception
+		*
+		* The caller is a popover button. There is no supported host line lacking the
+		* shell, but "cannot" must not become a thrown error inside a click handler on
+		* a user's machine; it becomes a `false` the caller reports, and a button that
+		* stays honest about it.
+		*/
+		/**
+		* The `settings.section` id this plugin registers its page under.
+		*
+		* One spelling, in one place: the page registration, the nav row and
+		* `openSection(id)` must agree, or the dialog opens on the shell's fallback
+		* (first) section instead of this plugin's — silently, since an unknown id is
+		* not an error to the store.
+		*/
+		const TRAE_SETTINGS_ID = "dsh-connect-trae";
+		/** The shipped slot whose store seat is the settings shell's state handle. */
+		const SETTINGS_SLOT = "sidebar.settings";
+		/**
+		* The sidebar's settings trigger: dialog semantics plus an expanded state.
+		*
+		* Both attributes are load-bearing. `aria-haspopup="dialog"` identifies it as
+		* the thing that opens the panel; `aria-expanded` is how route 2 tells an open
+		* panel from a closed one WITHOUT clicking, because clicking a trigger that is
+		* already expanded CLOSES the dialog — a jump that would read as the settings
+		* window flickering shut.
+		*/
+		const SETTINGS_TRIGGER_SELECTOR = "button[aria-haspopup=\"dialog\"][aria-expanded]";
+		/**
+		* Budget for "panel mounted + nav row rendered".
+		*
+		* The panel mounts synchronously on the click, but the nav rows' labels wait
+		* for a locale snapshot, so a same-frame query is often one tick too early.
+		* Five attempts over ~300ms covers one layout pass while staying under the
+		* threshold where a user starts to think the press did nothing.
+		*/
+		const RETRY_DELAYS_MS = [
+			0,
+			60,
+			70,
+			80,
+			90
+		];
+		function defaultSchedule(run, ms) {
+			try {
+				window.setTimeout(run, ms);
+			} catch {
+				run();
+			}
+		}
+		/**
+		* Find the settings nav row whose label is this plugin's.
+		*
+		* Trimmed equality, not `includes`: 「dsh-connect-trae」 is a SUBSTRING of
+		* nothing here, but 「模型」 is a substring of 「模型与预设」 on a differently
+		* worded shell, and a loose match would click the wrong row.
+		*/
+		function findSectionRow(scope, label) {
+			const want = label.trim();
+			if (want === "") return void 0;
+			return Array.from(scope.querySelectorAll("button")).find((button) => (button.textContent ?? "").trim() === want);
+		}
+		/**
+		* Route 1: open this plugin's section through the shell's store seat.
+		*
+		* @returns `'opened'` when the dialog is on the right section, `'shell'` when
+		*   the dialog opened but is NOT preselected (route 2 can still click the row),
+		*   and `undefined` when the seat is absent or unusable.
+		*/
+		function openThroughStoreSeat(get, sectionId) {
+			let slots;
+			try {
+				slots = get("slots");
+			} catch {
+				return;
+			}
+			if (slots === void 0 || typeof slots.entries !== "function") return void 0;
+			let seat;
+			try {
+				seat = slots.entries(SETTINGS_SLOT)[0]?.store;
+			} catch {
+				return;
+			}
+			if (seat === null || typeof seat !== "object") return void 0;
+			const handle = seat;
+			if (typeof handle.create !== "function") return void 0;
+			try {
+				const instance = handle.create();
+				const openSection = instance?.actions?.openSection;
+				if (typeof openSection === "function") {
+					openSection(sectionId);
+					return "opened";
+				}
+				const open = instance?.actions?.open;
+				if (typeof open === "function") {
+					open();
+					return "shell";
+				}
+			} catch {}
+		}
+		/**
+		* Open this plugin's settings page — the wide Settings dialog, on THIS
+		* plugin's section.
+		*
+		* ## Two routes, best first (the shape borrowed from dsh-connect-workbuddy 5.20.4)
+		*
+		* 1. **The shell's store seat** — one call, exact, no timing:
+		*    `slots.entries(SETTINGS_SLOT)[0].store.create().actions.openSection(id)`.
+		* 2. **Driving the chrome** — click the sidebar's settings trigger, wait for the
+		*    panel, then click this plugin's nav row by its label.
+		*
+		* Route 1 is strictly better where it exists: `openSection(id)` sets `activeId`
+		* AND `open` in one action, so there is no window in which the dialog is open
+		* on the wrong section, no retry loop, and no dependency on the nav row's
+		* localized text. Route 2 is kept because the host range this plugin declares
+		* spans shell lines that may predate the seat; deleting it would trade a
+		* working fallback for nothing.
+		*
+		* ## Why both routes are needed even now
+		*
+		* A seat that carries `open()` but not `openSection()` is a real shell shape
+		* (the store gained `openSection` after `open`). Returning `true` on that seat —
+		* which 4.9.x did — claimed success while leaving the user on the shell's
+		* default section, so the button appeared to do something other than what its
+		* label promised. Handing back `'shell'` and continuing to route 2 is what
+		* makes the button land on the page it names on EVERY shell.
+		*
+		* ## Why the probe happens per PRESS, not during `apply`
+		*
+		* The seat belongs to ANOTHER bundle whose apply order is not ours to assume.
+		* Probing once during `apply()` would capture `undefined` on a host whose
+		* settings bundle applied later, leaving the button dead for the whole session.
+		* `entries()` answers `[]` for an undeclared slot, so a per-press probe is
+		* stateless and always current — the same reason the caller passes `softGet`.
+		*
+		* ## Why it never throws
+		*
+		* Every path runs from a RENDER path (a click handler in the credits popover).
+		* A throw here would take out the whole readout rather than one button, so each
+		* stage swallows its own failure and the jump degrades to a silent no-op when
+		* the shell has a different shape.
+		*
+		* @param get - the entry's soft service probe (`ctx.get`), which returns
+		*   `undefined` for an absent service instead of throwing. Called HERE, on every
+		*   invocation, so a service that appears after `apply` is still found.
+		* @param options - label thunk (required for route 2) plus test seams.
+		* @returns whether a route was taken. `false` means `onGiveUp` already ran or
+		*   there was nothing to fall back to.
+		*/
+		function openPluginSettingsPage(get, options) {
+			const { doc = document, label } = options;
+			const schedule = options.schedule ?? defaultSchedule;
+			let seatResult;
+			try {
+				seatResult = openThroughStoreSeat(get, TRAE_SETTINGS_ID);
+			} catch {
+				seatResult = void 0;
+			}
+			if (seatResult === "opened") return true;
+			try {
+				if (doc.querySelector("[data-shortcut-modal=\"settings\"]") === null) {
+					const collapsed = Array.from(doc.querySelectorAll(SETTINGS_TRIGGER_SELECTOR)).find((button) => button.getAttribute("aria-expanded") !== "true");
+					if (collapsed === void 0) {
+						try {
+							options.onGiveUp?.();
+						} catch {}
+						return false;
+					}
+					collapsed.click();
+				}
+				let clicked = false;
+				let remaining = RETRY_DELAYS_MS.length;
+				for (const delay of RETRY_DELAYS_MS) schedule(() => {
+					if (clicked) return;
+					remaining -= 1;
+					try {
+						const row = findSectionRow(doc.querySelector("[data-shortcut-modal=\"settings\"]") ?? doc, label());
+						if (row !== void 0) {
+							clicked = true;
+							row.click();
+							return;
+						}
+					} catch {}
+					if (remaining === 0) try {
+						options.onGiveUp?.();
+					} catch {}
+				}, delay);
+				return true;
+			} catch {
+				return false;
+			}
 		}
 		//#endregion
 		//#region src/client/locales.ts
@@ -6922,46 +8917,64 @@ window.__ModuleLoader__.load({
 		* two plugins share one external-presentation language.
 		*/
 		const en = {
-			"row.title": "Trae credits & models (dsh-connect-trae)",
-			"row.desc": "Use Trae models in DSH and see your remaining credits; the domestic and international sides are two independent providers, each with its own account — use both at the same time.",
+			"row.tabCredentialHint": "Domestic and enterprise providers share Trae CN credentials and save account bindings separately.",
+			"row.tabFreeQuotaWarn": "Free models can still encounter upstream request limits or busy responses.",
+			"row.poolFailoverHint": "Trae also tries another account after server failures. Invalid requests and model permission refusals are reported directly.",
+			"row.iconStyleLabel": "Icon style",
+			"row.iconStyleHint": "Updates the sidebar and page icons immediately. Saved separately for this plugin in this browser.",
+			"row.iconStyleClaude": "Claude style",
+			"row.iconStyleOriginal": "Default icon",
+			"row.iconStyleSaveFailed": "The browser could not save the icon preference. Please check site storage permissions.",
+			"row.poolAutoCheckinDeviceHint": "Trae limits daily rewards per device, so some members may not receive a reward.",
+			"row.checkinStatusError": "Could not read today's check-in status: {message}",
+			"row.poolAutoCheckinDeviceDone": "Today: this device has reached its daily reward limit.",
+			"row.poolAutoCheckinRetry": "Today: {count} accounts checked in. Failed requests will retry automatically.",
+			"row.poolAutoCheckinProgress": "Today: {count} accounts checked in.",
+			"row.poolAutoCheckinWaiting": "Waiting for the next background check.",
+			"row.poolAutoCheckin": "Check in automatically each day",
+			"row.poolAutoCheckinHint": "Enable and save to claim daily rewards for selected domestic personal accounts while DSH is running. After a restart, the plugin checks today's progress before processing remaining accounts. Failed attempts retry automatically.",
+			"row.title": "Trae credits & models",
+			"row.desc": "Use Trae domestic, enterprise and global models in DSH. Manage accounts, select models, view credits and claim daily check-in rewards. Refreshing the model catalog also updates credit multipliers.",
 			"row.expand": "Expand",
 			"row.collapse": "Collapse",
 			"row.tabCn": "Domestic",
 			"row.tabEnterprise": "Enterprise",
 			"row.tabAi": "Global",
-			"row.tabHint": "Three independent providers, each with its own account, usage, and models. All are live at once and never affect each other.",
+			"row.tabHint": "Domestic, enterprise and global versions can be enabled together. Use the version tabs above to view and manage each version's accounts, credits and models.",
 			"row.tabEnterpriseHint": "Enterprise bills the tenant pool of the same Trae CN account instead of the personal one. It never falls back: a refusal is reported as an error rather than quietly spending personal credits.",
-			"row.tabSwitchHint": "Turns this provider off: its models leave the DSH picker. Account and settings are kept.",
+			"row.tabSwitchHint": "Uncheck to switch this provider off. Its models disappear from the DSH model picker; your account, credits, and model settings are kept and return when you check it again.",
 			"row.tabSwitchAria": "Offer the {region} provider to DSH",
-			"row.tabOffNotice": "This provider is off: its models are not offered to DSH. Account and settings are kept.",
+			"row.tabOffNotice": "This provider is switched off. None of its models are offered to DSH. Your account, credits, and model settings are kept. Check the box above the tab to bring it back.",
 			"row.panelAria": "Card sections",
 			"row.panelAccounts": "Account",
+			"row.panelCapabilities": "Capabilities",
+			"row.panelCapabilitiesHint": "What the plugin may do on your behalf. These switches take effect on the click — there is no Save button for them.",
 			"row.panelModels": "Models",
 			"row.panelDiag": "Diagnostics",
-			"row.diagRegion": "Panel",
+			"row.diagRegion": "Region",
 			"row.diagProvider": "Provider id",
 			"row.diagAccount": "Serving account",
-			"row.diagToken": "Access token expires",
+			"row.diagToken": "Sign-in expires",
 			"row.diagRefresh": "Re-sign-in deadline",
 			"row.diagRefreshNone": "this credential carries none",
-			"row.diagCatalog": "Models in catalog",
-			"row.diagEnabled": "Models enabled",
+			"row.diagCatalog": "Models in the catalog",
+			"row.diagEnabled": "Enabled models",
 			"row.diagPool": "Account pool",
-			"row.diagPoolOn": "on · {count} account(s)",
+			"row.diagPoolOn": "on · {count} accounts",
 			"row.diagPoolOff": "off",
 			"row.diagCheckin": "Daily check-in",
 			"row.diagCheckinOn": "supported",
 			"row.diagCheckinOff": "not offered here",
 			"row.diagRaw": "Raw chat channel",
 			"row.diagRawOff": "not checked",
-			"row.diagFailures": "Last reported failure",
-			"row.diagNoFailures": "none",
+			"row.diagFailures": "Last failure",
+			"row.diagNoFailures": "Nothing reported.",
 			"row.diagQuarantine": "Quarantined copies",
 			"row.diagQuarantineNone": "none",
-			"row.diagHint": "Everything above is read-only and can be quoted verbatim into a bug report. The values are this panel’s own last refresh, not a summary of it.",
+			"row.diagHint": "These values come from this panel's latest refresh. Remove account identifiers and personal information in local paths before sharing a report.",
 			"row.settingsWriteFailed": "The setting was not saved: {message}",
 			"row.signedOut": "Not signed in",
-			"row.signedOutHint": "Sign in once in the Trae desktop app; this plugin follows that sign-in automatically.",
+			"row.signedOutHint": "Sign in to the Trae desktop app, then click Detect accounts again to save a plugin-owned credential copy.",
 			"row.unsupportedRegionTitle": "US region is not supported yet",
 			"row.unsupportedRegionHint": "A Trae account on this machine belongs to the United States region (userRegion \"US\" / host *.traeapi.us). This build does not serve that region, so the account is NOT used and no request is sent to the Singapore gateway — signing in again changes nothing. Use a CN or Singapore account (or the Trae CN build) in this panel.",
 			"row.diagUnsupportedRegion": "Unsupported region",
@@ -6969,7 +8982,7 @@ window.__ModuleLoader__.load({
 			"row.searchedHint": "No sign-in was found. These locations were probed; if your Trae stores its login elsewhere, please report the path.",
 			"row.searchedMore": "Show {count} more",
 			"row.quarantineTitle": "Quarantined credential copies",
-			"row.quarantineHint": "A credential copy could not be read, so the plugin did not overwrite it — it was renamed aside with its bytes intact. The accounts it held exist only in that file; delete it once you have them back.",
+			"row.quarantineHint": "The plugin could not read a credential copy and renamed the file to preserve it. Inspect that file if you need to recover accounts. Delete it only after confirming that it is no longer needed.",
 			"row.quarantineAccounts": "{count} account(s)",
 			"row.quarantineAccountsUnknown": "account count unreadable",
 			"row.quarantineBytes": "{bytes} bytes",
@@ -6979,7 +8992,7 @@ window.__ModuleLoader__.load({
 			"row.sourceDesktop": "desktop app",
 			"row.sourceCli": "Trae CLI",
 			"row.signedIn": "Signed in: {accountName}",
-			"row.tokenExpiry": "Access token expires {expiresAt} (auto-renewal)",
+			"row.tokenExpiry": "Access token expires at {expiresAt}; the plugin will attempt to renew it automatically",
 			"row.refreshTokenExpiring": "Sign in to Trae again by {expiresAt} ({days} day(s) left) — automatic renewal stops after that.",
 			"row.refreshTokenLapsed": "Automatic renewal has stopped: the Trae sign-in expired {expiresAt}. Sign in to Trae again to restore it.",
 			"row.requestFailed": "Request failed",
@@ -6999,6 +9012,8 @@ window.__ModuleLoader__.load({
 			"row.checkinClaiming": "Claiming…",
 			"row.checkinClaimed": "Claimed",
 			"row.checkinRefused": "Trae refused the check-in (code {code})",
+			"row.checkinBusy": "Trae is busy right now — check-in was not claimed. Please try again in a few minutes.",
+			"row.checkinTimeout": "The check-in request did not answer in time. Please try again.",
 			"row.checkinError": "Check-in failed: {message}",
 			"row.checkinDeviceSpent": "This machine already used today's check-in — Trae allows one per device per day, so this account cannot claim here today. Claim it on another device or from the account that checked in, or come back tomorrow.",
 			"row.checkinDisabled": "This account has no check-in activity available.",
@@ -7015,26 +9030,26 @@ window.__ModuleLoader__.load({
 			"row.refreshCredits": "Refresh usage",
 			"row.refreshing": "Refreshing…",
 			"row.accountsTitle": "Trae account",
-			"row.accountsHint": "Copies this plugin keeps of every Trae sign-in on this machine (mirrored on refresh). Refresh after signing in, or Trae's next sign-in overwrites that login. Tokens are never shown.",
-			"row.transferTitle": "Import & export accounts",
-			"row.transferExport": "Export selected",
-			"row.transferImport": "Import from file",
+			"row.accountsHint": "On refresh, the plugin saves copies of detected Trae credentials. Refresh after signing in to a new account, before another sign-in replaces credentials that have not yet been copied.",
+			"row.transferTitle": "Export / import accounts",
+			"row.transferExport": "Export accounts",
+			"row.transferImport": "Import accounts",
 			"row.transferCancel": "Cancel",
 			"row.transferSelectAll": "Select all",
-			"row.transferExportPick": "Choose which of the {total} account copies to export.",
-			"row.transferExportConfirm": "Export {count}",
-			"row.transferExported": "Exported {count} account copy/copies to {fileName}.",
-			"row.transferExporting": "Preparing the export…",
+			"row.transferExportPick": "Choose the accounts to export ({total} available):",
+			"row.transferExportConfirm": "Export {count} account(s)",
+			"row.transferExported": "Exported {count} account(s) to {fileName}.",
+			"row.transferExporting": "Exporting…",
 			"row.transferImportPick": "This file holds {total} record(s). Ticked records are added as plugin-owned copies; the Trae app is not touched.",
-			"row.transferImportConfirm": "Import {count}",
+			"row.transferImportConfirm": "Import {count} account(s)",
 			"row.transferImported": "Imported {imported} account copy/copies, skipped {skipped}.",
 			"row.transferImporting": "Importing…",
 			"row.transferReading": "Reading the file…",
-			"row.transferHint": "The exported file holds this plugin's own copies, including live tokens — treat it as a password. Records belonging to the other region are skipped.",
+			"row.transferHint": "Export accounts to a JSON file or import accounts from one. The file contains login credentials; restrict access to it. Accounts from other regions are skipped during import.",
 			"row.transferError": "Import/export failed: {message}",
 			"row.transferVeilHint": "The account list refreshes when this finishes.",
 			"row.transferUnnamed": "Unnamed account",
-			"row.transferNoToken": "no token, will be skipped",
+			"row.transferNoToken": "no token in this record",
 			"row.accountsRescan": "Detect accounts again",
 			"row.accountsScanning": "Detecting…",
 			"row.accountsLoading": "Loading your accounts…",
@@ -7047,7 +9062,7 @@ window.__ModuleLoader__.load({
 			"row.accountColumnCheckin": "Check-in",
 			"row.accountBalance": "{credits} credits",
 			"row.balanceConsoleOnly": "In the enterprise console",
-			"row.enterpriseCreditsNotice": "Enterprise spend is not reported here. The Trae client cannot read the tenant balance — every enterprise quota endpoint answers 404 — so the only place to see it is the enterprise console (console.enterprise.trae.cn). The personal credit figure is deliberately NOT shown on this tab: it belongs to the consumer pool and would be misread as the tenant balance.",
+			"row.enterpriseCreditsNotice": "The plugin cannot currently read the tenant balance. Check console.enterprise.trae.cn. Personal credits are omitted here to avoid presenting them as enterprise quota.",
 			"row.sourceDsh": "plugin copy",
 			"row.modelsTitle": "Models",
 			"row.modelsSummary": "{count} enabled",
@@ -7061,7 +9076,7 @@ window.__ModuleLoader__.load({
 			"row.modelsViewLabel": "Model scope",
 			"row.modelsViewCommon": "Common channels · {count}",
 			"row.modelsViewAll": "All · {count}",
-			"row.modelsViewCommonHint": "Models a normal SOLO workspace chat can call (solo_work_remote / solo_work_lite).",
+			"row.modelsViewCommonHint": "Models offered through solo_work_remote or solo_work_lite.",
 			"row.modelsViewAllHint": "Also includes models only offered by a specialist channel: solo_coder, chat_v3, solo_agent_remote.",
 			"row.modelsViewShowAll": "Show all",
 			"row.modelsSearchOutsideView": "No match for 「{query}」 on the common channels; the full catalog has {count}.",
@@ -7075,20 +9090,24 @@ window.__ModuleLoader__.load({
 			"row.modelsTestEnabled": "Test enabled models",
 			"row.modelsTestAll": "Test all models",
 			"row.modelsTesting": "Testing {done}/{total}…",
-			"row.modelsTestHint": "Sends one minimal message per enabled model to see which ones actually answer. Costs a small amount of quota.",
-			"row.modelsTestAllHint": "The「test all」button probes every model in the catalog, enabled or not, so it spends noticeably more quota than the enabled-only run.",
+			"row.modelsTestHint": "Send a minimal test request to each enabled model and show its result. Each request is billed at that model's rate.",
+			"row.modelsTestAllHint": "Test every model in this panel's catalog, including disabled models. Each request is billed at that model's rate.",
 			"row.showPointsInMainUi": "Show credits in the composer row",
-			"row.showPointsInMainUiHint": "A clickable readout in the composer tool row while a model from this plugin is selected: Trae CN · <balance> on the CN side, Trae Global · <plan> on the international one.",
+			"row.showPointsInMainUiHint": "Show a clickable Trae readout at the selected position, including when another provider's model is selected. Click it to view account details.",
 			"row.drawImage": "Let the model draw images (trae_draw_image)",
 			"row.drawImageHint": "Adds a trae_draw_image tool to this panel: the model can generate one image when you ask for one, at this account's real credit cost (measured ~8.8 for 1920x1920 on Trae CN). Off by default — while this is unticked the tool does not exist, so the model cannot spend credits on its own.",
 			"row.drawImageHintEnterprise": "Not available on the enterprise panel: that path bills through the tenant gateway and has not been verified.",
-			"row.drawImageHintAi": "Not available on the international panel: image generation has only been measured on Trae CN, and this path bills on a different plan, so the credit figures shown here would be wrong. Switch to the CN panel to use it.",
-			"row.showPointsInMainUiHintAi": "A clickable readout in the composer tool row while a model from this plugin is selected: Trae Global · <plan>.",
+			"row.drawImageHintAi": "Image generation and billing have not been verified for the global provider, so the tool is unavailable here. Use the domestic panel for image generation.",
+			"row.showPointsInMainUiHintAi": "Show the global plan at the selected position, including when a model from another provider is selected.",
 			"row.creditPositionLabel": "position",
 			"row.creditPositionComposer": "composer toolbar",
 			"row.creditPositionStats": "below the input box",
 			"row.creditPositionAria": "Credit readout position for {region}",
-			"row.creditPositionHint": "Where the credit readout sits. \"composer toolbar\" is the default (the row with the model picker). Choose \"below the input box\" — the row carrying the round / step / token statistics — if another plugin occupies the composer toolbar and the readout does not appear.",
+			"row.creditPositionHint": "The default position is on the model picker row. If another connector occupies the same position, the readout loaded later moves left automatically. Choose below the input box to show it beside the round, step and token statistics.",
+			"row.refreshIntervalLabel": "refresh every",
+			"row.refreshIntervalOption": "{minutes} min",
+			"row.refreshIntervalAria": "Automatic refresh interval",
+			"row.refreshIntervalHint": "How often the card and the composer readout re-read usage by themselves, every 5 minutes by default. Each refresh is two read-only upstream requests, so a shorter interval means more traffic; nothing here spends credits. A change takes effect immediately, and turning a panel off stops its reads.",
 			"composer.switchTo": "Switch to {account}",
 			"composer.noAccounts": "No account in this region",
 			"composer.panelTitle": "Trae credits",
@@ -7100,8 +9119,15 @@ window.__ModuleLoader__.load({
 			"composer.signedOut": "Not signed in",
 			"composer.points": "Trae CN",
 			"composer.pointsGlobal": "Trae Global",
-			"composer.refresh": "Refresh credits",
-			"composer.refreshing": "Refreshing credits…",
+			"composer.openSettings": "Settings",
+			"composer.openSettingsHint": "Open this plugin's settings page",
+			"composer.openSettingsFailed": "This host has no route to the plugin settings page",
+			"composer.test": "Refresh",
+			"composer.testHint": "Refresh every account checked into this panel's pool — probes each one in turn (spends a small amount of credits, can take a minute)",
+			"composer.testing": "Refreshing…",
+			"composer.testDone": "Pool tested: {ok} of {total} answered",
+			"composer.testFailed": "Could not test the pool",
+			"composer.testTimedOut": "Testing took too long and was given up on",
 			"composer.refreshFailed": "Could not refresh credits",
 			"row.accountsRefreshed": "Accounts refreshed: {count} found{selected}",
 			"row.accountsSaved": "bound to",
@@ -7123,11 +9149,11 @@ window.__ModuleLoader__.load({
 			"row.settingsDirty": "Unsaved changes",
 			"row.modelsTestEmpty": "Enable at least one model first.",
 			"row.contextAllMid": "Switch all to 500K",
-			"row.contextAllMidHint": "Sets the DSH context budget of every model in this region whose Max window is at least 500K to the 500K middle step, leaving the rest alone. Half-way between the default window and Max — for when 1M is more than you need. Still a draft — press Save to apply.",
+			"row.contextAllMidHint": "Set the DSH context budget to 500K for models in this panel with a Max window of at least 500K. Other models keep their current values. Click Save to apply.",
 			"row.contextAllMax": "Switch all to Max",
-			"row.contextAllMaxHint": "Sets the DSH context budget of every model in this region that has a Max window to its Max window at once. Still a draft — press Save to apply. Models without a Max window are left alone.",
+			"row.contextAllMaxHint": "Set each model with a Max window to that maximum DSH context budget. Other models keep their current values. Click Save to apply.",
 			"row.contextAllDefault": "Restore default context",
-			"row.contextAllDefaultHint": "Clears every context-budget override in this region, so all models go back to Trae's default window. Still a draft — press Save to apply.",
+			"row.contextAllDefaultHint": "Clear this panel's custom context budgets and use the Trae catalog defaults. Click Save to apply.",
 			"row.modelsTestError": "Test failed: {message}",
 			"row.modelsTestDone": "{available} of {total} answered.",
 			"row.probeAvailable": "works",
@@ -7154,27 +9180,29 @@ window.__ModuleLoader__.load({
 			"row.modelImage": "Image",
 			"row.modelImageAuto": "Enabled automatically: Trae marks this model multimodal.",
 			"row.modelRate": "{rate}x credits",
-			"row.modelReasoning": "Reasoning: {efforts}",
 			"row.modelReasoningSupported": "Reasoning: supported",
+			"row.modelReasoningLabel": "Reasoning",
+			"row.modelReasoningFollowUpstream": "Default",
+			"row.modelReasoningFollowUpstreamNamed": "Default ({effort})",
 			"row.modelUnknown": "Unknown",
 			"row.modelCapabilityPending": "Image input follows Trae's own multimodal flag, plus anything you tick yourself.",
 			"row.poolTitle": "Account pool",
 			"row.poolEnabled": "Enable the account pool",
-			"row.poolEnabledHint": "The pool picks the account to bill for this panel's requests, ranking by credits and availability. Off means the manually bound account serves.",
+			"row.poolEnabledHint": "When enabled, the plugin selects accounts automatically and tries another account after account rate limits, depleted credits or account failures. When disabled, select the account to use from the account list.",
 			"row.poolCurrentHeader": "Billing now: {account}",
 			"row.poolModeAuto": "pool picks",
 			"row.poolModeManual": "you pick",
 			"row.poolMember": "in pool",
-			"row.poolNotMember": "not in pool",
-			"row.poolBusyHint": "Working through accounts one at a time…",
-			"row.poolTestAll": "Test all accounts",
+			"row.poolNotMember": "Not in pool",
+			"row.poolBusyHint": "Running one account at a time…",
+			"row.poolTestAll": "Test selected",
 			"row.poolTesting": "Testing…",
-			"row.poolOffNotice": "The pool is off — the bound account is what serves. Turn the switch below on to let the pool decide.",
-			"row.poolNoCandidate": "No usable pool member can serve this panel right now.",
+			"row.poolOffNotice": "The pool is off and requests use the bound account. Enable the switch above and save to let the pool select accounts.",
+			"row.poolNoCandidate": "No account in this pool can be used right now.",
 			"row.poolNoCandidateEmpty": "No pool members are selected yet.",
-			"row.poolNoCandidateEmptyHint": "Tick accounts in the membership list to bring them into the pool.",
+			"row.poolNoCandidateEmptyHint": "Select accounts below and save the pool settings to add them to the pool.",
 			"row.poolNoCandidateUnusable": "Every selected member is unavailable right now.",
-			"row.poolNoCandidateHint": "Traffic keeps landing on the saved selection until one recovers.",
+			"row.poolNoCandidateHint": "Requests will try the saved account binding while the pool has no usable member. Member status: ",
 			"row.poolServingOutside": "{account} is billing right now but is not in the pool — until a member becomes available, requests fall back to the saved selection.",
 			"row.poolMembersTitle": "Accounts in this pool",
 			"row.poolRescan": "Re-detect accounts",
@@ -7185,59 +9213,59 @@ window.__ModuleLoader__.load({
 			"row.poolSettingsNote": "Preferences below take effect when you save; test results are written by the plugin and are not affected by that button.",
 			"row.poolSelectedCount": "Selected {count} / {total}",
 			"row.poolNoCopyTag": "no copy here",
-			"row.poolCopyFile": "Copies live in {path} — {count} right now. Switching accounts in Trae adds a copy; it never overwrites an existing one.",
-			"row.poolNoCopyTestHint": "This machine holds no sign-in for this account, so it cannot be tested. Sign in to Trae with it again to recreate a copy, or delete the row.",
-			"row.poolSelectAll": "All",
-			"row.poolSelectNone": "None",
+			"row.poolCopyFile": "The plugin keeps {count} credential copies in {path}. Refreshing creates copies for newly detected logins and retains existing copies.",
+			"row.poolNoCopyTestHint": "The plugin cannot read credentials for this account. Sign in again in Trae and detect accounts, or remove it from the pool.",
+			"row.poolSelectAll": "Select all",
+			"row.poolSelectNone": "Clear all",
 			"row.poolColumnAccount": "Account",
 			"row.poolColumnCredits": "Credits",
 			"row.poolColumnProbe": "Status",
 			"row.poolColumnCheckin": "Check-in",
-			"row.poolGeneralLabel": "General",
-			"row.poolWorkHint": "Work credits are not spendable by DSH — only General powers chat.",
+			"row.poolGeneralLabel": "Credits",
+			"row.poolWorkHint": "DSH chat uses the credits balance. Work credits cannot be used for these requests.",
 			"row.poolCreditNone": "—",
-			"row.poolTestedAt": "tested {at}",
-			"row.poolNeverTested": "not tested yet",
-			"row.poolRetryAt": "retry {at}",
+			"row.poolTestedAt": "Tested {at}",
+			"row.poolNeverTested": "Untested",
+			"row.poolRetryAt": "Retry after {at}",
 			"row.poolRetryUnknown": "retry time unknown",
-			"row.poolTargetCurrentPreferred": "Current: your choice {model}",
-			"row.poolTargetCurrentFree": "Current: free model {model}",
-			"row.poolTargetStale": "Model {model} is no longer offered by this panel",
+			"row.poolTargetCurrentPreferred": "Current: {model} (your choice).",
+			"row.poolTargetCurrentFree": "Current: {model} (auto-picked free model).",
+			"row.poolTargetStale": "The target model you saved is no longer offered: {model}",
 			"row.poolTargetStaleOption": "{model} (no longer offered)",
-			"row.poolTargetStaleClear": "Back to automatic",
+			"row.poolTargetStaleClear": "Switch back to automatic",
 			"row.poolTargetNone": "No free model available for this panel",
-			"row.poolTargetNoneHint": "The pool can only pick a free model; none resolves right now, so tests are disabled.",
-			"row.poolActionNoteTestNone": "No free model resolves in this panel — pick a target model before testing.",
-			"row.poolActionNoteNoMembers": "Tick the accounts you want in the pool and save first.",
-			"row.poolTargetAutoOption": "Automatic (free model)",
-			"row.poolTargetLabel": "Target test model",
-			"row.poolTargetHint": "The model a probe test uses.",
-			"row.poolProbeSizeLabel": "Probe request size",
-			"row.poolProbeSizeHint": "How much text a test sends. A one-word probe only proves the account can answer a one-word request — if the upstream refuses long turns, this is where you find out. Bigger is closer to a real conversation, and costs more credit on every account in the batch.",
+			"row.poolTargetNoneHint": "Automatic selection uses free models only. Refresh the catalog or select a test model manually. Paid models spend the tested account's credits.",
+			"row.poolActionNoteTestNone": "No free model was found in this panel. Select a target model before testing accounts.",
+			"row.poolActionNoteNoMembers": "Select accounts to test and save the pool settings.",
+			"row.poolTargetAutoOption": "Auto-select a free model",
+			"row.poolTargetLabel": "Account test model",
+			"row.poolTargetHint": "Batch tests use this model. Auto selects this region's free model with the largest context window. Selecting a paid model spends credits from every account tested.",
+			"row.poolProbeSizeLabel": "Test input size",
+			"row.poolProbeSizeHint": "Choose an input length close to your conversations. A short test can succeed while a longer request encounters account limits. Longer tests cost more when the model charges for input.",
 			"row.poolProbeSizeDefault": "Minimal (default)",
 			"row.poolProbeSizeOption": "{wan}0k tokens",
 			"row.poolSettingsTitle": "More settings",
 			"row.poolMoreRulesTitle": "Account copies & saving rules",
-			"row.poolManualAccountLabel": "Manually billed account",
+			"row.poolManualAccountLabel": "Account in use",
 			"row.poolManualAccountNone": "No account in effect",
-			"row.poolDirty": "unsaved",
+			"row.poolDirty": "● Unsaved changes",
 			"row.poolSaved": "Save",
 			"row.poolSaving": "Saving…",
-			"row.poolDiscard": "Discard",
+			"row.poolDiscard": "Discard changes",
 			"row.poolSaveFailed": "Save failed: {message}",
 			"row.poolGhostMembers": "{count} saved member(s) no longer resolve to a local sign-in: {names}",
-			"row.poolUnsavedMembers": "Unsaved membership changes — Save below to apply.",
+			"row.poolUnsavedMembers": "Selection changed. Save to apply.",
 			"row.poolRowTest": "Test",
 			"row.poolLogTitle": "Activity",
 			"row.poolLogClear": "Clear",
 			"row.poolLogEmpty": "No pool activity yet.",
-			"row.poolLogTestStart": "Test started for {count} account(s) against {model}.",
-			"row.poolLogTestRow": "{accountName}: {outcome}.",
-			"row.poolLogTestRowMalformed": "{accountName}: malformed result.",
-			"row.poolLogTestDone": "Test finished.",
-			"row.poolLogBatchFailed": "Pool action failed: {message}",
-			"row.poolLogTimeout": "The test did not answer in time — it was cancelled, so the button works again. Check the network and retry: {message}",
-			"row.poolSelectAria": "Include {accountName} in the pool",
+			"row.poolLogTestStart": "Testing {count} account(s) against {model}",
+			"row.poolLogTestRow": "{accountName}: {outcome}",
+			"row.poolLogTestRowMalformed": "{accountName}: the host returned no result for this account",
+			"row.poolLogTestDone": "Test finished; the pool was re-ranked",
+			"row.poolLogBatchFailed": "Batch operation failed: {message}",
+			"row.poolLogTimeout": "The account test timed out and was cancelled. Check the network before retrying. Error: {message}",
+			"row.poolSelectAria": "Include {accountName} in this region's account pool",
 			"row.poolCheckedIn": "Checked in",
 			"row.poolNotCheckedIn": "Not checked in",
 			"row.poolCheckinUnknown": "Unknown",
@@ -7253,16 +9281,16 @@ window.__ModuleLoader__.load({
 			"row.poolProbeUnavailable": "unavailable",
 			"row.poolProbeNotFound": "not served",
 			"row.poolProbeFailed": "failed",
-			"row.poolProbeSourceUnknown": "reason unknown",
-			"row.poolProbeSourceLive": "from a live request",
-			"row.poolProbeSourceTest": "from a test",
+			"row.poolProbeSourceUnknown": "source unknown",
+			"row.poolProbeSourceLive": "hit by a live request",
+			"row.poolProbeSourceTest": "tested",
 			"row.poolProbeModel": "model {model}",
-			"row.poolProbeModelUnknown": "model unknown",
+			"row.poolProbeModelUnknown": "model not recorded",
 			"row.poolExcludedUnusable": "unusable",
 			"row.poolTokenExpired": "sign-in expired",
 			"row.poolExcludedRateLimited": "rate limited",
 			"row.poolExcludedModelBusy": "model busy",
-			"row.poolExcludedOutOfCredit": "out of credit",
+			"row.poolExcludedOutOfCredit": "Out of credits",
 			"row.poolExcludedCredentialRejected": "sign-in rejected",
 			"row.poolExcludedPolicyRejected": "policy rejected",
 			"row.poolExcludedPlanGated": "needs a higher plan",
@@ -7273,18 +9301,18 @@ window.__ModuleLoader__.load({
 			"row.poolAgoMin": "{n} min ago",
 			"row.poolAgoHour": "{n} h ago",
 			"row.poolAgoDay": "{n} d ago",
-			"row.poolErrOrigin": "the page is not the plugin's own page, so the request was refused",
-			"row.poolErrUnavailable": "the pool is unavailable right now",
+			"row.poolErrOrigin": "Request origin validation failed; no pool action was executed",
+			"row.poolErrUnavailable": "The account pool is not available in this build (or its batch route is missing). Restart the app; if it persists, the plugin needs reinstalling.",
 			"row.poolErrMethod": "the pool does not accept that request method",
 			"row.poolErrBadRequest": "the pool refused the request",
-			"row.poolErrNoMembers": "the pool has no members to act on",
-			"row.poolErrNoLiveMembers": "every member is unavailable — nothing can serve",
+			"row.poolErrNoMembers": "No accounts are selected for this pool. Select accounts below and save.",
+			"row.poolErrNoLiveMembers": "The plugin cannot read valid login credentials for the selected accounts. Sign in to Trae again, or remove these accounts from the pool and save.",
 			"row.poolErrCheckinUnsupported": "this panel does not offer a daily check-in",
 			"row.poolErrTargetStale": "the saved target model is no longer offered",
-			"row.poolErrNoFreeModel": "no free model is available for this panel",
+			"row.poolErrNoFreeModel": "No free model is available in this region. Refresh the catalog or select a test model manually before retrying.",
 			"row.poolErrConflict": "the pool refused the request",
 			"row.poolErrGeneric": "pool request failed (HTTP {status})",
-			"row.poolSettingsHint": "The switch and the target model are preferences — save them. Test, check in and delete act at once.",
+			"row.poolSettingsHint": "These are preferences: they take effect when you save (same as the model list). Test results are written automatically and are not affected by this button.",
 			"row.poolLogSaved": "Pool settings saved.",
 			"row.poolLogSaveFailed": "Could not save the pool settings.",
 			"row.poolLogNoMembers": "Nothing to do — no pool members are selected.",
@@ -7301,73 +9329,95 @@ window.__ModuleLoader__.load({
 			"row.poolRowDeleted": "Deleted the credential copy of {accountName}.",
 			"row.poolDeleteStillSigned": "Deleted this plugin's copy of {accountName}, but it is still signed in to Trae, so the account itself is not gone. Sign out inside Trae to remove it from this machine.",
 			"row.poolRowDeletedSignedOut": "Deleted {accountName} and signed it out of {apps}.",
-			"row.poolRowDeleteAppRunning": "Could not delete {accountName}: {apps} is running and would restore the login. Quit {apps} completely, then delete again.",
-			"row.poolDeleteAppRunning": "Nothing was changed: {apps} is running, and it would write the login back over the file on exit. Quit {apps} completely, then delete again.",
+			"row.poolRowDeleteAppRunning": "{apps} is running and may overwrite login file changes. Quit those apps completely before deleting {accountName}.",
+			"row.poolDeleteAppRunning": "No files were changed because {apps} is running and may overwrite login file changes. Quit those apps completely before deleting the account.",
 			"row.poolDeleteNoCopy": "There was no plugin copy of {accountName} left to delete — it only exists as a Trae app login, and that sign-out did not take effect.",
 			"row.poolRowDeleteStillSigned": "removed this copy, but {accountName} is still signed in to Trae",
 			"row.poolRowDeleteNoCopy": "{accountName} had no plugin copy — only its Trae app login",
 			"row.poolDeleteHint": "The plugin keeps its own copy of every local Trae login (a copy is created on refresh unless one already exists) and only ever shows and bills those copies. Delete removes the copy AND signs that account out of Trae itself, leaving a backup of every file it rewrites; a deleted account is not re-imported while it stays signed in Trae. A running Trae would flush its own state back over the file, so quit it first — the card names the app it needs closed.",
-			"row.cheer": "Star on GitHub"
+			"row.cheer": "Star on GitHub",
+			"nav.panel": "Trae",
+			"row.pageBack": "Back to conversation",
+			"row.sidebarPanelLabel": "Show Trae in the sidebar",
+			"row.sidebarPanelHint": "Show the Trae settings entry in the sidebar, disabled by default. Changes take effect immediately; disabling it returns an open settings page to the conversation."
 		};
 		const zh = {
-			"row.title": "接入使用Trae积分与模型（dsh-connect-trae）",
-			"row.desc": "在 DSH 中使用 Trae 模型并随时查看剩余积分；国内版与国际版是两个独立供应商，各有自己的账号，可同时使用。",
+			"row.tabCredentialHint": "国内版与企业版共用 Trae CN 登录凭据，账号绑定分别保存。",
+			"row.tabFreeQuotaWarn": "免费模型也可能遇到上游请求限制或服务繁忙。",
+			"row.poolFailoverHint": "Trae 也会在服务端故障时尝试换号；参数错误和模型权限不足会直接显示报错。",
+			"row.iconStyleLabel": "图标样式",
+			"row.iconStyleHint": "立即更新侧边栏和页面图标，当前浏览器分别保存每个插件的选择。",
+			"row.iconStyleClaude": "Claude 风格",
+			"row.iconStyleOriginal": "默认图标",
+			"row.iconStyleSaveFailed": "浏览器无法保存图标选择，请检查网站存储权限。",
+			"row.poolAutoCheckinDeviceHint": "Trae 限制每台设备的每日奖励，部分成员可能无法领取。",
+			"row.checkinStatusError": "无法读取今日签到状态：{message}",
+			"row.poolAutoCheckinDeviceDone": "今日：本机的每日奖励领取次数已用完。",
+			"row.poolAutoCheckinRetry": "今日：{count} 个账号已签，失败的请求将自动重试。",
+			"row.poolAutoCheckinProgress": "今日：{count} 个账号已签。",
+			"row.poolAutoCheckinWaiting": "等待下一次后台检查。",
+			"row.poolAutoCheckin": "每天自动签到",
+			"row.poolAutoCheckinHint": "开启并保存后，插件在 DSH 运行期间每天为所选国内版个人账号领取签到奖励。重启后，插件先检查当天的签到进度，再处理尚未签到的账号。失败时自动重试。",
+			"row.title": "Trae 积分与模型",
+			"row.desc": "在 DSH 中使用 Trae 国内版、企业版和国际版模型。可管理账号、选择模型、查询积分和领取每日签到奖励。刷新模型目录时，插件同时更新积分倍率。",
 			"row.expand": "展开",
 			"row.collapse": "收起",
 			"row.tabCn": "国内版",
 			"row.tabEnterprise": "企业版",
 			"row.tabAi": "国际版",
-			"row.tabHint": "国内版、企业版、国际版各有账号、用量与模型，可同时启用。企业版与国内版共用同一份 Trae CN 登录。",
-			"row.tabEnterpriseHint": "企业版用同一个 Trae CN 账号走企业租户池计费，而不是个人积分池。它不会回落：被拒时如实报错，绝不悄悄花掉个人额度。",
-			"row.tabSwitchHint": "关闭该供应商：其模型不再提供给 DSH；账号与设置保留，可随时恢复。",
-			"row.tabSwitchAria": "是否向 DSH 提供{region}供应商",
-			"row.tabOffNotice": "该供应商已关闭，模型不会提供给 DSH。账号与设置均已保留。",
-			"row.panelAria": "卡片分栏",
+			"row.tabHint": "国内版、企业版和国际版可同时启用。切换上方版本页签，可分别查看和管理各版本的账号、积分和模型。",
+			"row.tabEnterpriseHint": "企业版请求使用 Trae CN 账号的租户额度，失败时直接显示错误，不会改用个人积分重试。",
+			"row.tabSwitchHint": "关闭此开关后，插件会从模型列表中隐藏该区域的模型，并保留账号和设置。再次打开开关即可恢复。",
+			"row.tabSwitchAria": "启用{region}模型",
+			"row.tabOffNotice": "该区域已关闭，账号和设置已保留。勾选上方开关可恢复模型。",
+			"row.panelAria": "卡片分区",
 			"row.panelAccounts": "账号",
+			"row.panelCapabilities": "能力",
+			"row.panelCapabilitiesHint": "插件可以替你做什么。这些开关点一下立即生效 —— 开关没有保存按钮。",
 			"row.panelModels": "模型",
 			"row.panelDiag": "诊断",
-			"row.diagRegion": "面板",
+			"row.diagRegion": "区域",
 			"row.diagProvider": "供应商 id",
-			"row.diagAccount": "服务账号",
-			"row.diagToken": "访问令牌到期",
+			"row.diagAccount": "当前使用账号",
+			"row.diagToken": "登录有效期至",
 			"row.diagRefresh": "重新登录最后期限",
 			"row.diagRefreshNone": "该凭据不携带",
-			"row.diagCatalog": "目录模型数",
-			"row.diagEnabled": "已启用模型数",
+			"row.diagCatalog": "目录中的模型",
+			"row.diagEnabled": "已启用的模型",
 			"row.diagPool": "账号池",
-			"row.diagPoolOn": "已开启 · {count} 个账号",
-			"row.diagPoolOff": "未开启",
+			"row.diagPoolOn": "开启 · {count} 个账号",
+			"row.diagPoolOff": "关闭",
 			"row.diagCheckin": "每日签到",
 			"row.diagCheckinOn": "支持",
 			"row.diagCheckinOff": "本面板不提供",
 			"row.diagRaw": "Raw 会话通道",
 			"row.diagRawOff": "未检测",
-			"row.diagFailures": "最近一次报错",
-			"row.diagNoFailures": "无",
+			"row.diagFailures": "最近一次失败",
+			"row.diagNoFailures": "没有报错。",
 			"row.diagQuarantine": "损坏副本留存",
 			"row.diagQuarantineNone": "无",
-			"row.diagHint": "以上全部只读，可整段原样贴进反馈。数值来自本面板最近一次刷新，不是概括。",
+			"row.diagHint": "这里显示本面板最近一次刷新得到的状态，可用于问题反馈；分享前请隐去账号标识和本机路径中的个人信息。",
 			"row.settingsWriteFailed": "设置未能保存：{message}",
 			"row.signedOut": "未登录",
-			"row.signedOutHint": "在 Trae 桌面 App 里登录一次即可，插件会自动跟随当前登录的账号。",
+			"row.signedOutHint": "请先登录 Trae 桌面端，再点击「重新检测账号」，将登录凭据保存为插件副本。",
 			"row.unsupportedRegionTitle": "美国区（US）暂不支持",
-			"row.unsupportedRegionHint": "本机有一个 Trae 账号属于美国区（userRegion \"US\" / 主机 *.traeapi.us）。本版本尚未支持该区，因此不会使用这个账号，也不会把请求发往新加坡网关——重新登录不会有任何变化。请在该面板改用国内版或新加坡区账号（或使用 Trae 国内版客户端）。",
+			"row.unsupportedRegionHint": "本机有一个 Trae 账号属于美国区（userRegion \"US\" / 主机 *.traeapi.us）。本版本尚未支持该区，因此不会使用这个账号，也不会把请求发往新加坡网关。重新登录不会改变账号所属区域。请在该面板改用国内版或新加坡区账号（或使用 Trae 国内版客户端）。",
 			"row.diagUnsupportedRegion": "未支持的区域",
 			"row.searchedTitle": "已检查的路径",
 			"row.searchedHint": "未找到登录信息。以下是插件探测过的位置；如果你的 Trae 把登录信息存在别处，请把该路径反馈给我们。",
 			"row.searchedMore": "展开其余 {count} 条",
 			"row.quarantineTitle": "被隔离的账号副本",
-			"row.quarantineHint": "有一份账号副本文件读不出来，插件没有覆盖它，而是改名留存（字节完整）。它曾经保存的账号只可能在那份文件里；确认已取回后删掉它即可不再提示。",
+			"row.quarantineHint": "插件无法读取该账号副本，已将文件改名保留。需要恢复账号时请检查该文件；确认不再需要后，可自行删除留存文件。",
 			"row.quarantineAccounts": "含 {count} 个账号",
 			"row.quarantineAccountsUnknown": "账号数无法读取",
 			"row.quarantineBytes": "{bytes} 字节",
 			"row.reasonMissing": "文件不存在",
 			"row.reasonUnreadable": "无法读取",
 			"row.reasonInvalid": "格式无法识别",
-			"row.sourceDesktop": "桌面版",
+			"row.sourceDesktop": "桌面端",
 			"row.sourceCli": "Trae CLI",
 			"row.signedIn": "已登录：{accountName}",
-			"row.tokenExpiry": "访问令牌 {expiresAt} 过期（自动续期）",
+			"row.tokenExpiry": "访问令牌将于 {expiresAt} 过期，插件会尝试自动续期",
 			"row.refreshTokenExpiring": "请在 {expiresAt} 前重新登录一次 Trae（还剩 {days} 天），此后将无法自动续期。",
 			"row.refreshTokenLapsed": "自动续期已停止：Trae 登录凭据已于 {expiresAt} 过期。请重新登录一次 Trae 以恢复。",
 			"row.requestFailed": "请求失败",
@@ -7387,8 +9437,10 @@ window.__ModuleLoader__.load({
 			"row.checkinClaiming": "领取中…",
 			"row.checkinClaimed": "已领取",
 			"row.checkinRefused": "Trae 拒绝了本次签到（业务码 {code}）",
+			"row.checkinBusy": "Trae 当前签到人数过多，本次未领取成功，请几分钟后再试。",
+			"row.checkinTimeout": "签到请求超时，没有收到服务器回复，请再试一次。",
 			"row.checkinError": "签到失败：{message}",
-			"row.checkinDeviceSpent": "本机今日的签到已用掉——Trae 按「每台设备每天一次」限制，所以当前账号在本机今天无法再签。可换一台设备领取，或用今天已签到的那台设备/账号，或明天再来。",
+			"row.checkinDeviceSpent": "Trae 每台设备每天只能签到一次。本机今日已签到，当前账号今天无法在本机领取。请换一台尚未签到的设备，或明天再试。",
 			"row.checkinDisabled": "该账号当前没有可用的签到活动。",
 			"row.checkinDeviceSpentShort": "本机已签",
 			"row.subscriptionLabel": "订阅状态",
@@ -7403,26 +9455,26 @@ window.__ModuleLoader__.load({
 			"row.refreshCredits": "刷新用量",
 			"row.refreshing": "正在刷新…",
 			"row.accountsTitle": "Trae 账号",
-			"row.accountsHint": "本插件保管的账号副本：本机每个 Trae 登录都会在刷新时补建一份副本。登录新号后要刷新一次，否则它会被 Trae 的下一次登录覆盖。Token 不会显示。",
-			"row.transferTitle": "导入 / 导出账号",
-			"row.transferExport": "导出所选",
-			"row.transferImport": "从文件导入",
+			"row.accountsHint": "插件刷新账号时会为检测到的 Trae 登录保存凭据副本。切换到新账号后请刷新一次，以免下次登录覆盖尚未保存的凭据。",
+			"row.transferTitle": "导出 / 导入账号",
+			"row.transferExport": "导出账号",
+			"row.transferImport": "导入账号",
 			"row.transferCancel": "取消",
 			"row.transferSelectAll": "全选",
-			"row.transferExportPick": "从这 {total} 个账号副本中选择要导出的。",
-			"row.transferExportConfirm": "导出 {count} 个",
-			"row.transferExported": "已导出 {count} 个账号副本到 {fileName}。",
-			"row.transferExporting": "正在准备导出…",
-			"row.transferImportPick": "该文件包含 {total} 条记录；勾选的会作为插件副本导入，不会写入 Trae 应用。",
-			"row.transferImportConfirm": "导入 {count} 个",
+			"row.transferExportPick": "选择要导出的账号（共 {total} 个）：",
+			"row.transferExportConfirm": "导出 {count} 个账号",
+			"row.transferExported": "已导出 {count} 个账号到 {fileName}。",
+			"row.transferExporting": "正在导出…",
+			"row.transferImportPick": "文件包含 {total} 条记录，请勾选要导入的账号。插件将保存为自己的凭据副本，不改动 Trae 应用登录。",
+			"row.transferImportConfirm": "导入 {count} 个账号",
 			"row.transferImported": "已导入 {imported} 个账号副本，跳过 {skipped} 个。",
 			"row.transferImporting": "正在导入…",
 			"row.transferReading": "正在读取文件…",
-			"row.transferHint": "导出的文件里是插件保管的账号副本（含有效 Token），请当作密码保管。属于另一区域的记录会被跳过。",
+			"row.transferHint": "使用 JSON 文件导出账号，或将文件中的账号导入插件。文件包含登录凭据，请限制文件的访问权限。导入时会跳过其他区域的账号。",
 			"row.transferError": "导入/导出失败：{message}",
 			"row.transferVeilHint": "完成后账号列表会自动刷新。",
 			"row.transferUnnamed": "未命名账号",
-			"row.transferNoToken": "无 Token，将被跳过",
+			"row.transferNoToken": "缺少登录凭据",
 			"row.accountsRescan": "重新检测账号",
 			"row.accountsScanning": "正在检测…",
 			"row.accountsLoading": "正在加载账号…",
@@ -7435,7 +9487,7 @@ window.__ModuleLoader__.load({
 			"row.accountColumnCheckin": "签到",
 			"row.accountBalance": "积分 {credits}",
 			"row.balanceConsoleOnly": "见企业版控制台",
-			"row.enterpriseCreditsNotice": "企业版额度不在这里显示。Trae 客户端读不到企业租户的余额（所有企业额度接口都返回 404），只能到企业版控制台（console.enterprise.trae.cn）查看。这里也刻意不显示个人积分：那是消费池的数字，放在企业版标签下会被误认为企业额度。",
+			"row.enterpriseCreditsNotice": "插件尚不能读取企业租户余额，请到企业版控制台 console.enterprise.trae.cn 查看。此处不显示个人积分，以免将其误认为企业额度。",
 			"row.sourceDsh": "插件副本",
 			"row.modelsTitle": "模型",
 			"row.modelsSummary": "已启用 {count} 个",
@@ -7449,7 +9501,7 @@ window.__ModuleLoader__.load({
 			"row.modelsViewLabel": "模型范围",
 			"row.modelsViewCommon": "常用通道 · {count}",
 			"row.modelsViewAll": "全部 · {count}",
-			"row.modelsViewCommonHint": "普通 SOLO 工作区对话能调到的模型（solo_work_remote / solo_work_lite）。",
+			"row.modelsViewCommonHint": "显示可通过 solo_work_remote 或 solo_work_lite 调用的模型。",
 			"row.modelsViewAllHint": "还包含只在专用通道提供的模型：solo_coder、chat_v3、solo_agent_remote。",
 			"row.modelsViewShowAll": "查看全部",
 			"row.modelsSearchOutsideView": "常用通道内没有匹配「{query}」的模型，全部目录里有 {count} 个。",
@@ -7459,24 +9511,28 @@ window.__ModuleLoader__.load({
 			"row.modelsChannelAgentRemote": "SOLO 智能体 · 远程",
 			"row.modelsChannelChatV3": "对话 · v3",
 			"row.modelsChannelCoder": "代码 · solo_coder",
-			"row.modelsChannelDefault": "未标注模式（走 solo_work_lite）",
-			"row.modelsTestEnabled": "一键测试启用模型",
-			"row.modelsTestAll": "一键测试所有模型",
-			"row.modelsTesting": "正在测试 {done}/{total}…",
-			"row.modelsTestHint": "给每个已启用模型发一条最小消息，看哪些真的能应答。会消耗少量额度。",
-			"row.modelsTestAllHint": "「测试所有模型」会遍历目录里的每一个模型（含未启用的），消耗的额度明显多于「仅测试启用」。",
+			"row.modelsChannelDefault": "未标注模式，使用 solo_work_lite",
+			"row.modelsTestEnabled": "测试已启用模型",
+			"row.modelsTestAll": "测试所有模型",
+			"row.modelsTesting": "测试中 {done}/{total}…",
+			"row.modelsTestHint": "向每个已启用模型发送最小测试请求，按模型费率消耗额度，并分别显示结果。",
+			"row.modelsTestAllHint": "测试当前目录中的所有模型，包含未启用的模型；每次请求均按对应模型费率计费。",
 			"row.showPointsInMainUi": "在输入框工具栏显示积分读数",
-			"row.showPointsInMainUiHint": "在输入框工具栏显示可点击读数（选中本插件模型时出现）：国内版为「Trae CN · 余额」，国际版为「Trae 国际版 · 套餐」。",
-			"row.showPointsInMainUiHintAi": "在输入框工具栏显示可点击读数（选中本插件模型时出现）：国际版为「Trae 国际版 · 套餐」。",
+			"row.showPointsInMainUiHint": "开启后在所选位置显示可点击读数：国内版为「Trae - CN · 余额」，国际版为「Trae 国际版 · 套餐」。选择其他供应商模型时仍可查看。",
+			"row.showPointsInMainUiHintAi": "开启后在所选位置显示国际版套餐，选择其他供应商模型时仍可查看。",
 			"row.drawImage": "允许模型自主生图（trae_draw_image）",
-			"row.drawImageHint": "为本面板挂上 trae_draw_image 工具：你要求时模型能生成一张图，按本账号真实扣积分（国内版实测 1920x1920 约 8.8）。默认关闭——不勾选时工具根本不存在，模型无法自己花额度。",
-			"row.drawImageHintEnterprise": "企业面板不提供：那条路径走租户网关计费，未经验证。",
-			"row.drawImageHintAi": "国际版面板不提供：生图只在 Trae CN 实测过，国际版按另一套套餐计费，这里标注的积分价格会对不上。要用请切到国内版面板。",
+			"row.drawImageHint": "开启后提供 trae_draw_image 工具，模型可按你的要求生成图片并消耗当前账号积分。国内版曾测得 1920x1920 图片约 8.8 积分，实际费用以上游扣费为准；默认关闭。",
+			"row.drawImageHintEnterprise": "企业版的生图调用与计费尚未验证，因此暂不提供该功能。",
+			"row.drawImageHintAi": "国际版的生图调用与计费尚未验证，因此暂不提供该功能；需要生图时请使用国内版面板。",
 			"row.creditPositionLabel": "显示位置",
 			"row.creditPositionComposer": "输入框工具栏",
 			"row.creditPositionStats": "输入框下方",
 			"row.creditPositionAria": "{region} 的积分显示位置",
-			"row.creditPositionHint": "积分显示在哪里。「输入框工具栏」是默认位置（与模型选择同一行）。如果装了别的插件后读数不显示，改成「输入框下方」—— 那是「轮次 / 步数 / token」统计所在的那一行。",
+			"row.creditPositionHint": "默认与模型选择同一行显示；遇到其他连接器占用排序位置时，后加载的读数自动向左排列。也可选择「输入框下方」，与轮次、步数和 token 统计同一行显示。",
+			"row.refreshIntervalLabel": "自动刷新",
+			"row.refreshIntervalOption": "{minutes} 分钟",
+			"row.refreshIntervalAria": "自动刷新间隔",
+			"row.refreshIntervalHint": "卡片与输入框读数各自多久重新读取一次用量，默认 5 分钟。每次刷新是两次只读的上游请求，间隔越短请求越频繁；这里不消耗积分。改动即时生效；面板关闭后该面板不再自动读取。",
 			"composer.switchTo": "切换到 {account}",
 			"composer.noAccounts": "该区域暂无账号",
 			"composer.panelTitle": "Trae 积分",
@@ -7488,8 +9544,15 @@ window.__ModuleLoader__.load({
 			"composer.signedOut": "未登录",
 			"composer.points": "Trae CN",
 			"composer.pointsGlobal": "Trae 国际版",
-			"composer.refresh": "刷新积分",
-			"composer.refreshing": "正在刷新积分…",
+			"composer.openSettings": "设置",
+			"composer.openSettingsHint": "打开本插件的设置页",
+			"composer.openSettingsFailed": "这个宿主没有通向插件设置页的入口",
+			"composer.test": "刷新",
+			"composer.testHint": "刷新本面板账号池里勾选账号的状态——逐个探测（会消耗少量积分，最长约一分钟）",
+			"composer.testing": "刷新中…",
+			"composer.testDone": "账号池已测：{total} 个里 {ok} 个可用",
+			"composer.testFailed": "账号池测速失败",
+			"composer.testTimedOut": "测速用时过长，已放弃",
 			"composer.refreshFailed": "积分刷新失败",
 			"row.accountsRefreshed": "已刷新账号：找到 {count} 个账号{selected}",
 			"row.accountsSaved": "已绑定",
@@ -7511,11 +9574,11 @@ window.__ModuleLoader__.load({
 			"row.settingsDirty": "有未保存的修改",
 			"row.modelsTestEmpty": "请先启用至少一个模型。",
 			"row.contextAllMid": "整区切到 500K",
-			"row.contextAllMidHint": "把本区所有 Max 档不小于 500K 的模型的 DSH 上下文预算一次性设为 500K 中间档，其余模型不动。这是默认窗口与 Max 之间的半步——觉得 1M 用不上、又嫌默认太小时用。这只是草稿——要按「保存」才生效。",
+			"row.contextAllMidHint": "将本面板中 Max 窗口不小于 500K 的模型设为 500K 上下文预算，其余模型保持原值；点击「保存」后生效。",
 			"row.contextAllMax": "整区切到 Max",
-			"row.contextAllMaxHint": "把本区所有带 Max 档的模型的 DSH 上下文预算一次性设为各自的 Max 档。这只是草稿——要按「保存」才生效。没有 Max 档的模型不会被改动。",
+			"row.contextAllMaxHint": "将本面板中提供 Max 窗口的模型设为各自的最大上下文预算，其余模型保持原值；点击「保存」后生效。",
 			"row.contextAllDefault": "全部恢复默认上下文",
-			"row.contextAllDefaultHint": "清掉本区所有上下文预算覆盖，让每个模型都回到 Trae 的默认窗口。这只是草稿——要按「保存」才生效。",
+			"row.contextAllDefaultHint": "清除本面板的自定义上下文预算，恢复使用 Trae 目录默认值；点击「保存」后生效。",
 			"row.modelsTestError": "测试失败：{message}",
 			"row.modelsTestDone": "{total} 个里有 {available} 个正常应答。",
 			"row.probeAvailable": "可用",
@@ -7537,95 +9600,97 @@ window.__ModuleLoader__.load({
 			"row.veilSaving": "正在保存更改…",
 			"row.modelContext": "最大上下文 {context}",
 			"row.contextBudget": "DSH 上下文预算",
-			"row.contextBudgetHint": "只影响 DSH 侧的上下文预算。插件不会向上游发送窗口或 Max 模式字段，所以这不会改变 Trae 实际服务这次请求所用的窗口。",
+			"row.contextBudgetHint": "设置 DSH 组织请求时使用的上下文预算。插件不向上游发送窗口或 Max 模式参数，因此不会据此切换 Trae 的服务窗口。",
 			"row.modelOutput": "最大输出 {output}",
 			"row.modelImage": "图片",
 			"row.modelImageAuto": "已自动开启：Trae 把该模型标为多模态。",
 			"row.modelRate": "积分 {rate}x",
-			"row.modelReasoning": "推理强度：{efforts}",
 			"row.modelReasoningSupported": "推理：支持",
+			"row.modelReasoningLabel": "思考强度",
+			"row.modelReasoningFollowUpstream": "默认",
+			"row.modelReasoningFollowUpstreamNamed": "默认（{effort}）",
 			"row.modelUnknown": "未知",
-			"row.modelCapabilityPending": "图片输入跟随 Trae 自身的多模态标注，并叠加你手动勾选的模型。",
+			"row.modelCapabilityPending": "Trae 标注为多模态的模型会自动启用图片输入，也可手动为其他模型启用。",
 			"row.poolTitle": "账号池",
 			"row.poolEnabled": "启用账号池",
-			"row.poolEnabledHint": "账号池按积分与可用性挑选本面板请求的计费账号；关闭时由手动绑定的账号计费。",
+			"row.poolEnabledHint": "开启后，插件自动选择账号；遇到账号限流、积分耗尽或账号故障时尝试换号。关闭后，请从账号列表中选择要使用的账号。",
 			"row.poolCurrentHeader": "当前计费：{account}",
-			"row.poolModeAuto": "自动挑号",
-			"row.poolModeManual": "手动选号",
+			"row.poolModeAuto": "自动选择",
+			"row.poolModeManual": "手动选择",
 			"row.poolMember": "已在池中",
-			"row.poolNotMember": "未入池",
-			"row.poolBusyHint": "逐个处理账号中…",
-			"row.poolTestAll": "一键测试所有账号",
-			"row.poolTesting": "测速中…",
-			"row.poolOffNotice": "账号池已关闭——由绑定的账号计费。开启上方开关即可让账号池派单。",
-			"row.poolNoCandidate": "当前没有可用的池成员能为本面板提供请求。",
-			"row.poolNoCandidateEmpty": "尚未勾选任何池成员。",
-			"row.poolNoCandidateEmptyHint": "在成员列表中勾选账号即可加入账号池。",
+			"row.poolNotMember": "未加入",
+			"row.poolBusyHint": "插件正在处理所选账号…",
+			"row.poolTestAll": "测试勾选的账号",
+			"row.poolTesting": "测试中…",
+			"row.poolOffNotice": "账号池已关闭，当前请求由绑定账号计费。开启上方开关后，插件按账号池规则选择账号。",
+			"row.poolNoCandidate": "账号池里目前没有可用的账号。",
+			"row.poolNoCandidateEmpty": "账号池尚未选择成员。",
+			"row.poolNoCandidateEmptyHint": "请在下方勾选账号并保存，插件才会将其加入账号池。",
 			"row.poolNoCandidateUnusable": "所有已选成员当前均不可用。",
-			"row.poolNoCandidateHint": "请求会继续落在已保存的账号上，直到有成员恢复可用。",
-			"row.poolServingOutside": "{account} 当前在计费，但它不在池中——在池里有可用成员之前，请求会落回你保存的选择。",
-			"row.poolMembersTitle": "本池包含的账号",
+			"row.poolNoCandidateHint": "账号池没有可用成员时，请求会尝试使用已保存的绑定账号。成员当前状态：",
+			"row.poolServingOutside": "当前由未加入账号池的 {account} 计费，账号池恢复可用成员前会继续使用已保存的绑定账号。",
+			"row.poolMembersTitle": "账号池成员",
 			"row.poolRescan": "重新检测账号",
 			"row.poolToolsLabel": "导出 / 导入账号",
 			"row.poolCreditExpiry": "{when} 过期",
 			"row.poolProbeMeasured": "测得 {when}",
 			"row.poolProbeAt": "测试于 {when}",
-			"row.poolSettingsNote": "下面是偏好设置：点保存才生效；测试结果由插件自动写入，不受这个保存按钮影响。",
+			"row.poolSettingsNote": "修改下方设置后请点击「保存」；测试结果由插件单独保存。",
 			"row.poolSelectedCount": "已选 {count} / {total}",
 			"row.poolNoCopyTag": "本机无副本",
-			"row.poolCopyFile": "副本就存在 {path}，当前 {count} 份。在 Trae 里换号只会新增一份，不会覆盖已有的副本。",
-			"row.poolNoCopyTestHint": "本机没有这个账号的登录，无法测速。需要它请在 Trae 里重新登录以重建副本，或删除这一行。",
-			"row.poolSelectAll": "全部",
-			"row.poolSelectNone": "清空",
+			"row.poolCopyFile": "当前共有 {count} 份账号副本，保存位置为 {path}。刷新账号时，插件为新登录创建副本，并保留已有副本。",
+			"row.poolNoCopyTestHint": "插件无法读取该账号的登录凭据，请在 Trae 中重新登录后检测账号，或将其移出账号池。",
+			"row.poolSelectAll": "全选",
+			"row.poolSelectNone": "全不选",
 			"row.poolColumnAccount": "账号",
 			"row.poolColumnCredits": "积分",
 			"row.poolColumnProbe": "状态",
 			"row.poolColumnCheckin": "签到",
-			"row.poolGeneralLabel": "通用",
-			"row.poolWorkHint": "工作积分不能由 DSH 消费——只有通用积分用于对话。",
+			"row.poolGeneralLabel": "积分",
+			"row.poolWorkHint": "DSH 对话使用积分余额，不能使用工作积分。",
 			"row.poolCreditNone": "—",
-			"row.poolTestedAt": "测于 {at}",
-			"row.poolNeverTested": "尚未测速",
-			"row.poolRetryAt": "{at} 后重试",
+			"row.poolTestedAt": "测试于 {at}",
+			"row.poolNeverTested": "未测试",
+			"row.poolRetryAt": "{at} 后可重试",
 			"row.poolRetryUnknown": "重试时间未知",
-			"row.poolTargetCurrentPreferred": "当前：你选定的模型 {model}",
-			"row.poolTargetCurrentFree": "当前：免费模型 {model}",
-			"row.poolTargetStale": "模型 {model} 已不再由本面板提供",
+			"row.poolTargetCurrentPreferred": "测试模型：{model}（手动选择）",
+			"row.poolTargetCurrentFree": "测试模型：{model}（自动选择）",
+			"row.poolTargetStale": "你保存的目标模型已不在目录中：{model}",
 			"row.poolTargetStaleOption": "{model}（已下架）",
-			"row.poolTargetStaleClear": "改回自动",
+			"row.poolTargetStaleClear": "切回自动",
 			"row.poolTargetNone": "本面板暂无可用免费模型",
-			"row.poolTargetNoneHint": "账号池只会挑免费模型；当前无法解析出可用模型，测速暂被禁用。",
-			"row.poolActionNoteTestNone": "本面板没有解析出免费模型——先指定一个目标模型再测速。",
-			"row.poolActionNoteNoMembers": "先勾选要入池的账号并保存。",
-			"row.poolTargetAutoOption": "自动（免费模型）",
-			"row.poolTargetLabel": "目标测速模型",
-			"row.poolTargetHint": "探针测速所用的模型。",
-			"row.poolProbeSizeLabel": "测试请求体积",
-			"row.poolProbeSizeHint": "测试时发送多少文本。只发一个词的探针，只能证明「这个账号能回答一个词」——如果上游拒绝长请求，问题只会在你真实对话时才出现。填得越多越接近真实对话，每个账号每次测试消耗的积分也越多。",
+			"row.poolTargetNoneHint": "自动模式仅选择免费模型，请刷新目录后重试，或手动选择测试模型；选择收费模型时会消耗被测账号积分。",
+			"row.poolActionNoteTestNone": "本面板未找到免费模型，请选择目标模型后再测试账号。",
+			"row.poolActionNoteNoMembers": "请勾选要测试的账号，并保存账号池设置。",
+			"row.poolTargetAutoOption": "自动选择免费模型",
+			"row.poolTargetLabel": "账号测试模型",
+			"row.poolTargetHint": "批量测试使用此处选择的模型。选择「自动」时，插件使用该区域上下文窗口最大的免费模型；选择收费模型时，测试会消耗各被测账号的积分。",
+			"row.poolProbeSizeLabel": "测试输入大小",
+			"row.poolProbeSizeHint": "建议选择接近会话请求的输入长度。短请求通过测试后，较长的请求也可能触发账号限制。输入越长，收费模型的测试费用越高。",
 			"row.poolProbeSizeDefault": "最小请求（默认）",
 			"row.poolProbeSizeOption": "{wan} 万 token",
 			"row.poolSettingsTitle": "更多设置",
 			"row.poolMoreRulesTitle": "账号副本与保存规则",
-			"row.poolManualAccountLabel": "手动计费账号",
-			"row.poolManualAccountNone": "当前无生效账号",
-			"row.poolDirty": "未保存",
+			"row.poolManualAccountLabel": "当前账号",
+			"row.poolManualAccountNone": "当前没有生效的账号",
+			"row.poolDirty": "● 有未保存的修改",
 			"row.poolSaved": "保存",
 			"row.poolSaving": "保存中…",
-			"row.poolDiscard": "放弃",
+			"row.poolDiscard": "放弃修改",
 			"row.poolSaveFailed": "保存失败：{message}",
-			"row.poolGhostMembers": "{count} 个已保存成员不再对应本机登录：{names}",
-			"row.poolUnsavedMembers": "成员改动尚未保存——请点击下方保存。",
-			"row.poolRowTest": "测速",
+			"row.poolGhostMembers": "无法读取 {count} 个已保存成员的登录凭据：{names}",
+			"row.poolUnsavedMembers": "成员选择已修改，保存后生效",
+			"row.poolRowTest": "测试",
 			"row.poolLogTitle": "活动记录",
 			"row.poolLogClear": "清空",
 			"row.poolLogEmpty": "暂无账号池活动。",
-			"row.poolLogTestStart": "开始为 {count} 个账号测速（{model}）。",
-			"row.poolLogTestRow": "{accountName}：{outcome}。",
-			"row.poolLogTestRowMalformed": "{accountName}：结果异常。",
-			"row.poolLogTestDone": "测速完成。",
-			"row.poolLogBatchFailed": "账号池操作失败：{message}",
-			"row.poolLogTimeout": "测速超时，已自动取消（按钮已恢复可用）。请检查网络后重试：{message}",
-			"row.poolSelectAria": "把 {accountName} 加入账号池",
+			"row.poolLogTestStart": "开始测试 {count} 个账号 × {model}",
+			"row.poolLogTestRow": "{accountName}：{outcome}",
+			"row.poolLogTestRowMalformed": "{accountName}：服务端未返回测试结果",
+			"row.poolLogTestDone": "测试完成，已更新可用账号列表",
+			"row.poolLogBatchFailed": "批量操作失败：{message}",
+			"row.poolLogTimeout": "测试超时后已取消，可以重新操作。请检查网络后重试，错误信息：{message}",
+			"row.poolSelectAria": "把 {accountName} 加入本区域的账号池",
 			"row.poolCheckedIn": "已签到",
 			"row.poolNotCheckedIn": "未签到",
 			"row.poolCheckinUnknown": "未知",
@@ -7641,16 +9706,16 @@ window.__ModuleLoader__.load({
 			"row.poolProbeUnavailable": "不可用",
 			"row.poolProbeNotFound": "上游不提供",
 			"row.poolProbeFailed": "失败",
-			"row.poolProbeSourceUnknown": "原因未知",
-			"row.poolProbeSourceLive": "来自实时请求",
-			"row.poolProbeSourceTest": "来自测速",
+			"row.poolProbeSourceUnknown": "来源未知",
+			"row.poolProbeSourceLive": "对话请求",
+			"row.poolProbeSourceTest": "手动测试",
 			"row.poolProbeModel": "模型 {model}",
-			"row.poolProbeModelUnknown": "模型未知",
+			"row.poolProbeModelUnknown": "未记录模型",
 			"row.poolExcludedUnusable": "不可用",
 			"row.poolTokenExpired": "登录已失效",
 			"row.poolExcludedRateLimited": "被限流",
 			"row.poolExcludedModelBusy": "模型繁忙",
-			"row.poolExcludedOutOfCredit": "积分不足",
+			"row.poolExcludedOutOfCredit": "积分耗尽",
 			"row.poolExcludedCredentialRejected": "登录凭据被拒",
 			"row.poolExcludedPolicyRejected": "被策略拒绝",
 			"row.poolExcludedPlanGated": "需要更高套餐",
@@ -7661,41 +9726,45 @@ window.__ModuleLoader__.load({
 			"row.poolAgoMin": "{n} 分钟前",
 			"row.poolAgoHour": "{n} 小时前",
 			"row.poolAgoDay": "{n} 天前",
-			"row.poolErrOrigin": "页面并非插件自身页面，请求因而不被接受",
-			"row.poolErrUnavailable": "账号池当前不可用",
+			"row.poolErrOrigin": "请求来源未通过验证，账号池未执行操作",
+			"row.poolErrUnavailable": "账号池接口不可用，请重启 DSH；问题持续时请重新安装插件。",
 			"row.poolErrMethod": "账号池不接受该请求方法",
 			"row.poolErrBadRequest": "账号池拒绝了该请求",
-			"row.poolErrNoMembers": "账号池没有任何成员可处理",
-			"row.poolErrNoLiveMembers": "所有成员均不可用——没有可派单的账号",
+			"row.poolErrNoMembers": "请先在账号池中勾选账号并保存，再点击签到或测试按钮。",
+			"row.poolErrNoLiveMembers": "插件无法读取所选账号的有效登录凭据。请重新登录这些账号，或将它们移出账号池后保存。",
 			"row.poolErrCheckinUnsupported": "本面板不提供每日签到",
 			"row.poolErrTargetStale": "已保存的目标模型已下架",
-			"row.poolErrNoFreeModel": "本面板没有可用的免费模型",
+			"row.poolErrNoFreeModel": "当前区域没有可用的免费模型，请刷新目录，或手动选择测试模型后再试。",
 			"row.poolErrConflict": "账号池拒绝了该请求",
 			"row.poolErrGeneric": "账号池请求失败（HTTP {status}）",
-			"row.poolSettingsHint": "开关与目标模型是偏好，改完要保存；行内的测速、签到与删除立即生效。",
+			"row.poolSettingsHint": "修改账号池设置后，请点击保存。插件会单独保存测试结果。",
 			"row.poolLogSaved": "账号池设置已保存。",
 			"row.poolLogSaveFailed": "无法保存账号池设置。",
-			"row.poolLogNoMembers": "没有可处理的内容——尚未勾选任何池成员。",
+			"row.poolLogNoMembers": "尚未勾选账号池成员，未执行操作。",
 			"row.poolLogDiscarded": "已放弃未保存的账号池修改。",
 			"row.poolLogGeneric": "账号池未返回可用的结果",
 			"row.poolLogRowTesting": "正在测速 {accountName}…",
 			"row.poolLogTargetCleared": "测速目标已改回自动。",
 			"row.poolRowDelete": "删除",
-			"row.poolRowDeleteAria": "从本机删除 {accountName}：插件的副本连同它在 Trae 应用里的登录（会把它从 Trae 退出登录）",
+			"row.poolRowDeleteAria": "删除 {accountName} 的插件副本，并将该账号从 Trae 应用中退出登录",
 			"row.poolRowDeleting": "删除中…",
 			"row.poolGhostDeleteAria": "从本机删除已保存但无法登录的账号 {accountName}",
 			"row.poolRowDeleteError": "无法删除 {accountName}：{message}",
 			"row.poolRowDeleteFailed": "删除未得到确认",
 			"row.poolRowDeleted": "已删除 {accountName} 的凭据副本。",
-			"row.poolDeleteStillSigned": "已删除本插件对 {accountName} 的副本，但它仍登录在 Trae 里，所以账号本身还在。要彻底从本机移除，请在 Trae 内退出登录。",
+			"row.poolDeleteStillSigned": "插件副本已删除，但 {accountName} 仍登录在 Trae 中；若要移除本机登录，请在 Trae 内退出该账号。",
 			"row.poolRowDeletedSignedOut": "已删除 {accountName}，并将它从 {apps} 中退出登录。",
-			"row.poolRowDeleteAppRunning": "无法删除 {accountName}：{apps} 正在运行，退出时会把登录写回去。请先完全退出 {apps}，再重新删除。",
-			"row.poolDeleteAppRunning": "这次没有改动任何文件：{apps} 正在运行，退出时会把自己的状态回写到文件、覆盖这次修改。请先完全退出 {apps}，再点「删除」。",
-			"row.poolDeleteNoCopy": "{accountName} 本来就没有插件副本可删——它只存在于 Trae 应用登录里，而这次退出登录没有生效。",
+			"row.poolRowDeleteAppRunning": "{apps} 正在运行，可能覆盖登录文件修改；请完全退出这些应用后，再删除 {accountName}。",
+			"row.poolDeleteAppRunning": "为避免 {apps} 覆盖登录文件修改，本次未改动任何文件；请完全退出这些应用后再删除。",
+			"row.poolDeleteNoCopy": "{accountName} 仅保留在 Trae 的登录状态中，本次退出登录未生效，因此没有删除任何插件副本。",
 			"row.poolRowDeleteStillSigned": "已删除副本，但 {accountName} 仍登录在 Trae 中",
-			"row.poolRowDeleteNoCopy": "{accountName} 没有插件副本——它只存在于 Trae 应用登录里",
-			"row.poolDeleteHint": "本插件会为本机每个 Trae 登录各创建一份自己的副本（刷新时自动创建，已有副本则不动），卡片只显示、也只使用这些副本。「删除」会同时删掉副本并把该账号从 Trae 应用中退出登录，改写的每个文件都留一份备份；只要该账号还登录在 Trae 里，就不会被重新收录。Trae 正在运行时会把自己的状态回写到文件，所以要先完全退出——卡片会点名是哪个应用。",
-			"row.cheer": "鼓励一下"
+			"row.poolRowDeleteNoCopy": "{accountName} 没有插件副本，仅保留在 Trae 应用登录状态中",
+			"row.poolDeleteHint": "刷新账号时，插件会为新检测到的 Trae 登录保存副本，并保留已有副本。删除账号会移除副本、将账号从 Trae 退出登录，并为修改过的文件保留备份；操作前需完全退出相关 Trae 应用。如果退出登录未生效，插件会阻止该账号在保持登录期间再次导入。",
+			"row.cheer": "鼓励一下",
+			"nav.panel": "Trae",
+			"row.pageBack": "返回会话",
+			"row.sidebarPanelLabel": "在侧边栏显示 Trae",
+			"row.sidebarPanelHint": "在侧边栏显示 Trae 设置入口，默认关闭。开关即时生效；关闭时，已打开的设置页会返回对话。"
 		};
 		//#endregion
 		//#region src/client/TraeModelLabel.tsx
@@ -7749,11 +9818,23 @@ window.__ModuleLoader__.load({
 		*
 		* WHY THE HOST STILL OWNS THE NAME. The contract says to keep `model.name` as
 		* the text and render the addition beside it, so this component returns the name
-		* first — it never replaces it — and it renders nothing extra for a provider
-		* that is not ours.
+		* first — it never replaces it. For a provider that is not ours it reproduces
+		* the host's own label: the catalog name and, since 0.2.2, that model's optional
+		* `badge` (see {@link HostModelBadge}).
 		*
 		* @module dsh-connect-trae/client/TraeModelLabel
 		*/
+		/**
+		* Every provider id this plugin owns, in panel order.
+		*
+		* Exported because on a `keyed` host the label seat is one registration PER
+		* provider id — the registration side needs the same list the component uses to
+		* decide "is this row mine", and a second literal would drift from
+		* `providerOfPanel`. Derived rather than typed out: `trae-enterprise` is the id
+		* most easily forgotten, and forgetting it means that panel's rows silently fall
+		* through to the host's plain fallback.
+		*/
+		const TRAE_MODEL_LABEL_PROVIDERS = TRAE_PANELS.map(providerOfPanel);
 		/** How long a fetched snapshot is trusted, in milliseconds. */
 		const CACHE_MS = 6e4;
 		/** How often a mounted label re-reads the clock, in milliseconds. */
@@ -7980,10 +10061,220 @@ window.__ModuleLoader__.load({
 		* @param props - The host's model identity and the placement of this label.
 		* @returns The catalog name, followed by the promotion chip when one holds.
 		*/
+		/**
+		* This plugin's seat in the HOST's model-label cell (issue #74).
+		*
+		* `conversation.input.model.label` is a `single` slot: `SlotCore.register()`
+		* THROWS when a second registration claims the same priority, with
+		* "single slot ... already has a registration at priority 0 ... register at a
+		* different priority to shadow it (lowest renders)". Priority 0 is the DEFAULT,
+		* so it is the one value that is guaranteed to be contested.
+		*
+		* WHY `-102` AND NOT `-0.25`, WHICH THIS USED TO BE. The old value was picked
+		* from a reading of the siblings that was WRONG — and the comment said so with
+		* confidence, which is how a wrong reading survives a code review. Re-measured
+		* from the three plugins' sources:
+		*
+		*   dsh-connect-qoder-client     priority -101   (active — lowest renders)
+		*   dsh-connect-workbuddy-client priority -100
+		*   dsh-connect-trae-client      priority  -0.25  ← never rendered
+		*
+		* The previous note claimed qoder `-1` and workbuddy `-0.5`, i.e. that `-0.25`
+		* sat "between them". Both numbers were stale: the siblings had each moved DOWN
+		* a hundred while this file still described the arrangement they had left. The
+		* consequence was exactly the report that started this change — "the model
+		* picker has no capsule" — because `-0.25` is the HIGHEST of the three, and a
+		* `single` slot renders the LOWEST.
+		*
+		* `-102` is chosen to sit just under qoder, not at some far negative number
+		* like `-1000`: this only needs the one seat, and a needlessly extreme value
+		* would push any future plugin that picks a reasonable number behind us forever.
+		* qoder made the same call when it took `-101` under workbuddy's `-100`.
+		*
+		* WHAT THIS COSTS. Winning a `single` slot means the losers do not render at
+		* all here: qoder's own capsule disappears from the picker the moment this
+		* registers. That is the documented trade-off of the slot, not a bug — and it
+		* is why {@link TraeModelLabel} must reproduce the host's presentation (catalog
+		* name plus the model's own badge) for anything that is not this plugin's
+		* model, rather than drawing nothing for foreign rows. A picker whose every row
+		* lost its name because a connector won the cell would be a much worse outcome
+		* than a lost promotion chip.
+		*
+		* WHAT WINNING/HOLDING COSTS. This cell is `single`, so the other registrants'
+		* decorations on the rows this plugin claims are not composed. That is the
+		* documented, accepted trade-off, and it is why the component reproduces the
+		* host's own presentation — catalog name plus that model's optional badge — for
+		* any provider that is not ours.
+		*
+		* WHAT CHANGES WHEN THE HOST KEYS THE SLOT — and why the number stays. On a host
+		* that declares this slot `keyed`, the seat is registered once per provider id
+		* (`./model-label-seat.ts`), each `key` is its own cell, and priority stops
+		* deciding WHO IS VISIBLE: qoder's `-101` and workbuddy's `-105` no longer share
+		* a cell with this `-102`, so none of the three can shadow another and the
+		* armistice below stops being a race. Priority keeps exactly one meaning inside
+		* a cell — the tie-breaker between two registrations claiming the SAME provider
+		* id, where an equal value throws and the lowest renders. The value is therefore
+		* kept as this plugin's rank for its own rows, not as a bid in an auction that
+		* no longer happens.
+		*
+		* WHY A DISTINCT PRIORITY IS NOT ENOUGH ON ITS OWN. It removes the cross-plugin
+		* collision, but issue #74's error was a SECOND registration of THIS plugin
+		* against its own first one (the report's stack shows
+		* "registered by dsh-connect-trae-client" colliding with priority 0). That is
+		* the re-entrancy path `inject` allows: the callback runs again whenever the
+		* slot's declaration lifetime collapses and re-declares, so a callback that
+		* registers unconditionally double-registers. `index.tsx` therefore also
+		* disposes its previous entry before every attempt. Priority alone would have
+		* made the throw rarer and harder to read, not absent. (On a `keyed` host the
+		* same rule applies per key: re-registering one provider's seat twice at one
+		* priority throws just as loudly.)
+		*/
+		const MODEL_LABEL_PRIORITY = -102;
+		/** The four tones the host understands, as a lookup for narrowing. */
+		const HOST_BADGE_TONE_NAMES = [
+			"neutral",
+			"info",
+			"success",
+			"warning"
+		];
+		/**
+		* The tone palette, transcribed from the host's `Tag.module.css` (0.2.2-rc.1).
+		*
+		* TWO TOKENS ARE EASY TO MISCOPY, AND BOTH WERE: `info` paints
+		* `state-business-primary` (not `brand-primary`) and `warning` paints
+		* `state-warn-primary` (not `state-warn-secondary`). A near-miss token still
+		* "looks blue" or "looks amber", which is why this survived a review — but two
+		* capsules on one row are compared directly, so the drift is visible.
+		*
+		* The fill is the tone's own colour mixed into transparent (10%, or 12% for
+		* `warning`), and there is NO border: the host's capsule is a fill only.
+		*/
+		const HOST_BADGE_TONES = {
+			neutral: {
+				color: "var(--dsw-alias-label-secondary)",
+				background: "var(--dsw-alias-bg-module-platform)"
+			},
+			info: {
+				color: "var(--dsw-alias-state-business-primary)",
+				background: "color-mix(in srgb, var(--dsw-alias-state-business-primary) 10%, transparent)"
+			},
+			success: {
+				color: "var(--dsw-alias-state-success-primary)",
+				background: "color-mix(in srgb, var(--dsw-alias-state-success-primary) 10%, transparent)"
+			},
+			warning: {
+				color: "var(--dsw-alias-state-warn-primary)",
+				background: "color-mix(in srgb, var(--dsw-alias-state-warn-primary) 12%, transparent)"
+			}
+		};
+		/** Whether a value is one of the host's four tone literals. */
+		function isHostBadgeTone(value) {
+			return typeof value === "string" && HOST_BADGE_TONE_NAMES.includes(value);
+		}
+		/**
+		* The one line a badge shows, in the reader's language.
+		*
+		* `text` is `unknown` because it comes off the wire. A literal is used as-is; a
+		* table is looked up exactly the way the host's `resolveText` does it — active
+		* language, then its base tag (`pt-BR` → `pt-br` → `pt`), then the required
+		* `en`. Anything else (a number, an array, a nested object) is not text, so it
+		* reads as absent rather than being stringified into `[object Object]`.
+		*
+		* A BLANK string is treated as absent, which is deliberately STRICTER than the
+		* host: `resolveText` returns `''` untouched (it only fills in missing keys), so
+		* `{ en: '' }` paints a real, empty capsule. Refusing that here means a
+		* decoration never says nothing — a rule this component adds, not the host's.
+		*/
+		function resolveHostBadgeText(text) {
+			if (typeof text === "string") return text.trim() === "" ? void 0 : text;
+			if (typeof text !== "object" || text === null || Array.isArray(text)) return void 0;
+			const table = text;
+			const language = uiLanguage().toLowerCase();
+			const base = language.split("-")[0] ?? "";
+			const candidates = [
+				table[language],
+				base === "" ? void 0 : table[base],
+				table["en"]
+			];
+			for (const candidate of candidates) {
+				if (typeof candidate !== "string") continue;
+				if (candidate.trim() !== "") return candidate;
+			}
+		}
+		/**
+		* Read one provider-authored badge, or `undefined` when there is nothing to say.
+		*
+		* THE WHOLE POINT IS THAT THIS DOES NOT THROW. `badge` arrives from another
+		* plugin's catalog, so its shape is that plugin's business: a `null`, an unknown
+		* tone, a missing `text` and a numeric `text` are all things a third party can
+		* ship. A throw here does not lose the capsule — it retires THIS COMPONENT from
+		* the `single` cell, which strips the name off every row in the picker. The
+		* degradation is therefore total: anything unreadable becomes the plain name.
+		*/
+		function readHostBadge(badge) {
+			if (typeof badge !== "object" || badge === null || Array.isArray(badge)) return void 0;
+			const label = resolveHostBadgeText(badge.text);
+			if (label === void 0) return void 0;
+			const tone = badge.tone;
+			return {
+				tone: isHostBadgeTone(tone) ? tone : "neutral",
+				label
+			};
+		}
+		/**
+		* One provider-authored selector badge, drawn where the host's own label draws it.
+		*
+		* Styled INLINE rather than by class, because a slot component renders OUTSIDE
+		* the card: the card's stylesheet is only mounted while the card is, so a picker
+		* opened on a page that never mounted it would otherwise get an uncoloured
+		* capsule. The geometry is the host's `Tag` verbatim — `padding: 1px 8px`,
+		* `font-size: 11px`, `line-height: 17px`, `border-radius: 999px`,
+		* `corner-shape: round`.
+		*
+		* NO `max-width` / `text-overflow`, deliberately: the host does not truncate, so
+		* truncating here would show "限时免…" at exactly the row width where the host
+		* showed the whole thing — less consistent, not more.
+		*/
+		function HostBadge(props) {
+			const tone = HOST_BADGE_TONES[props.badge.tone];
+			const style = {
+				display: "inline-flex",
+				alignItems: "center",
+				flex: "none",
+				borderRadius: "999px",
+				padding: "1px 8px",
+				fontSize: "11px",
+				lineHeight: "17px",
+				fontWeight: 500,
+				whiteSpace: "nowrap",
+				color: tone.color,
+				background: tone.background,
+				cornerShape: "round"
+			};
+			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+				className: `dsm-trae-model-label-host-badge dsm-trae-model-label-host-badge-${props.badge.tone}`,
+				style,
+				children: props.badge.label
+			});
+		}
 		function TraeModelLabel(props) {
 			const { provider, model } = props;
 			const panel = panelOfProvider(provider.id);
-			if (panel === void 0) return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: model.name });
+			if (panel === void 0) {
+				const badge = readHostBadge(model.badge);
+				if (badge === void 0) return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: model.name });
+				return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+					className: "dsm-trae-model-label",
+					style: {
+						display: "inline-flex",
+						alignItems: "center",
+						gap: "5px",
+						whiteSpace: "nowrap",
+						verticalAlign: "baseline"
+					},
+					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: model.name }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(HostBadge, { badge })]
+				});
+			}
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(TraeModelLabelInner, {
 				modelId: model.id,
 				name: model.name,
@@ -8033,6 +10324,114 @@ window.__ModuleLoader__.load({
 			});
 		}
 		//#endregion
+		//#region src/client/model-label-seat.ts
+		/**
+		* Read the declared kind of a slot, or `undefined` when it cannot be read.
+		*
+		* `spec()` is the documented read-only accessor (`SlotRegistry.spec`), present
+		* on 0.1.7 and on 0.2.2. It is also the only way to learn the kind: the
+		* declaration lives in the host package, and a plugin's own `SlotMap`
+		* augmentation says what this plugin HOPES the slot is, not what the running
+		* host declared.
+		*
+		* Anything unexpected — no `spec` method on an older line, a throw from a
+		* service that is not ready, a kind this build does not know — returns
+		* `undefined`, and the caller falls back to the single-cell shape. That is the
+		* conservative direction: it is what every released version of this plugin
+		* already does.
+		*
+		* @param slots - The `slots` service (typed loosely: the accessor is optional).
+		* @param key - The slot key to inspect.
+		* @returns The declared kind, or `undefined`.
+		*/
+		function declaredSlotKind(slots, key) {
+			const face = slots;
+			if (face === void 0 || typeof face.spec !== "function") return void 0;
+			let spec;
+			try {
+				spec = face.spec(key);
+			} catch {
+				return;
+			}
+			const kind = spec?.kind;
+			if (kind === "single" || kind === "list" || kind === "keyed" || kind === "chain") return kind;
+		}
+		/**
+		* The registrations this plugin should make for the model-label seat.
+		*
+		* `keyed` yields ONE seat per provider id: each is its own cell, each renders
+		* only the rows whose owner props carry that provider id, and a provider this
+		* plugin does not own falls through to the owner's own fallback (the catalog
+		* name, plus that model's `badge` on hosts that have one).
+		*
+		* Every other kind — including `undefined`, i.e. a host that cannot be
+		* inspected — yields the single historical seat. That is not a degraded mode:
+		* it is what `single` requires, and on a not-yet-declared slot it is what the
+		* inject callback is about to find.
+		*
+		* An empty provider list under `keyed` would silently disable the label, so it
+		* falls back to the single seat instead: a wrong-shaped registration that still
+		* draws something beats a correct-shaped registration that draws nothing.
+		*
+		* @param params - Slot key, declared kind, this plugin's provider ids, priority.
+		* @returns One or more `register()` option objects, in registration order.
+		*/
+		function modelLabelSeats(params) {
+			const { name, kind, providerIds, priority } = params;
+			if (kind === "list" || kind === "chain") return [];
+			if (kind === "keyed" && providerIds.length > 0) return providerIds.map((id) => ({
+				name,
+				key: id,
+				priority
+			}));
+			return [{
+				name,
+				priority
+			}];
+		}
+		/**
+		* Claim every planned seat, atomically, and hand back ONE disposer.
+		*
+		* WHY ATOMIC. The seat list is 2-3 entries on a `keyed` host, and `register()`
+		* can throw on any ONE of them — a rival plugin claiming the same provider id at
+		* the same priority, or the declaration collapsing mid-loop. A plain `.map()`
+		* would then leave the earlier seats landed on the ledger with their disposers
+		* unreachable (they were only ever held by the array that the throw discarded),
+		* which is worse than failing outright: the component stays mounted, the caller
+		* believes registration failed, and nothing will ever release those cells. On a
+		* `single` host it also means the identity keeps a live entry that the next
+		* `inject` re-run cannot displace without a priority clash.
+		*
+		* So a partial failure is rolled back in reverse order before the error is
+		* rethrown, exactly as if it had never been attempted. The rethrow is important:
+		* each caller already has a catch that logs, and swallowing here would hide the
+		* refusal from the diagnostics that exist to explain it.
+		*
+		* A disposal that itself throws must not mask the original error, hence the
+		* inner catch — the registry treats a second dispose as a no-op, and a broken
+		* one must not turn one failure into a crash.
+		*
+		* @param seats - The plan from {@link modelLabelSeats}, in registration order.
+		* @param register - Claims one seat and returns its disposer.
+		* @returns One disposer that releases every seat, in reverse registration order.
+		*/
+		function registerModelLabelSeats(seats, register) {
+			const claimed = [];
+			try {
+				for (const seat of seats) claimed.push(register(seat));
+			} catch (error) {
+				for (const dispose of [...claimed].reverse()) try {
+					dispose();
+				} catch {}
+				throw error;
+			}
+			return () => {
+				for (const dispose of [...claimed].reverse()) try {
+					dispose();
+				} catch {}
+			};
+		}
+		//#endregion
 		//#region src/client/index.tsx
 		/** Stable browser-plugin name. */
 		const name = "dsh-connect-trae-client";
@@ -8046,21 +10445,96 @@ window.__ModuleLoader__.load({
 		* configForms is not served yet.
 		*/
 		const inject = ["slots", "locale"];
+		const liveSlotEntries = /* @__PURE__ */ new Map();
 		/**
-		* Register card copy and the Trae card under Plugin configuration.
+		* Release this client's hold on `identity`, if it has one.
 		*
-		* The entire body is wrapped so that a DSH slot-API breaking change (for
-		* example the rc.6→rc.7 `id`→`key` / `order`→`priority` rename) degrades
-		* to a `console.error` instead of throwing into the DSH loader and raising
-		* the red "Failed to load plugins" banner. The host provider keeps working:
-		* the `trae` model channel is unaffected.
-		*
-		* NOTE: the try/catch boundary of this function is mirrored (duplicated) in
-		* `tests/client-fallback.spec.ts`, because the real client entry imports
-		* browser-only DSH packages that cannot load in the Node test environment.
-		* If you change the guarded body, the soft probe, or the per-slot
-		* registration here, update that mirror too.
+		* `entryOnly` exists because of a subtle self-collision: the release is called
+		* from INSIDE the `inject` callback as well as from `apply`, and disposing the
+		* inject controller from within its own callback would tear down the effect
+		* that is currently executing. Inside the callback only the ENTRY is released;
+		* from `apply`, both.
 		*/
+		function releaseSlotEntry(identity, entryOnly = false) {
+			const held = liveSlotEntries.get(identity);
+			if (held === void 0) return;
+			liveSlotEntries.delete(identity);
+			if (held.disposeEntry !== void 0) try {
+				held.disposeEntry();
+			} catch {}
+			if (!entryOnly && held.disposeInject !== void 0) try {
+				held.disposeInject();
+			} catch {}
+		}
+		/**
+		* Register one slot entry, surviving EVERY way the registry can refuse it.
+		*
+		* WHY THE CATCH IS INSIDE THE CALLBACK, which is the whole point of issue #74.
+		* `slots.inject()` does not necessarily run its callback now: when the slot is
+		* not declared yet it subscribes and runs the callback LATER. A later throw is
+		* re-thrown by the renderer's own `changed()` handler out of a `queueMicrotask`,
+		* where no call-site try/catch can reach it — the user gets a renderer error
+		* banner on the first paint after a restart, and a reload (which re-declares in
+		* a different order) clears it. Moving the catch inside the callback turns every
+		* refusal into a log line, matching this file's "degrade, never take the page
+		* down" contract.
+		*
+		* WHY THE RELEASE COMES FIRST. A `single` slot rejects a second live entry at
+		* the same priority. That refusal is OUR fault and we can fix it rather than
+		* report it, so each run releases whatever this identity already holds.
+		*
+		* ONE DISPOSER PER CALL, HOWEVER MANY ENTRIES IT OWNS. A `keyed` host makes this
+		* plugin claim one cell per provider id (see `./model-label-seat.ts`), and those
+		* cells must live and die together — a partial teardown would leave a cell
+		* occupied by a component whose siblings are gone, visible as some rows
+		* decorated and others not. Folding them into one disposer is
+		* `registerModelLabelSeats`'s job, so the contract here stays the simple one:
+		* whatever `register` returns is the whole ownership of this identity, and
+		* `SlotHold` keeps exactly one.
+		*
+		* @param ctx - The applying plugin's context (module scope has none).
+		* @param identity - Stable key for this seat.
+		* @param slotKey - The host slot to register into.
+		* @param register - Performs the registration(s), returning ONE disposer for all.
+		* @param describe - Names the seat in the failure log.
+		*/
+		function registerSlotEntry(ctx, identity, slotKey, register, describe) {
+			const hold = {};
+			const fail = (error) => {
+				console.error(`[dsh-connect-trae] ${describe} failed to register (host provider unaffected):`, error);
+			};
+			const run = () => {
+				releaseSlotEntry(identity, true);
+				try {
+					const disposeEntry = register();
+					hold.disposeEntry = disposeEntry;
+					const current = liveSlotEntries.get(identity);
+					if (current === void 0) liveSlotEntries.set(identity, hold);
+					else current.disposeEntry = disposeEntry;
+					return disposeEntry;
+				} catch (error) {
+					fail(error);
+					return () => {};
+				}
+			};
+			try {
+				const result = ctx.slots.inject(slotKey, () => {
+					try {
+						return run();
+					} catch (error) {
+						fail(error);
+						return () => {};
+					}
+				});
+				hold.disposeInject = result;
+				const current = liveSlotEntries.get(identity);
+				if (current === void 0) liveSlotEntries.set(identity, hold);
+				else current.disposeInject = result;
+			} catch (error) {
+				releaseSlotEntry(identity);
+				fail(error);
+			}
+		}
 		function apply(ctx) {
 			try {
 				const namespace = "settings.trae";
@@ -8070,6 +10544,16 @@ window.__ModuleLoader__.load({
 				}), "dsh-connect-trae: settings copy");
 				const t = ctx.locale.bind(namespace);
 				const softGet = (name) => ctx.get(name);
+				/**
+				* The composer panel's route to this plugin's own settings page.
+				*
+				* Deliberately a CLOSURE over `softGet` rather than a resolved service: the
+				* seam it uses (the settings shell's `sidebar.settings` store seat) belongs
+				* to another bundle whose apply order is not ours to assume, so the probe
+				* happens on every press and a shell that appears later is still found. See
+				* `settings-route.ts` for the finding that established which seam this is.
+				*/
+				const onOpenSettings = () => openPluginSettingsPage(softGet, { label: () => t("nav.panel") });
 				const forms = softGet("configForms");
 				/**
 				* The card's settings scope, bound to whichever namespace the Host actually
@@ -8139,23 +10623,90 @@ window.__ModuleLoader__.load({
 					forms?.describe().subscribe?.(rebind);
 					return scope;
 				})();
-				const registerCard = (slotName, key) => {
-					try {
-						ctx.slots.inject(slotName, () => ctx.slots.register({
-							name: slotName,
-							key,
-							priority: 30,
-							inject: () => ({
-								t,
-								settingsScope
-							})
-						}, TraeUsageCard));
-					} catch (error) {
-						console.error(`[dsh-connect-trae] card slot "${slotName}" failed to register (host provider unaffected):`, error);
-					}
+				/**
+				* The configuration card, now drawn as its own `settings.section` page.
+				*
+				* WHY THE SEAT MOVED. It used to register into the Plugins page's
+				* `plugins.bundle.config` / `plugins.row.config` slots, which put the whole
+				* configuration inside the plugin's market detail page, below its README.
+				* That page's job is to describe and install a package; a page that both
+				* advertises and configures makes the user scroll past marketing to reach a
+				* checkbox. `settings.section` is the shell's seat for "this plugin owns a
+				* settings page", addressed by the same id the nav row uses.
+				*
+				* WHY `id` AND `order: 30`. The id is this plugin's package name, and it is
+				* the SAME string the nav glyph below registers under, because the shell
+				* renders `settings.section.icon` filtered by `{ only: section.id }` — an
+				* icon whose id does not match never appears and the shell's default glyph
+				* silently stays. `order: 30` places this page after the shipped sections
+				* (account -10, general 0, models 10, plugins 15, agent-presets 20) and
+				* alongside the other third-party pages, without colliding with a built-in.
+				*
+				* WHY NO CAPABILITY PROBE. `slots.inject()` already IS the probe: it runs
+				* the callback now when the slot is declared and subscribes otherwise,
+				* doing nothing at all on a host that never declares `settings.section`.
+				* Wrapping it in a `typeof` test on some accessor is how a page ends up
+				* never registering anywhere, silently — the failure mode this plugin's
+				* sibling shipped twice. Let the host answer.
+				*
+				* The page and its glyph are registered from ONE `inject` callback and both
+				* disposers are returned as a pair: the glyph is only meaningful while the
+				* page's id exists, so the pairing is structural rather than a convention,
+				* and Cordis disposes both with this fiber.
+				*/
+				const traeSettingsId = TRAE_SETTINGS_ID;
+				const registerSettingsPage = () => {
+					registerSlotEntry(ctx, "settings.section#dsh-connect-trae", "settings.section", () => {
+						const disposers = [];
+						try {
+							disposers.push(ctx.slots.register({
+								name: "settings.section",
+								id: traeSettingsId,
+								order: 30,
+								label: () => t("nav.panel"),
+								locale: namespace,
+								inject: () => ({
+									t,
+									settingsScope,
+									surface: "section"
+								})
+							}, TraeUsageCard));
+							/**
+							* The nav glyph, addressed by the SAME id as the page.
+							*
+							* The host renders this cell with `{ size, active }` inside its own
+							* button and label, so only the picture belongs here. Same shape as
+							* the sidebar row's glyph (a brand-mark `<img>`), because it is the
+							* same identity in a second place.
+							*
+							* Its own `inject`: `settings.section.icon` is a SEPARATE slot that a
+							* host line may not declare, and the page must still appear when only
+							* `settings.section` exists. A missing glyph is the shell's default
+							* gear — a degraded look, not a missing page.
+							*/
+							try {
+								disposers.push(ctx.slots.inject("settings.section.icon", () => ctx.slots.register({
+									name: "settings.section.icon",
+									id: traeSettingsId,
+									locale: namespace
+								}, SettingsSectionIcon)));
+							} catch (error) {
+								console.error("[dsh-connect-trae] settings nav icon failed to register (page unaffected):", error);
+							}
+						} catch (error) {
+							for (const dispose of disposers) try {
+								dispose();
+							} catch {}
+							throw error;
+						}
+						return () => {
+							for (const dispose of disposers) try {
+								dispose();
+							} catch {}
+						};
+					}, "settings section page");
 				};
-				registerCard("plugins.bundle.config", "dsh-connect-trae");
-				registerCard("plugins.row.config", "dsh-connect-trae#dsh-connect-trae");
+				registerSettingsPage();
 				/**
 				* Credit readout in the composer row (`conversation.input.right`, a
 				* session-scope list slot rendered immediately before the model picker).
@@ -8183,21 +10734,18 @@ window.__ModuleLoader__.load({
 				* deciding another's.
 				*/
 				const registerPointsSlot = (slotName, id, order, position) => {
-					try {
-						ctx.slots.inject(slotName, () => ctx.slots.register({
-							name: slotName,
-							id,
-							order,
-							locale: namespace,
-							inject: () => ({
-								t,
-								settingsScope,
-								position
-							})
-						}, ComposerPointsGate));
-					} catch (error) {
-						console.error(`[dsh-connect-trae] points slot "${slotName}" failed to register (host provider unaffected):`, error);
-					}
+					registerSlotEntry(ctx, `${slotName}#${id}`, slotName, () => ctx.slots.register({
+						name: slotName,
+						id,
+						order,
+						locale: namespace,
+						inject: () => ({
+							t,
+							settingsScope,
+							position,
+							onOpenSettings
+						})
+					}, ComposerPointsGate), `points slot "${slotName}"`);
 				};
 				registerPointsSlot("conversation.input.right", "dsh-connect-trae-composer-points", 4, "composer");
 				registerPointsSlot("conversation.composer.dock", "dsh-connect-trae-stats-points", 10, "stats");
@@ -8212,19 +10760,182 @@ window.__ModuleLoader__.load({
 				* non-interactive inline content such as a coloured name or badge" while the
 				* picker keeps owning clicks, focus and check marks.
 				*
+				* HOW MANY SEATS, AND WHY THAT IS READ AT MOUNT. On a `single` host this slot
+				* holds ONE cell: a second registration at the same priority throws, a second
+				* registration at any other priority is silently discarded, and whoever holds
+				* the cell must draw EVERY provider's rows. On a `keyed` host each
+				* `options.key` is its own cell, so one seat per provider id gives this
+				* plugin exactly its own rows and leaves every other provider to the owner's
+				* own fallback. Which shape is legal is the HOST's declaration, so the kind
+				* is read from `ctx.slots.spec(...)` at mount and the seat list is derived
+				* from it (`./model-label-seat.ts`). One build serves both lines.
+				*
 				* Registered unconditionally: the component renders the plain name for a
 				* provider that is not ours, so there is nothing to gate on. Its own
 				* try/catch keeps a host that does not serve this slot from taking the card
 				* down with it.
 				*/
 				const registerModelLabel = () => {
-					try {
-						return ctx.slots.inject("conversation.input.model.label", () => ctx.slots.register({ name: "conversation.input.model.label" }, TraeModelLabel));
-					} catch (error) {
-						console.error("[dsh-connect-trae] model label slot failed to register (host provider unaffected):", error);
-					}
+					registerSlotEntry(ctx, "conversation.input.model.label", "conversation.input.model.label", () => {
+						const registry = ctx.slots;
+						return registerModelLabelSeats(modelLabelSeats({
+							name: "conversation.input.model.label",
+							kind: declaredSlotKind(ctx.slots, "conversation.input.model.label"),
+							providerIds: TRAE_MODEL_LABEL_PROVIDERS,
+							priority: MODEL_LABEL_PRIORITY
+						}), (seat) => registry.register(seat, TraeModelLabel));
+					}, "model label slot");
 				};
 				registerModelLabel();
+				/**
+				* The sidebar glyph for the optional panel row.
+				*
+				* The host renders `sidebar.panellist` registrants with `{ size, active }`
+				* inside a `currentColor`-themed glyph cell, so the brand mark is drawn as a
+				* small `<img>` — the PNG's own colours read as the plugin's identity, and
+				* the row's selection state is the host's to paint around it.
+				*/
+				function TraePanelIcon(props) {
+					const edge = typeof props.size === "number" && props.size > 0 ? props.size : 16;
+					return (0, react.createElement)(PluginIcon, {
+						className: "dsm-trae-panel-icon",
+						size: edge
+					});
+				}
+				/**
+				* The nav glyph for the `settings.section` page.
+				*
+				* A separate component from {@link TraePanelIcon} even though it draws the
+				* same picture, because the two slots pass DIFFERENT owner props and a shared
+				* component would have to paper over that: `sidebar.panellist` sends
+				* `{ size, active }` on a row the shell paints, `settings.section.icon` sends
+				* `{ size, active }` inside the shell's own nav button, and the second one
+				* also has to survive `size` being absent (the shell always sends it, but a
+				* host line that renames the prop must degrade to the default rather than
+				* divide by `undefined`).
+				*
+				* `active` is applied as a slight opacity step instead of a colour: the
+				* brand PNG carries its own colours, and recolouring someone else's mark to
+				* show selection would misrepresent the product. The shell already paints
+				* the selected row.
+				*/
+				function SettingsSectionIcon(props) {
+					const edge = typeof props.size === "number" && props.size > 0 ? props.size : 16;
+					return (0, react.createElement)(PluginIcon, {
+						className: "dsm-trae-section-icon",
+						size: edge,
+						style: { opacity: props.active === false ? .75 : 1 }
+					});
+				}
+				/**
+				* Back to the conversation, for the page's header.
+				*
+				* Soft-probed: `layout` is a host service this entry deliberately does not
+				* declare in `inject` (an absent service keeps `apply` from running at all,
+				* and the page is useful without the back affordance). `selectPanel(null)` is
+				* the host's own way of handing the centre column back.
+				*/
+				const backToConversation = () => {
+					const layout = softGet("layout");
+					if (layout !== void 0 && typeof layout.selectPanel === "function") layout.selectPanel(null);
+				};
+				/**
+				* The Trae panel in the sidebar (`sidebar.panellist` row + `main` keyed
+				* page), mirroring the sibling `dsh-connect-workbuddy` panel and the host's
+				* own Plugins row.
+				*
+				* OPT-IN (`Config.sidebarPanel`, default false). Registering it is NOT the
+				* same as showing it: the host's sidebar builds the nav row from the slot's
+				* ENTRY METADATA, so a component returning `null` leaves a blank but still
+				* clickable button rather than no button. The row therefore has to be
+				* registered only while the switch is on, which is what
+				* {@link syncPanelRegistration} owns. See `panel-switch.ts` for the store
+				* that decision rides on.
+				*/
+				const PANEL_ID = "dsh-connect-trae";
+				const registerPanel = () => {
+					registerSlotEntry(ctx, "sidebar.panellist#dsh-connect-trae", "sidebar.panellist", () => ctx.slots.register({
+						name: "sidebar.panellist",
+						id: PANEL_ID,
+						order: 2,
+						label: () => t("nav.panel"),
+						locale: namespace
+					}, TraePanelIcon), "sidebar panel row");
+					registerSlotEntry(ctx, `main#${PANEL_ID}`, "main", () => ctx.slots.register({
+						name: "main",
+						key: PANEL_ID,
+						locale: namespace,
+						inject: () => ({
+							t,
+							settingsScope,
+							surface: "page",
+							backToConversation
+						})
+					}, TraeUsageCard), "sidebar panel page");
+					return [() => {
+						releaseSlotEntry("sidebar.panellist#dsh-connect-trae");
+					}, () => {
+						releaseSlotEntry(`main#${PANEL_ID}`);
+					}];
+				};
+				/**
+				* The live panel registrations, kept SEPARATE from the settings slots.
+				*
+				* They are the only slots in this plugin that come and go while the page is
+				* open (the opt-in switch), so owning them apart means flipping the switch
+				* does not dispose and re-create the card, the composer readout and the
+				* model label — which would be a visible flicker for a change that has
+				* nothing to do with them.
+				*/
+				let panelDisposers = [];
+				/**
+				* Bring the panel registrations in line with the opt-in switch.
+				*
+				* Dispose FIRST, then register: a live `key`/`id` cannot be registered
+				* twice (the ledger is keyed), and the throw would be swallowed into "no
+				* entry at all".
+				*/
+				const syncPanelRegistration = () => {
+					if (panelDisposers.length > 0) {
+						const layout = softGet("layout");
+						try {
+							if (layout?.panelInfo?.getSnapshot?.()?.activePanelId === PANEL_ID) layout.selectPanel?.(null);
+						} catch {}
+					}
+					for (const dispose of panelDisposers) try {
+						dispose();
+					} catch {}
+					panelDisposers = [];
+					if (!sidebarPanelWanted()) return;
+					panelDisposers = registerPanel();
+				};
+				/**
+				* Follow the switch, and SEED it from the Host.
+				*
+				* The seed is a status read rather than the settings scope on purpose: this
+				* namespace's browser mirror is documented as stale on the affected 0.1.7
+				* deployments, and here a stale `false` would mean the row never appears —
+				* with no later event to correct it, because the mirror reports namespace
+				* edges, not value changes.
+				*
+				* A failed read is NOT an error to show: OFF is the documented default
+				* answer, so a plugin whose status route is unreachable simply gets no row.
+				*
+				* The SUBSCRIPTION is what makes the switch live: the card calls
+				* `setSidebarPanelWanted` after a verified write, so the row appears and
+				* disappears without a reload. The host's layout service drops an
+				* `activePanelId` whose `main` key has gone, so switching off while the page
+				* is open returns the centre column to the conversation on its own.
+				*/
+				ctx.effect(() => subscribeSidebarPanelWanted(syncPanelRegistration), "dsh-connect-trae: sidebar panel opt-in");
+				syncPanelRegistration();
+				(async () => {
+					try {
+						const response = await fetch(withTraeRegion(TRAE_USAGE_PATH, "cn"), { headers: { accept: "application/json" } });
+						if (!response.ok) return;
+						if ((await response.json()).sidebarPanelEnabled === true) setSidebarPanelWanted(true);
+					} catch {}
+				})();
 			} catch (error) {
 				console.error("[dsh-connect-trae] client card failed to load (host provider unaffected):", error);
 			}

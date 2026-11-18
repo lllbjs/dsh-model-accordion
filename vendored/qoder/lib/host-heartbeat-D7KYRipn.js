@@ -995,6 +995,57 @@ function unwrapVolatileDeep(value) {
 	for (const key of Object.keys(source)) out[key] = unwrapVolatileDeep(source[key]);
 	return out;
 }
+/** 界面上给的全部档位，升序。默认值不在这里 —— 见 {@link pollMinutesOf}。 */
+const QODER_POLL_MINUTES_OPTIONS = [
+	1,
+	5,
+	10,
+	30,
+	60
+];
+/**
+* 读全局的刷新间隔。
+*
+* 与 `sidebarPanelEnabledOf` 同规：先 `unwrapVolatileDeep`（cosmokit 的活引用
+* 不解包时 `===` 恒假），再**白名单**校验 —— 配置是用户可编辑的 JSON，任何不在
+* 五档里的值（手改的 `0`、`"5"`、`2.5`）都退回默认，而不是把 `setInterval` 交给
+* 一个没校验过的数。
+*/
+function pollMinutesOf(value) {
+	const unwrapped = unwrapVolatileDeep(value);
+	const minutes = unwrapVolatileDeep(typeof unwrapped === "object" && unwrapped !== null && !Array.isArray(unwrapped) ? unwrapped["pollMinutes"] : void 0);
+	return QODER_POLL_MINUTES_OPTIONS.includes(minutes) ? minutes : 5;
+}
+/**
+* 侧边栏面板这一行的**顶层**设置字段名（不在 `regions.<region>.` 下）。
+*
+* 参考：dsh-connect-workbuddy 的 `Config.sidebarPanel`（PR #188，MIT,
+* Copyright (c) 2026 LaoDing）。
+*
+* 与积分读数那几个开关不同，这一项**没有区域轴**：侧边栏只有一条 Qoder 行、
+* 一个整页，不随「国内版 / 国际版」变。所以它住在配置顶层，而不是每个区域槽
+* 各存一份——存两份就会出现「cn 开着、global 关着，那这一行到底算谁的」这种
+* 没有答案的状态。
+*/
+const QODER_SIDEBAR_PANEL_FIELD = "sidebarPanel";
+/** The top-level settings field carrying the global upstream-refresh interval. */
+const QODER_POLL_MINUTES_FIELD = "pollMinutes";
+/**
+* 是否在 DSH 侧边栏加一个 Qoder 面板行（+ 对应的整页）。
+*
+* **默认关闭**，且判据是 `=== true` 而不是 `!== false`：这一行占的是
+* `sidebar.panellist` 这个**所有插件共用的全局座位**，点开还会接管中央面板。
+* 打开它是对用户整个侧边栏的决定，不是对这张卡片的偏好——所以「没写过」
+* 必须读成「没要」，升级不能替用户重新排一次侧边栏。
+*
+* 参考 workbuddy 的 `unwrapVolatile(current().sidebarPanel) === true`（同一条
+* 理由）；Qoder 这边的字段同样声明成 volatile（见 `src/index.ts` 的
+* `Config`），所以这里先解包再判。
+*/
+function sidebarPanelEnabledOf(value) {
+	const unwrapped = unwrapVolatileDeep(value);
+	return unwrapVolatileDeep(typeof unwrapped === "object" && unwrapped !== null && !Array.isArray(unwrapped) ? unwrapped[QODER_SIDEBAR_PANEL_FIELD] : void 0) === true;
+}
 /**
 * The plugin's DECLARED settings namespace — the fallback name, not the value
 * the host necessarily serves.
@@ -1284,22 +1335,12 @@ var QoderUpstreamClient = class {
 	holders = /* @__PURE__ */ new Map();
 	/** 最近使用的主会话（默认解析路径复用它）。 */
 	currentKey;
-	/**
-	* 桌面客户端登录态（`dt-…`）的身份解析器。
-	*
-	* COSY 会话的身份体里 `aid` / `uid` 必须是**真实**的 Qoder uid —— 用凭证
-	* 哈希伪造成 uid 会被上游回 `403 / Login expired`（实测）。而 `dt-` 令牌
-	* 本身不含 uid，所以这一类凭据必须由调用方（宿主）从桌面登录态文件里
-	* 解出来再交回来。返回 undefined 表示「这枚令牌不是当前客户端登录态」。
-	*/
-	resolveDeviceLogin;
 	constructor(region, options = {}) {
 		this.region = QODER_REGIONS[region];
 		this.regionKey = region;
 		this.logger = options.logger ?? (() => {});
 		this.installSalt = options.installSalt;
 		this.fetchImpl = options.fetch ?? globalThis.fetch;
-		this.resolveDeviceLogin = options.resolveDeviceLogin;
 	}
 	log(message) {
 		this.logger(`dsh-connect-qoder: ${message}`);
@@ -1443,61 +1484,8 @@ var QoderUpstreamClient = class {
 	*/
 	async ensureSession(credential) {
 		if (this.isSessionValid(credential)) return this.holders.get(credential);
-		if (isDeviceCredential(credential)) {
-			await this.openDeviceSession(credential);
-			return this.holders.get(credential);
-		}
 		await this.exchangeJobToken(credential);
 		return this.holders.get(credential);
-	}
-	/**
-	* 用**桌面客户端登录态**直接开一个 COSY 会话（跳过 `jobToken` 交换）。
-	*
-	* 为什么能跳过：`dt-` 设备令牌本身就是上游认的 `security_oauth_token`。
-	* buddy-switch 的 Rust 侧一直这么用（`cosy::CosyAccountInput.access_token`
-	* 直接填 `dt-…`），本插件实测同样可用（模型目录 11 条、chat 正常回流）。
-	*
-	* 为什么不能走交换：网关的 `jobToken` 交换只认 `pt-` PAT，`dt-` / `drt-`
-	* 一律回 `401 personal token is invalid`（CN + Global 实测）。
-	*
-	* 身份体必须是**真实 uid**：拿凭证哈希当 uid 会被回
-	* `403 / Login expired`。所以这一类凭据只接受「宿主已解析出身份」的形态，
-	* 解析不到就明确报错，绝不伪造。
-	*/
-	async openDeviceSession(credential) {
-		const login = await this.resolveDeviceLogin?.(credential);
-		if (login === void 0 || login.uid === void 0 || login.uid === "") {
-			throw new QoderUpstreamError("auth", "这不是 Qoder 客户端当前的登录态（拿不到真实 uid，无法建立会话）", 401);
-		}
-		const fingerprint = deriveFingerprint(login.uid, credential, this.installSalt);
-		const expireAtMs = Number.isFinite(login.expiresAtMs) ? login.expiresAtMs : 0;
-		const holder = {
-			session: newCosySession({
-				name: login.accountName ?? "",
-				aid: login.uid,
-				uid: login.uid,
-				yx_uid: "",
-				organization_id: "",
-				organization_name: "",
-				user_type: login.userType ?? "personal_standard",
-				security_oauth_token: credential,
-				refresh_token: login.refreshToken ?? ""
-			}, fingerprint.machineId, fingerprint.machineToken, fingerprint.machineType),
-			fingerprint,
-			jobToken: {
-				id: login.uid,
-				name: login.accountName ?? "",
-				expireTime: expireAtMs,
-				securityOauthToken: credential,
-				refreshToken: login.refreshToken ?? "",
-				userType: login.userType ?? "personal_standard"
-			},
-			expireAtMs
-		};
-		this.holders.set(credential, holder);
-		this.currentKey = credential;
-		this.log(`桌面登录态会话已建立: ${login.accountName ?? ""} (${login.uid})`);
-		return holder;
 	}
 	/**
 	* 拉取模型目录。响应形状（服务端 snake_case）：
@@ -1555,7 +1543,7 @@ var QoderUpstreamClient = class {
 		template.request_id = randomId();
 		template.chat_record_id = template.request_id;
 		template.request_set_id = randomId();
-		template.session_id = randomId();
+		template.session_id = options.sessionId !== void 0 && options.sessionId !== "" ? options.sessionId : randomId();
 		template.business.id = randomId();
 		template.business.name = prompt.slice(0, 30) || "hi";
 		template.business.begin_at = Date.now();
@@ -1914,21 +1902,11 @@ function projectCampaignEntry(entry) {
 		...typeof raw.campaignKey === "string" && raw.campaignKey !== "" ? { campaignKey: raw.campaignKey } : {},
 		...campaignUrl !== "" ? { campaignUrl } : {},
 		...typeof benefit.amount === "number" ? { amount: benefit.amount } : {},
-		...typeof validity.days === "number" ? { validityDays: validity.days } : {},
+		...typeof validity.days === "number" && (validity.mode === void 0 || validity.mode === "RELATIVE_DAYS") ? { validityDays: validity.days } : {},
 		...typeof raw.startAt === "number" ? { startAt: raw.startAt } : {},
 		...typeof raw.endAt === "number" ? { endAt: raw.endAt } : {},
 		...Object.keys(content).length > 0 ? { content } : {}
 	};
-}
-/**
-* 这枚凭据是否来自 Qoder 桌面客户端的登录态（`dt-…` 设备访问令牌）。
-*
-* 这一类凭据**不能**走 `jobToken` 交换（网关只认 `pt-`），必须直接建 COSY
-* 会话，且身份体要真实 uid —— 所以判别只认精确前缀，认不出的一律当 PAT
-* 处理，绝不猜。
-*/
-function isDeviceCredential(credential) {
-	return typeof credential === "string" && credential.startsWith("dt-");
 }
 /** jobToken 交换请求体。PAT 或 `drt-` refreshToken 二选一。 */
 function jobTokenBody(credential) {
@@ -2079,7 +2057,84 @@ function parseUsage(data) {
 		percentage: num(org.percentage),
 		available: org.available === true
 	};
+	const dedicated = readDedicatedPackages(source.dedicatedResourcePackages);
+	if (dedicated.length > 0) out.dedicatedResourcePackages = dedicated;
 	return out;
+}
+/**
+* 读 `dedicatedResourcePackages`（issue #38）。
+*
+* 三条取舍，都对应上游这一块真实存在的形态：
+*
+*  1. **整块读不懂就当没有**：不是数组、或者元素不是对象 → `[]`。一个读不懂的
+*     专属包不该让整次用量解析失败（那会把「有积分」变成「积分读不出来」）。
+*  2. **筛掉明确停用的**：`available === false` 直接丢；`status` 有值却不等于
+*     ACTIVE 也丢。两个字段是同一件事的两种写法，只认**明确说不**的那一侧 ——
+*     字段缺席不构成停用证据（老上游可能只发其中一个）。不筛的话，一个已过期 /
+*     已停用的包会顶着一行「剩余 888」出现在读数里，用户会以为那笔钱还在。
+*  3. **`remaining` 缺席不折成 0**（与 `readBucket` 同一条规矩）：0 是「这个包
+*     用完了」的断言，缺席只是「上游这一行没写」。界面把缺席画成「—」。
+*/
+function readDedicatedPackages(value) {
+	if (!Array.isArray(value)) return [];
+	const out = [];
+	for (const item of value) {
+		if (item === null || typeof item !== "object" || Array.isArray(item)) continue;
+		const raw = item;
+		if (raw["available"] === false) continue;
+		const status = typeof raw["status"] === "string" ? raw["status"] : void 0;
+		if (status !== void 0 && status !== DEDICATED_ACTIVE_STATUS) continue;
+		const title = readI18nLabel(raw["displayLabels"], "title");
+		const description = readI18nLabel(raw["displayLabels"], "description");
+		out.push({
+			id: typeof raw["id"] === "string" && raw["id"] !== "" ? raw["id"] : typeof raw["name"] === "string" ? raw["name"] : "",
+			...title === void 0 ? {} : { title },
+			...description === void 0 ? {} : { description },
+			...!isFiniteNumber(num(raw["remaining"])) ? {} : { remaining: Math.max(num(raw["remaining"]), 0) },
+			...!isFiniteNumber(num(raw["total"])) ? {} : { total: num(raw["total"]) },
+			...!isFiniteNumber(num(raw["expiresAt"])) ? {} : { expiresAtMs: num(raw["expiresAt"]) },
+			...status === void 0 ? {} : { status }
+		});
+	}
+	return out;
+}
+/** 上游声明的「这个专属包还在生效」。 */
+const DEDICATED_ACTIVE_STATUS = "QUOTA_DETAIL_STATUS_ACTIVE";
+/** 有限数才算「上游报了」。`NaN` / `Infinity` 与缺席同义（`num` 只筛 typeof）。 */
+function isFiniteNumber(value) {
+	return value !== void 0 && Number.isFinite(value);
+}
+/**
+* 从 `displayLabels[]` 里取某一条双语文案。
+*
+* 形状是 `[{ dimension: 'title', value: 'zh 原文', valueI18n: { 'zh-CN': …, 'en-US': … } }, …]`。
+* **两种语言都收**，界面按当前语言挑：这一层不知道也不该猜读者用哪种语言
+* （客户端才握着宿主语言，见 `promo-badge.ts` 的 `hostLanguage`）。
+*
+* `valueI18n` 缺席时退回裸 `value`：那至少是上游自己的一句话，比没有强。
+*/
+function readI18nLabel(labels, dimension) {
+	if (!Array.isArray(labels)) return void 0;
+	for (const entry of labels) {
+		if (entry === null || typeof entry !== "object" || Array.isArray(entry)) continue;
+		const row = entry;
+		if (row["dimension"] !== dimension) continue;
+		const i18n = row["valueI18n"];
+		const zh = i18n !== null && typeof i18n === "object" && !Array.isArray(i18n) ? textOf(i18n["zh-CN"]) ?? textOf(i18n["zh"]) : void 0;
+		const en = i18n !== null && typeof i18n === "object" && !Array.isArray(i18n) ? textOf(i18n["en-US"]) ?? textOf(i18n["en"]) : void 0;
+		const plain = textOf(row["value"]);
+		if (zh === void 0 && en === void 0 && plain === void 0) return void 0;
+		return {
+			...zh === void 0 && plain === void 0 ? {} : { zh: zh ?? plain },
+			...en === void 0 && plain === void 0 ? {} : { en: en ?? plain }
+		};
+	}
+}
+/** 非空、非全空白的字符串。 */
+function textOf(value) {
+	if (typeof value !== "string") return void 0;
+	const trimmed = value.trim();
+	return trimmed === "" ? void 0 : trimmed;
 }
 function readBucket(value) {
 	if (!value || typeof value !== "object") return void 0;
@@ -2204,8 +2259,10 @@ function envelopeRecords(detail) {
 /**
 * 上游的排队状态（issue #26）。
 *
-* 判据是上游**自己说的** `isQueued: true`；`serviceAvailable: true` 是旁证
-* （服务是好的，只是排在队里）。返回 undefined 表示上游没提排队 —— 那时
+* 判据是上游**自己说的** `isQueued: true`；`serviceAvailable` 一并带出
+* （issue #29）：`true` 是「服务是好的，只是排在队里」，`false` 是「上游整体
+* 在拒服务」，两者对用户的行动指导完全不同 —— 判断见
+* {@link upstreamUnavailableOf}。返回 undefined 表示上游没提排队 —— 那时
 * 不许把任何失败说成「排队中」。
 *
 * `queueCount` 与 `retryAfterSeconds` 一并带出：前者让用户看到「排在第 1027
@@ -2218,13 +2275,34 @@ function queueOf(detail) {
 		const count = record.queueCount;
 		const queueType = record.queueType;
 		const seconds = record.retryAfterSeconds;
+		const serviceAvailable = record.serviceAvailable;
 		return {
 			isQueued,
 			...typeof count === "number" && Number.isFinite(count) && count >= 0 ? { queueCount: count } : {},
 			...typeof queueType === "string" && queueType !== "" ? { queueType } : {},
-			...typeof seconds === "number" && Number.isFinite(seconds) && seconds > 0 ? { retryAfterSeconds: seconds } : {}
+			...typeof seconds === "number" && Number.isFinite(seconds) && seconds > 0 ? { retryAfterSeconds: seconds } : {},
+			...typeof serviceAvailable === "boolean" ? { serviceAvailable } : {}
 		};
 	}
+}
+/**
+* 上游是不是在说「**整体**拒服务」，而不是「你这个账号在排队」（issue #29）。
+*
+* 判据只认上游自己给的字段，且必须是 `isQueued: true` + 显式的
+* `serviceAvailable: false` 两条同时成立：
+*
+* - 只有 `isQueued` 而没有 `serviceAvailable` ⇒ **不是**这个结论（上游没说，
+*   不推断；退回旧的「排队」语义）。
+* - `serviceAvailable: true` ⇒ 服务是好的，就是排队，正常等即可。
+*
+* 为什么要分开：现场证据（issue #29）里 `queueCount: 0` 与
+* `serviceAvailable: false` 同时出现 —— 队列里一个人都没有，是上游整体在拒。
+* 这种形态下换号、换 PAT 都无效，把它记成账号级冷却会误导用户去重配凭据。
+*/
+function upstreamUnavailableOf(queue) {
+	if (queue === void 0) return false;
+	if (queue.isQueued !== true) return false;
+	return queue.serviceAvailable === false;
 }
 /**
 * 取**最深一层认识的**业务码（`{"code":"10605","message":"…"}`）。
@@ -2312,6 +2390,7 @@ function classifyBusinessCode(code) {
 }
 const QUOTA_CODES = /* @__PURE__ */ new Set([
 	"110",
+	"112",
 	"113",
 	"115",
 	"116",
@@ -2319,6 +2398,7 @@ const QUOTA_CODES = /* @__PURE__ */ new Set([
 	"118",
 	"119",
 	"122",
+	"144",
 	"402",
 	"6004"
 ]);
@@ -2611,16 +2691,8 @@ function qoderAccountsPath(region) {
 */
 var QoderAccountStore = class {
 	region;
-	/**
-	* 本区域「桌面客户端本地登录态」的读取器（`local-login.js`）。
-	*
-	* 缺席时（旧宿主 / 测试）本地登录这一来源整体消失，其余来源行为不变 ——
-	* 这是刻意的：本地登录是**增量**来源，不该成为其它来源的前置条件。
-	*/
-	localLogin;
-	constructor(region, options = {}) {
+	constructor(region) {
 		this.region = region;
-		this.localLogin = options.localLogin;
 	}
 	/** The vault entries, in insertion order. */
 	async vaultAccounts() {
@@ -2684,13 +2756,6 @@ var QoderAccountStore = class {
 				source: "vault"
 			});
 		}
-		if (this.localLogin !== void 0) {
-			for (const login of await this.localLogin.list()) {
-				if (seen.has(login.id)) continue;
-				seen.add(login.id);
-				out.push(login);
-			}
-		}
 		return out;
 	}
 	/**
@@ -2716,17 +2781,12 @@ var QoderAccountStore = class {
 			pat: envPat
 		};
 		const stored = (await this.vaultAccounts()).find((account) => account.id === accountId);
-		if (stored !== void 0) return {
+		return stored === void 0 ? void 0 : {
 			id: stored.id,
 			accountName: stored.accountName,
 			source: "vault",
 			pat: stored.pat
 		};
-		if (this.localLogin !== void 0) {
-			const local = await this.localLogin.credential(accountId);
-			if (local !== void 0) return local;
-		}
-		return void 0;
 	}
 	/**
 	* The credential that serves traffic right now.
@@ -2757,14 +2817,12 @@ var QoderAccountStore = class {
 			pat: envPat
 		};
 		const first = (await this.vaultAccounts())[0];
-		if (first !== void 0) return {
+		return first === void 0 ? void 0 : {
 			id: first.id,
 			accountName: first.accountName,
 			source: "vault",
 			pat: first.pat
 		};
-		if (this.localLogin !== void 0) return this.localLogin.credential();
-		return void 0;
 	}
 	/**
 	* Add (or refresh) one vault entry. Keyed by the PAT-derived id: re-adding
@@ -2834,7 +2892,7 @@ var QoderAccountStore = class {
 //#endregion
 //#region src/version.ts
 /** The npm package version this build was produced from. */
-const QODER_CONNECT_VERSION = "1.16.4";
+const QODER_CONNECT_VERSION = "1.26.4";
 //#endregion
 //#region src/account-pool-store.ts
 /**
@@ -2858,33 +2916,59 @@ function isProbe(value) {
 	const candidate = value;
 	return typeof candidate["outcome"] === "string" && typeof candidate["atMs"] === "number" && (candidate["retryAtMs"] === void 0 || typeof candidate["retryAtMs"] === "number") && (candidate["message"] === void 0 || typeof candidate["message"] === "string") && (candidate["source"] === void 0 || typeof candidate["source"] === "string");
 }
+/**
+* 一条落盘的签到批次，形状不对就丢掉（不猜）。
+*
+* `validityDays` 必须是正的有限数：0 或负数会让「到期时刻」落在领取之前，
+* 于是「最近到期」被算成一个已经过去的时刻 —— 那正是 issue #31 前半要修的症状。
+*/
+function knownBatch(value) {
+	if (typeof value !== "object" || value === null || Array.isArray(value)) return void 0;
+	const record = value;
+	const atMs = record["atMs"];
+	const validityDays = record["validityDays"];
+	const amount = record["amount"];
+	if (typeof atMs !== "number" || !Number.isFinite(atMs) || atMs <= 0) return void 0;
+	if (typeof validityDays !== "number" || !Number.isFinite(validityDays) || validityDays <= 0) return void 0;
+	return {
+		atMs,
+		validityDays,
+		...typeof amount === "number" && Number.isFinite(amount) ? { amount } : {}
+	};
+}
 /** One region's path for measured pool facts. */
 function qoderPoolStorePath(region) {
 	return join(resolveDshHome(), `${POOL_STORE_PREFIX}.${region}.json`);
 }
 /**
-* Read one region's measured facts.
+* 读出整个文档；任何一项坏了只丢那一项，不连坐。
 *
-* Returns an empty map for a missing, unreadable, malformed, or
-* version-mismatched file: all four mean "nothing measured yet".
+* 分成三项而不是一个联合类型：三者来自三个不同的上游事实（探针、签到数额、
+* 签到窗口），缺任何一项都**不影响**另外两项可用。旧文件没有 `credits` /
+* `windows` 两个键，读出来是空表 —— 这正是「这一版还没量过」的自然表达。
 */
-async function readPoolProbes(region) {
+async function readPoolDocument(region) {
+	const empty = {
+		probes: {},
+		credits: {},
+		windows: {}
+	};
 	let raw;
 	try {
 		raw = await readFile(qoderPoolStorePath(region), "utf8");
 	} catch {
-		return {};
+		return empty;
 	}
 	let parsed;
 	try {
 		parsed = JSON.parse(raw);
 	} catch {
-		return {};
+		return empty;
 	}
-	if (typeof parsed !== "object" || parsed === null) return {};
+	if (typeof parsed !== "object" || parsed === null) return empty;
 	const document = parsed;
-	if (document.version !== STORE_FORMAT_VERSION) return {};
-	if (typeof document.probes !== "object" || document.probes === null) return {};
+	if (document.version !== STORE_FORMAT_VERSION) return empty;
+	if (typeof document.probes !== "object" || document.probes === null) return empty;
 	const probes = {};
 	for (const [accountId, probe] of Object.entries(document.probes)) {
 		if (accountId === "" || !isProbe(probe)) continue;
@@ -2893,11 +2977,28 @@ async function readPoolProbes(region) {
 			atMs: probe.atMs,
 			...knownProbeSource(probe.source) === void 0 ? {} : { source: knownProbeSource(probe.source) },
 			...probe.retryAtMs === void 0 ? {} : { retryAtMs: probe.retryAtMs },
+			...knownRetrySource(probe.retrySource) === void 0 ? {} : { retrySource: knownRetrySource(probe.retrySource) },
 			...knownQueue(probe.queue) === void 0 ? {} : { queue: knownQueue(probe.queue) },
-			...probe.message === void 0 ? {} : { message: probe.message }
+			...probe.message === void 0 ? {} : { message: probe.message },
+			...probe.modelId === void 0 || probe.modelId === "" ? {} : { modelId: probe.modelId }
 		};
 	}
-	return probes;
+	const credits = {};
+	if (typeof document.credits === "object" && document.credits !== null) for (const [accountId, batches] of Object.entries(document.credits)) {
+		if (accountId === "" || !Array.isArray(batches)) continue;
+		const kept = batches.map(knownBatch).filter((b) => b !== void 0);
+		if (kept.length > 0) credits[accountId] = kept;
+	}
+	const windows = {};
+	if (typeof document.windows === "object" && document.windows !== null) for (const [accountId, atMs] of Object.entries(document.windows)) {
+		if (accountId === "" || typeof atMs !== "number" || !Number.isFinite(atMs) || atMs <= 0) continue;
+		windows[accountId] = atMs;
+	}
+	return {
+		probes,
+		credits,
+		windows
+	};
 }
 /**
 * 落盘的排队信息，只保留形状对的那些字段（issue #26）。
@@ -2919,6 +3020,17 @@ function knownQueue(value) {
 function knownProbeSource(value) {
 	return value === "test-batch" || value === "live-request" ? value : void 0;
 }
+/** 同上，`retryAtMs` 的来源（issue #32）；不认识的丢掉。 */
+function knownRetrySource(value) {
+	switch (value) {
+		case "retry-after":
+		case "upstream-message":
+		case "quota-refresh":
+		case "upstream-reported":
+		case "unknown-cooldown": return value;
+		default: return;
+	}
+}
 /**
 * Merge measurements into one region's store and write it atomically.
 *
@@ -2927,16 +3039,36 @@ function knownProbeSource(value) {
 * throws: a failed write loses only the newest measurements.
 */
 async function writePoolProbes(region, updates) {
-	if (Object.keys(updates).length === 0) return;
+	await writePoolDocument(region, { probes: updates });
+}
+/**
+* 合并写整个文档：三个键各自 merge，只写调用方给了的那一项。
+*
+* 为什么不复用 `writePoolProbes` 再读改写：那会把「读」放在锁外，两个不同的
+* 写入者（探针与签到）交错时后写的会吞掉先写的。这里在**同一次** `withFileLock`
+* 里读、合并、写。
+*/
+async function writePoolDocument(region, updates) {
+	const probes = updates.probes ?? {};
+	const credits = updates.credits ?? {};
+	const windows = updates.windows ?? {};
+	if (Object.keys(probes).length === 0 && Object.keys(credits).length === 0 && Object.keys(windows).length === 0) return;
 	const path = qoderPoolStorePath(region);
 	try {
 		await withFileLock(path, async () => {
-			const existing = await readPoolProbes(region);
+			const existing = await readPoolDocument(region);
+			const mergedCredits = { ...existing.credits };
+			for (const [accountId, batches] of Object.entries(credits)) mergedCredits[accountId] = [...batches];
 			const document = {
 				version: STORE_FORMAT_VERSION,
 				probes: {
-					...existing,
-					...updates
+					...existing.probes,
+					...probes
+				},
+				credits: mergedCredits,
+				windows: {
+					...existing.windows,
+					...windows
 				}
 			};
 			await writeFileAtomic(path, `${JSON.stringify(document, null, 2)}\n`, {
@@ -3105,4 +3237,4 @@ async function clearHostHeartbeat() {
 	await rm(qoderHostHeartbeatPath(), { force: true });
 }
 //#endregion
-export { QODER_POOL_PATH as A, poolAccountIdOf as B, isRouterModelId as C, QODER_CAMPAIGNS_PATH as D, QODER_ACCOUNT_CREDITS_PATH as E, QODER_SETTINGS_NS as F, deriveFingerprint as G, regionOfStatusUrl as H, QODER_TRANSFER_PATH as I, QODER_USAGE_PATH as L, QODER_REGIONS$1 as M, QODER_REGION_TRANSFER_DOMAIN as N, QODER_GITHUB_URL as O, QODER_SAVE_PATH as P, accountActionOf as R, imageDefaultFor as S, QODER_ACCOUNTS_REFRESH_PATH as T, transferActionOf as U, poolActionOf as V, unwrapVolatileDeep as W, piAiRuntimeInfo as _, writeHostHeartbeat as a, QoderUpstreamError as b, writePoolProbes as c, qoderAccountsPath as d, QODER_PAT_ENV_VARS as f, qoderAccountId as g, patFromEnv as h, readHostHeartbeat as i, QODER_PROBE_PATH as j, QODER_MODELS_REFRESH_PATH as k, QODER_CONNECT_VERSION as l, maskPat as m, isHeartbeatProcessAlive as n, qoderPoolStorePath as o, isQoderAccountId as p, qoderHostHeartbeatPath as r, readPoolProbes as s, clearHostHeartbeat as t, QoderAccountStore as u, QODER_REGIONS as v, QODER_ACCOUNTS_PATH as w, isQoderUpstreamError as x, QoderUpstreamClient as y, fastDetailOf as z };
+export { QODER_GITHUB_URL as A, QODER_TRANSFER_PATH as B, upstreamUnavailableOf as C, QODER_ACCOUNTS_REFRESH_PATH as D, QODER_ACCOUNTS_PATH as E, QODER_REGIONS$1 as F, poolAccountIdOf as G, accountActionOf as H, QODER_REGION_TRANSFER_DOMAIN as I, sidebarPanelEnabledOf as J, poolActionOf as K, QODER_SAVE_PATH as L, QODER_POLL_MINUTES_FIELD as M, QODER_POOL_PATH as N, QODER_ACCOUNT_CREDITS_PATH as O, QODER_PROBE_PATH as P, QODER_SETTINGS_NS as R, isQoderUpstreamError as S, isRouterModelId as T, fastDetailOf as U, QODER_USAGE_PATH as V, pollMinutesOf as W, unwrapVolatileDeep as X, transferActionOf as Y, deriveFingerprint as Z, qoderAccountId as _, writeHostHeartbeat as a, QoderUpstreamClient as b, writePoolDocument as c, QoderAccountStore as d, qoderAccountsPath as f, patFromEnv as g, maskPat as h, readHostHeartbeat as i, QODER_MODELS_REFRESH_PATH as j, QODER_CAMPAIGNS_PATH as k, writePoolProbes as l, isQoderAccountId as m, isHeartbeatProcessAlive as n, qoderPoolStorePath as o, QODER_PAT_ENV_VARS as p, regionOfStatusUrl as q, qoderHostHeartbeatPath as r, readPoolDocument as s, clearHostHeartbeat as t, QODER_CONNECT_VERSION as u, piAiRuntimeInfo as v, imageDefaultFor as w, QoderUpstreamError as x, QODER_REGIONS as y, QODER_SIDEBAR_PANEL_FIELD as z };

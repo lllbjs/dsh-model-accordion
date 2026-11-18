@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { $t as readDeviceTokenFile, C as FALLBACK_WORKBUDDY_MODELS_GLOBAL, H as legacyWorkbuddyOwnAuthPath, I as defaultDesktopAuthCandidates, J as APP_VERSION, K as workbuddyOwnAuthPath, L as defaultDesktopAuthDirs, M as WORKBUDDY_VAULT_DIRNAME, N as WorkBuddyCredentialStore, Qt as WORKBUDDY_DEVICE_TOKEN_FILE_ENV, S as FALLBACK_WORKBUDDY_MODELS, Z as DEFAULT_WIRE_PROFILE, a as readHostHeartbeat, an as protectCredentialDirectory, bn as hostPeersInfo, c as WORKBUDDY_CONNECT_VERSION, d as rosterSeenPath, en as ensureDeviceSalt, et as WorkBuddyUpstreamClient, f as piAiRuntimeInfo, fn as findWorkbuddyAppExecutableWithSource, in as inspectCredentialDirectory, it as describeRequestHeaderNames, j as WORKBUDDY_AUTH_FILE_ENV, m as createTuringSdk, nn as deriveDeviceId, o as workbuddyHostHeartbeatPath, on as WORKBUDDY_APP_EXECUTABLE_ENV, q as workbuddyVaultDir, r as isHeartbeatProcessAlive, tn as readDeviceSalt, u as describeRosterSeenPayload, v as readDeviceSettings, xn as resolveDshHome } from "./host-heartbeat-09tOJATV.js";
+import { F as WorkBuddyCredentialStore, J as workbuddyOwnAuthPath, N as WORKBUDDY_AUTH_FILE_ENV, Nn as hostPeersInfo, P as WORKBUDDY_VAULT_DIRNAME, Pn as resolveDshHome, R as defaultDesktopAuthCandidates, T as FALLBACK_WORKBUDDY_MODELS_GLOBAL, Tn as findWorkbuddyAppExecutableWithSource, W as legacyWorkbuddyOwnAuthPath, X as APP_VERSION, Y as workbuddyVaultDir, _n as inspectCredentialDirectory, a as readHostHeartbeat, b as readDeviceSettings, c as WORKBUDDY_CONNECT_VERSION, d as rosterSeenPath, dn as WORKBUDDY_DEVICE_TOKEN_FILE_ENV, et as DEFAULT_WIRE_PROFILE, f as WORKBUDDY_CN_BASE_ENV, fn as readDeviceTokenFile, g as createTuringSdk, hn as deriveDeviceId, lt as describeRequestHeaderNames, m as piAiRuntimeInfo, mn as readDeviceSalt, o as workbuddyHostHeartbeatPath, p as resolveCnGateway, pn as ensureDeviceSalt, r as isHeartbeatProcessAlive, rt as WorkBuddyUpstreamClient, u as describeRosterSeenPayload, vn as protectCredentialDirectory, w as FALLBACK_WORKBUDDY_MODELS, yn as WORKBUDDY_APP_EXECUTABLE_ENV, z as defaultDesktopAuthDirs } from "./host-heartbeat-BqK7yBp2.js";
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { realpathSync } from "node:fs";
@@ -246,9 +246,31 @@ function printHelp() {
 function printJson(value) {
 	process.stdout.write(`${JSON.stringify(value)}\n`);
 }
+/**
+* The CN gateway override as the CLI can see it (issue #220).
+*
+* `doctor` runs in its own process and never loads the plugin's settings, so the
+* card's field is invisible here. Without this, a user who fixed their network
+* would run `doctor` and get a report measured against the gateway their network
+* resets — a diagnostics tool lying about which host it probed.
+*
+* An invalid value is REPORTED and then ignored rather than silently dropped:
+* `doctor` is where a user goes to find out why nothing works, so "your
+* override was rejected because X" is exactly the answer they need.
+*/
+function cliCnBase() {
+	const raw = (process.env["WORKBUDDY_CN_BASE"] ?? "").trim();
+	if (raw === "") return "";
+	const resolved = resolveCnGateway(raw);
+	if (!resolved.ok) {
+		process.stderr.write(`warning: ignoring ${WORKBUDDY_CN_BASE_ENV}="${raw}" — ${resolved.reason === "malformed" ? "not an absolute URL" : resolved.reason === "insecure" ? "only https is accepted" : "host is not one of the CN brands"}\n`);
+		return "";
+	}
+	return resolved.overridden ? resolved.base : "";
+}
 /** One region-scoped credential store (its own plugin-owned copy file). */
 function makeStore(region) {
-	const client = new WorkBuddyUpstreamClient();
+	const client = new WorkBuddyUpstreamClient(void 0, {}, { cnBase: cliCnBase });
 	return new WorkBuddyCredentialStore({
 		region,
 		refresh: (credential) => client.refreshToken(credential)
@@ -256,7 +278,7 @@ function makeStore(region) {
 }
 /** The region-unscoped store (reads every plugin-owned copy). */
 function makeAnyStore() {
-	const client = new WorkBuddyUpstreamClient();
+	const client = new WorkBuddyUpstreamClient(void 0, {}, { cnBase: cliCnBase });
 	return new WorkBuddyCredentialStore({ refresh: (credential) => client.refreshToken(credential) });
 }
 /**
@@ -343,12 +365,15 @@ async function doctor(jsonOutput) {
 		const rootOutcome = await protectCredentialDirectory(dirname(directory));
 		const outcome = await protectCredentialDirectory(directory);
 		const acl = await inspectCredentialDirectory(directory);
+		const skipped = [rootOutcome, outcome].find((candidate) => candidate.state === "skipped");
+		const failed = [outcome, rootOutcome].find((candidate) => candidate.state === "failed");
 		return [region, {
 			directory: acl.directory,
 			state: acl.state,
 			...acl.weak === void 0 ? {} : { unexpected: acl.weak },
 			...acl.reason === void 0 ? {} : { reason: acl.reason },
-			...outcome.state === "failed" ? { protectError: outcome.reason } : rootOutcome.state === "failed" ? { protectError: rootOutcome.reason } : {}
+			...failed !== void 0 && failed.state === "failed" ? { protectError: failed.reason } : {},
+			...skipped !== void 0 && skipped.state === "skipped" ? { protectSkipped: skipped.reason } : {}
 		}];
 	}));
 	/** Indexed by region so the human output cannot silently skip a missing one. */
@@ -531,8 +556,13 @@ async function doctor(jsonOutput) {
 			}),
 			...credentialAcl.flatMap(([region, entry]) => {
 				if (entry.state !== "exposed") return [];
-				return [`The ${region} credential vault holds PLAINTEXT tokens but its folder permissions do not restrict them${entry.unexpected === void 0 ? "" : ` (readable by ${entry.unexpected.join(", ")})`}: ${entry.directory}. Re-run doctor to retry the repair, or fix it by hand with: icacls "${entry.directory}" /inheritance:r /grant:r "*S-1-3-4:(OI)(CI)(F)" /grant:r "*S-1-5-18:(OI)(CI)(F)" /grant:r "*S-1-5-32-544:(OI)(CI)(F)"`];
-			})
+				return [`The ${region} credential vault holds PLAINTEXT tokens but its folder permissions do not restrict them${entry.unexpected === void 0 ? "" : ` (readable by ${entry.unexpected.join(", ")})`}: ${entry.directory}. Re-run doctor to retry the repair, or fix it by hand with: icacls "${entry.directory}" /inheritance:r /grant:r "%USERNAME%:(OI)(CI)(F)" /grant:r "*S-1-5-18:(OI)(CI)(F)" /grant:r "*S-1-5-32-544:(OI)(CI)(F)"`];
+			}),
+			...credentialAcl.flatMap(([region, entry]) => {
+				if (entry.state !== "failed" && entry.state !== "unverified") return [];
+				return [`The ${region} credential vault ACL could NOT be verified or repaired this run${entry.reason === void 0 ? "" : ` Reason: ${entry.reason}`}: ${entry.directory}. If the directory is suddenly unreadable (EPERM on stat/readdir), its owner is probably not your user account — recover with (elevated): takeown /F "${entry.directory}" /R /D Y && icacls "${entry.directory}" /reset /T, then re-run doctor.`];
+			}),
+			...credentialAcl.flatMap(([, entry]) => entry.protectSkipped === void 0 ? [] : [entry.protectSkipped])
 		]
 	};
 	if (jsonOutput) printJson(report);
@@ -567,7 +597,7 @@ async function doctor(jsonOutput) {
 /** One region's sign-in and credit summary. */
 async function regionStatus(region) {
 	const store = makeStore(region);
-	const client = new WorkBuddyUpstreamClient();
+	const client = new WorkBuddyUpstreamClient(void 0, {}, { cnBase: cliCnBase });
 	const authStatus = await store.status();
 	const accounts = await store.accounts();
 	const selected = accounts.find((account) => account.selected);

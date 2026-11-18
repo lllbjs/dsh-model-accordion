@@ -462,13 +462,21 @@ interface TraeWireModel {
  *    account's custom models (`usage: 'custom_model'`); none of those belong
  *    in a model picker. Measured: this one test removed 23 of 50 wire-only
  *    rows, and every row it removed was a tool or a custom model.
- *  - `config_source === 1` — a Trae preset, not the account's own custom
- *    model (source 3, which carries the user's own base_url and key). The
- *    plugin must not offer to bill a model it does not host.
+ *  - `config_source === 1`, or `2` once the caller opts in — `1` is a Trae
+ *    preset; `2` is a model the tenant's own enterprise console configured
+ *    (see `allowTenantConfigured` on {@link mergeTraeModelSources}, which is
+ *    what decides whether a `2` may pass). `3` is the account's own custom
+ *    model, carrying the user's own base_url and key: the plugin must not
+ *    offer to bill a model it does not host, so `3` never passes.
  *  - a REAL display name — not empty, not the upstream placeholder `-`, not a
  *    bare config identifier (`search_agent_qwen_fast`,
  *    `computer_use_subagent`), and not the config's OWN id. A model with no
  *    name has nothing to show in the picker.
+ *
+ *    A tenant-configured row (`2`) is EXEMPT from the "own id" clause: those
+ *    rows commonly publish the config_name as the display name, so the clause
+ *    would reject precisely the rows the opt-in exists to surface. The other
+ *    name tests still apply to them.
  *
  * The display-name-collision test lives in the merge itself (it needs the
  * Remote rows to compare against); see {@link mergeTraeModelSources}. It is a
@@ -535,8 +543,19 @@ declare function isPromotableWireModel(model: TraeWireModel): boolean;
  * PROMOTED (issue #46) — subject to {@link isPromotableWireModel}. The
  * skeleton systematically omits the dated snapshot configs, so without
  * promotion every snapshot the IDE offers is unreachable from the plugin.
+ *
+ * @param options.allowTenantConfigured - may a `config_source: 2` row (a model
+ * the tenant's enterprise console configured) be promoted? Opt-in, and only
+ * the enterprise panel opts in: those rows bill the tenant pool, so surfacing
+ * them on a consumer panel would offer a model outside the caller's billing
+ * face. The rows also are not callable through `llm_utils_chat` today — they
+ * are client-direct with their own base_url (`use_remote_service: false`) and
+ * the gateway answers `4001` — which the discovery layer does not hide, but
+ * which is why this is a narrow opt-in rather than a default.
  */
-declare function mergeTraeModelSources(remote: readonly TraeDiscoveredModel[], wire: readonly TraeWireModel[]): TraeModelInfo[];
+declare function mergeTraeModelSources(remote: readonly TraeDiscoveredModel[], wire: readonly TraeWireModel[], options?: {
+  allowTenantConfigured?: boolean;
+}): TraeModelInfo[];
 /**
  * Demote a NON-chat `wireFunction` to "no function", keeping the row.
  *
@@ -775,6 +794,12 @@ interface TraeWebPoolAccount {
  * card must render "no free model" rather than silently substituting a paid one.
  */
 interface TraeWebPool {
+  autoCheckinState?: {
+    done: number;
+    deviceBlocked: boolean;
+    failures: number;
+  };
+  autoCheckin?: boolean;
   enabled: boolean;
   /**
    * Whether this panel offers the daily check-in at all.
@@ -865,6 +890,8 @@ interface TraeWebPool {
  * slot must still load, and a missing `enabled` means OFF rather than ON.
  */
 interface TraePoolPreferences {
+  /** 保存后启用国内个人账号池的每日自动签到。 */
+  autoCheckin?: boolean;
   /** Whether this panel bills through the pool at all. Default OFF. */
   enabled?: boolean;
   /**
@@ -1323,6 +1350,18 @@ declare function regionCreditPositionOf(value: unknown, panel: TraePanel): TraeC
  * 'regions', ...)` needs.
  */
 declare function nextRegionCreditPosition(value: unknown, panel: TraePanel, position: TraeCreditPosition): Record<string, unknown>;
+/**
+ * The automatic-refresh cadences this plugin offers, in MINUTES.
+ *
+ * The list is the setting's whole value domain: the schema validates against
+ * exactly these, so a hand-edited `7` is refused at write time instead of
+ * silently producing a cadence nobody chose. `1` is the floor because every
+ * usage read costs two upstream requests and a tighter loop would turn a
+ * background refresh into traffic the user never asked for.
+ */
+declare const TRAE_REFRESH_INTERVAL_MINUTES: readonly [1, 5, 10, 30, 60];
+/** One accepted cadence. */
+type TraeRefreshIntervalMinutes = typeof TRAE_REFRESH_INTERVAL_MINUTES[number];
 /** Subscription status of an international (ai) account, rendered instead of the CN credit packs. */
 interface TraeWebPayStatus {
   isDollarUsageBilling: boolean;
@@ -1373,6 +1412,16 @@ type TraeWebUsage = {
   /** A recognized-but-unserved region on this machine (issue #66). */
   unsupportedRegion?: TraeWebUnsupportedRegion;
   enabled?: boolean;
+  /**
+   * Whether the OPTIONAL sidebar row is switched on (`Config.sidebarPanel`).
+   *
+   * GLOBAL and present on BOTH shapes: the row belongs to the plugin, not to
+   * a region or an account, and a signed-out card is still somewhere the user
+   * may want the page it opens. Absent reads as OFF — the entry seeds its
+   * registration from this answer, and the row claims a seat every bundle
+   * shares, so a Host that cannot answer must never turn it on.
+   */
+  sidebarPanelEnabled?: boolean;
 } | {
   status: 'signed-in';
   accountId: string;
@@ -1389,6 +1438,8 @@ type TraeWebUsage = {
   region: TraeRegion;
   /** Whether this region's provider is currently offered to DSH. */
   enabled?: boolean;
+  /** See the signed-out shape: GLOBAL, absent reads as OFF. */
+  sidebarPanelEnabled?: boolean;
   accounts: readonly TraeWebAccount[];
   models: readonly TraeWebModel[];
   enabledModelIds: readonly string[];
@@ -1571,6 +1622,29 @@ type TraeChatResult = {
   kind: TraeUpstreamErrorKind;
   message: string;
 };
+/**
+ * A failure Trae reported INSIDE an already-200 SSE body, once the answer has
+ * started crossing the loopback boundary.
+ *
+ * Issue #85 is why this is a class rather than a plain `Error`. A refusal that
+ * arrives before any output can still become a real HTTP status, but one that
+ * arrives after the headers and the first bytes are gone cannot: the only
+ * remaining channel is the stream itself. The shim therefore has to tell
+ * "the upstream throttled this request" apart from "the socket died", and it
+ * gets that from `kind`/`status` here — the message text alone would have made
+ * it guess.
+ *
+ * `traeCode` is Trae's own numeric code (`3004` for the shared-queue rate
+ * limit), kept separate from `kind` so a log line can name the upstream code
+ * without the plugin's reading of it.
+ */
+declare class TraeStreamFailure extends Error {
+  readonly kind: TraeUpstreamErrorKind;
+  readonly status: number;
+  readonly traeCode?: number | undefined;
+  name: string;
+  constructor(message: string, kind: TraeUpstreamErrorKind, status: number, traeCode?: number | undefined);
+}
 interface TraeUpstreamClient {
   chatStream(bodyJson: string, signal?: AbortSignal): Promise<TraeChatResult>;
 }
@@ -1793,6 +1867,14 @@ declare function withContextAdaptation(api: ProviderStreams, generation: PiAiGen
 interface TraeAdapterOptions {
   shim: TraeShim;
   catalog: TraeCatalog;
+  /**
+   * The user's saved per-model level choices, region-scoped (model id -> level).
+   *
+   * Read lazily on every resolution so a settings save is picked up without
+   * rebuilding the adapter. Absent means "no overrides", which still leaves the
+   * upstream's own default in force — the feature is useful with zero choices.
+   */
+  defaultEfforts?: () => Readonly<Record<string, string | undefined>>;
   /** Provider route id this instance serves; defaults to the CN route. */
   provider?: string;
   /** pi-ai provider name and profile display name; defaults to the CN name. */
@@ -3380,6 +3462,69 @@ declare class TraeGatedUpstreamClient implements TraeUpstreamClient {
   chatStream(bodyJson: string, signal?: AbortSignal): Promise<TraeChatResult>;
 }
 //#endregion
+//#region src/model-badge.d.ts
+/**
+ * Emphasis of a selector badge, spelled out locally.
+ *
+ * Deliberately NOT imported from `@deepseek-ai/dsh-llm`: `LlmModelBadge` does
+ * not exist on 0.1.x, so importing it would make this file uncompilable on the
+ * host range the plugin still declares. The four literals below are the host's
+ * complete vocabulary, and {@link TRAE_BADGE_TONES} is what the test checks
+ * them against.
+ */
+type TraeBadgeTone = 'neutral' | 'info' | 'success' | 'warning';
+/** Every tone the host understands; the test asserts this list is complete. */
+declare const TRAE_BADGE_TONES: readonly TraeBadgeTone[];
+/**
+ * One selector badge.
+ *
+ * `text` is a translation table rather than a literal so the capsule reads in
+ * the reader's language. `en` is REQUIRED (the host falls back to it for any
+ * language it cannot find) and both keys are lowercase language ids, matching
+ * the host's `localeKey()` lookup.
+ */
+interface TraeModelBadge {
+  text: {
+    readonly en: string;
+    readonly zh: string;
+  };
+  tone: TraeBadgeTone;
+}
+/**
+ * The badge one catalog row should carry, or `undefined` for none.
+ *
+ * WHY THE PROMOTION, AND NOT THE PRICE. A badge is the ONE thing a sibling can
+ * draw on this plugin's behalf, so it has to be the thing a user would act on.
+ * "This model is 50% off right now" changes the choice; a price that has been
+ * identical for months does not.
+ *
+ * WHY THE CLOCK IS READ HERE. `activityDiscount` rides along UNRESOLVED on the
+ * model entry precisely so the judgement happens where the row is drawn
+ * (`src/promo.ts` explains why freezing it at parse time would leave a night-time
+ * discount hanging there the next morning). `listModels()` IS that moment on the
+ * host side — it runs when the host builds the catalog — and the plugin asks the
+ * host to re-read the catalog via `llm/models-updated` whenever the card's own
+ * clock crosses a window boundary. So this is not "catalog data that ignores the
+ * clock"; it is a clock judgement made at each catalog rebuild.
+ *
+ * A NOTE ON WHAT WAS TRIED FIRST AND REJECTED. An earlier version advertised
+ * `creditMultiplier === 0` as "免费"/"Free". It never fired: every path that
+ * parses upstream's `consumption_rate` runs it through `finitePositive`
+ * (`src/solo.ts`, `src/model-metadata.ts`), which requires `> 0`, so a rate of
+ * `0` arrives as `undefined`. A multiplier of exactly `0` can only come from a
+ * saved `lastCatalog`, never from the live directory. Do not reintroduce a
+ * price-derived badge from that field.
+ *
+ * @param model - the catalog row about to be advertised.
+ * @param now - the clock the promotion is judged against. Passed in rather than
+ *        read from `Date.now()` so the caller owns the "one clock for the whole
+ *        catalog" decision and the tests can move time.
+ * @returns the badge, or `undefined` — never `null`. A `null` makes the host
+ *          registry throw inside `listModels`, which drops this provider's
+ *          ENTIRE catalog into `failures`, not just the decorated row.
+ */
+declare function traeModelBadge(model: Pick<TraeModelInfo, 'activityDiscount'>, now: Date): TraeModelBadge | undefined;
+//#endregion
 //#region src/refresh.d.ts
 /**
  * Stable device identity for the DeviceInfo body, sourced from the app's own
@@ -4342,6 +4487,15 @@ interface TraePoolTestRow {
   retryAtMs?: number;
 }
 //#endregion
+//#region src/auto-checkin.d.ts
+interface AutoCheckinState {
+  day: string;
+  done: string[];
+  deviceBlocked: boolean;
+  failures: number;
+  retryAt: number;
+}
+//#endregion
 //#region src/web-status.d.ts
 /**
  * Constructor dependencies. Everything panel-specific is addressed by the
@@ -4350,6 +4504,7 @@ interface TraePoolTestRow {
  * user is on.
  */
 interface TraeUsageRouteOptions {
+  autoCheckinProgress?(): Promise<AutoCheckinState | undefined>;
   /** The panel-scoped credential store backing each region's requests. */
   store(panel: TraePanel): TraeCredentialStore;
   /** The panel-scoped usage client (CN work credits / international pay status). */
@@ -4408,6 +4563,22 @@ interface TraeUsageRouteOptions {
    * committed settings value rather than a local guess.
    */
   regionEnabled(panel: TraePanel): boolean;
+  /**
+   * Whether the OPTIONAL sidebar row is switched on, GLOBAL rather than
+   * per-panel.
+   *
+   * Optional, and `=== true` at the reading site: the row is a property of the
+   * whole plugin, not of one region, and an absent answer (an older Host, a
+   * stack that failed to build) must read as OFF — the row claims a seat every
+   * bundle shares, so a missing answer is never consent.
+   *
+   * It rides on the usage document because that is the read the browser entry
+   * already makes at apply() time: the namespace's settings mirror is
+   * documented as stale on the affected 0.1.7 deployments, so seeding the
+   * switch from the Host's own answer is what keeps a stale `false` from
+   * hiding a row the Host believes it is serving.
+   */
+  sidebarPanelEnabled?(): boolean;
   /** Re-read one region's live directory from the upstream. */
   discoverModels?(panel: TraePanel, signal?: AbortSignal): Promise<readonly TraeModelInfo[]>;
   /**
@@ -4609,6 +4780,21 @@ interface TraeRegionState {
   /** Local DSH context budget per model in this region. */
   contextBudgets?: Record<string, number>;
   /**
+   * The user's own thinking-level choice per model, for this panel (model id ->
+   * DSH level).
+   *
+   * OPT-IN by nature: a missing key means "use whatever this model's own
+   * default is" (`reasoning.defaultEffort`, which Trae's directory publishes),
+   * i.e. the behaviour the plugin had before this field existed. Choosing a
+   * level here overrides that for good, and it is what the kernel materialises
+   * into every request that names no level — see `src/default-effort.ts`.
+   *
+   * A key can go STALE: a directory refresh may withdraw a tier, and a level the
+   * model no longer offers is then ignored rather than sent (sending it would be
+   * rejected with `UNSUPPORTED_REASONING_EFFORT`).
+   */
+  thinkingEfforts?: Record<string, string>;
+  /**
    * WHERE this region's credit readout sits (learned from dsh-connect-workbuddy
    * issue #62).
    *
@@ -4674,6 +4860,39 @@ interface Config {
    */
   showPointsInMainUi?: boolean;
   /**
+   * Show this plugin's own row in the DSH sidebar (`sidebar.panellist`), which
+   * opens the usage card as a full `main` page.
+   *
+   * OFF by default, for exactly the reason the sibling
+   * `dsh-connect-workbuddy` row is off by default (its PR #188 /
+   * `Config.sidebarPanel`): the sidebar's global rows are the host's own pages,
+   * the row claims a seat every installed bundle shares, and the Plugins page
+   * already reaches this same card. A row nobody asked for re-arranges a
+   * surface the plugin does not own.
+   *
+   * The card's checkbox is the only writer (see `panel-switch.ts` on the
+   * browser side, and `sidebarPanelEnabled` on the status document, which is
+   * where the entry seeds the switch at page load).
+   */
+  sidebarPanel?: boolean;
+  /**
+   * How often the plugin refreshes its own readouts, in MINUTES.
+   *
+   * ONE plugin-wide number rather than one per region, because the thing it
+   * paces is the plugin's background chatter, not a region's data: both
+   * surfaces that poll (the card's usage document and the composer readout)
+   * read the same routes at the same cost, and a per-region copy would let the
+   * same screen refresh at two cadences.
+   *
+   * `undefined` means the default (5 minutes), which is what both surfaces
+   * already used before this was settable — so an upgrade moves nothing.
+   * The accepted values are exactly {@link TRAE_REFRESH_INTERVAL_MINUTES}
+   * (1 / 5 / 10 / 30 / 60); the schema below refuses anything else, and the
+   * readers fall back to the default for a document that never went through
+   * it (a hand-edited file, or a profile written before this field existed).
+   */
+  refreshIntervalMinutes?: TraeRefreshIntervalMinutes;
+  /**
    * Per-region model state, keyed `cn` | `ai`. The CN and international apps
    * expose different rosters, so each keeps its own directory and selection
    * and switching accounts never drops the other region's picks.
@@ -4738,6 +4957,33 @@ declare function regionEnabled(config: Config, panel: TraePanel): boolean;
  */
 declare function creditPosition(config: Config, region: TraeRegion): TraeCreditPosition;
 /**
+ * The user's thinking-level choices for one panel (model id -> DSH level).
+ *
+ * Read through `regionStateOf` so the region split, the legacy CN fallback and
+ * the volatile unwrap all apply exactly once, in one place. Values are filtered
+ * to non-empty strings: an empty string is not a level, and passing one on would
+ * make the model report a default the kernel cannot name.
+ *
+ * A saved level is NOT validated against the model's current tier list here —
+ * that belongs where the tiers are known (`default-effort.ts`
+ * `defaultEffortFor`), which is also where a withdrawn tier is dropped instead
+ * of being sent.
+ */
+declare function thinkingEffortsOf(config: Config, region: TraePanel): Record<string, string>;
+/**
+ * Whether the OPTIONAL sidebar row is switched on (`Config.sidebarPanel`).
+ *
+ * `=== true` on purpose, exactly like the sibling workbuddy reader: the row
+ * claims a GLOBAL sidebar seat every installed bundle shares, so an absent,
+ * unreadable or hand-edited value must read as "the user did not ask for this",
+ * never as consent. Only an explicit boolean `true` turns the row on.
+ *
+ * Read through `unwrapVolatile` because the field is volatile on 0.1.7: the
+ * live `{get(): T}` reference would otherwise be a truthy non-boolean and every
+ * config would look switched on.
+ */
+declare function sidebarPanelEnabled(config: Config): boolean;
+/**
  * Mark a schema's field as volatile.
  *
  * `volatile()` exists from schemastery 3.18.3; since 2.3.0 the peer range
@@ -4755,4 +5001,4 @@ declare function asVolatile<S>(schema: S): S;
 declare const Config: z<Config>;
 declare function apply(ctx: Context$1, config: Config): void;
 //#endregion
-export { Config, FALLBACK_CONTEXT_WINDOW, FALLBACK_TRAE_MODELS, FALLBACK_TRAE_MODELS_AI, MAX_PROBE_INPUT_TOKENS, type PiAiGeneration, type PiAiRuntimeInfo, REGION_GATEWAYS, type RawChatDelta, type RawChatMessage, type RawChatTool, SseDecoder, type SseEvent, TRAE_ACCOUNT_STATUS_PATH, TRAE_AI_PROVIDER, TRAE_CHANNEL_PRIORITY, TRAE_CHECKIN_PATH, TRAE_CN_AGENT_TASK_PATH, TRAE_CN_TITLE_PATH, TRAE_COMMON_FUNCTIONS, TRAE_ENTERPRISE_PROVIDER, TRAE_MODELS_TEST_PATH, TRAE_MODEL_DETAIL_FUNCTIONS, TRAE_MODEL_DETAIL_PATH, TRAE_OFFICIAL_ROSTER_PATH, TRAE_PANELS, TRAE_PAY_BASE, TRAE_PROBE_TIMEOUT_MS, TRAE_PROVIDER, TRAE_PROVIDERS, TRAE_PROVIDER_DISPLAY_NAMES, TRAE_PROVIDER_IDS, TRAE_PROVIDER_ID_DISPLAY_NAMES, TRAE_PROVIDER_ROUTES, TRAE_RAW_CHAT_V1_PATH, TRAE_RAW_CHAT_V2_PATH, TRAE_REASONING_EFFORTS, TRAE_REGIONS, TRAE_REGION_PARAM, TRAE_SETTINGS_NS, TRAE_SOLO_CHAT_PATH, TRAE_SOLO_FUNCTION, TRAE_SOLO_MODELS_PATH, TRAE_SOLO_REMOTE_BASE, TRAE_STATE_DB_FILENAME, TRAE_STREAM_IDLE_TIMEOUT_MS, TRAE_USAGE_PATH, TRAE_VERSION_CODE_FALLBACK, type TraeActivityRule, type TraeAdapter, type TraeCachedModelConfig, TraeCatalog, type TraeChatResult, type TraeCheckinClaim, type TraeCheckinStatus, type TraeContextBudget, type TraeCredential, TraeCredentialStore, TraeDelegatingUpstreamClient, type TraeDiscoveredModel, type TraeDiscoveredReasoning, type TraeEdition, type TraeFailure, TraeFallbackUpstreamClient, type TraeFallbackUpstreamOptions, type TraeFusionRawChatEnvelope, TraeGatedUpstreamClient, type TraeGatedUpstreamOptions, type TraeIdentity, type TraeInputModality, type TraeModelDetailRequest, type TraeModelGroup, type TraeModelInfo, type TraeModelProbeVerdict, type TraeModelView, type TraeModelsTestResponse, type TraeObservedModelConfig, type TraeOfficialChannel, type TraeOfficialFilterResult, type TraeOfficialRoster, TraeOfficialRosterClient, type TraeOfficialVerdict, type TraeOrderableModel, type TraePanel, type TraeProbeResult, type TraeProbeVerdict, type TraeProviderRoute, TraeRawCapabilityController, type TraeRawCapabilityControllerOptions, type TraeRawCapabilitySnapshot, TraeRawCapabilityState, type TraeRawChatBehaviorConfig, type TraeRawChatCapability, type TraeRawChatClientOptions, type TraeRawChatConfig, type TraeRawChatFailureReason, type TraeRawChatRuntimeConfig, TraeRawChatUpstreamClient, type TraeRawDiagnostic, type TraeRawDiagnosticState, type TraeRawGateway, type TraeRawGatewayOptions, type TraeRawResolverResult, type TraeReasoningCapability, type TraeReasoningEffort, type TraeRefreshDevice, type TraeRegion, type TraeRegionGateways, TraeRegionState, type TraeShim, TraeSoloBridge, type TraeSoloClientOptions, TraeSoloRemoteCatalogClient, type TraeSoloRemoteCatalogOptions, TraeSoloUpstreamClient, type TraeStorageCandidate, type TraeStreamEvent, type TraeUpstreamClient, TraeUsageClient, type TraeUsageOptions, type TraeUsagePack, type TraeUsageRouteOptions, type TraeUsageSnapshot, type TraeUsageSummary, type TraeUsageView, type TraeWebAccountState, type TraeWebActivity, type TraeWebCheckin, type TraeWebCheckinClaim, type TraeWebCredits, type TraeWebUsage, type TraeWireModel, type TraeWireTarget, UnconfiguredTraeUpstreamClient, adaptLegacyPiAiContext, adaptModernPiAiContext, apply, applyContextBudgets, applyImageSelection, applyOfficialRoster, applyReasoningEffort, asVolatile, bridgeTraeSoloStream, buildTraeAgentTaskBody, buildTraeCnHeaders, buildTraeFusionRawChatEnvelope, buildTraeModelDetailRequest, buildTraeRawChatDraft, buildTraeRawChatRuntimeConfig, classifyProbeError, classifyProbeResult, classifyTraeRawChatFailure, configuredAccountsOf, createTraeAdapter, createTraeRawGateway, createTraeShim, creditPosition, decidePiAiGeneration, decodeRawChatChunk, decodeTraeEvent, decryptTraeStorageValue, deriveCatalog, describeIdShape, describeNameShape, describeTraeFailure, discoveredCatalog, displayNameOfTraeProvider, fallbackModelsFor, filterTraeModels, generationOf, groupTraeModels, hashTraeRawChatArg, identityHeaders, inject, isEnterpriseAccount, isPromotableWireModel, legacyTraeOwnAuthPath, maskUserPath, mergeTraeModelSources, name, nextRegionCreditPosition, nextRegionEnabled, nextRegionSlots, normalizeTraeCredential, normalizeTraeToolSchema, normalizeTraeToolSchemas, normalizeTraeVersionCode, officialVerdictOf, orderTraeModels, panelOfKey, panelOfProvider, parseObservedModelConfig, parseReasoningCapability, parseTraeAuthValue, parseTraeCachedModel, parseTraeModelExtraConfigLogLine, parseTraeOfficialRoster, parseTraeRawChatBehaviorConfig, parseTraeRemoteModel, parseTraeStorageDocument, piAiRuntimeInfo, pickTraeStorageIdentity, prepareSoloBody, probeBody, probeModelsSequentially, probeOneModel, probeTraeRawChatCapability, providerOfPanel, rawCapabilityDiagnostic, rawCapabilityFingerprint, readTraeCachedModel, readTraeCliIdentity, readTraeIdentity, refreshTraeCredential, regionCreditPositionOf, regionEnabled, regionEnabledOf, regionOfCredential, regionOfEdition, regionOfHost, regionOfPanel, regionOfTraeProvider, regionOfTraeStatusUrl, regionOfUserRegion, regionStateOf, registerTraeUsageRoute, resolveTraeIdentity, resolveTraeRawRuntime, routeOfTraeProvider, sanitizeCatalog, scopeTraeModels, servedContextWindow, settingsNamespaceOf, traeEndpoint, traeInputModalities, traeModelCallChannel, traeModelDisplayName, traeModelInView, traeModelMatchesQuery, traeOwnAuthPath, traeRawChatExtraInfo, traeStateDatabaseCandidates, traeStorageCandidates, traeWebUsage, traeWindowsAppNames, unwrapVolatile, unwrapVolatileDeep, wireTargetsOf, withChatCallableFunctions, withContextAdaptation, withTraeRegion };
+export { Config, FALLBACK_CONTEXT_WINDOW, FALLBACK_TRAE_MODELS, FALLBACK_TRAE_MODELS_AI, MAX_PROBE_INPUT_TOKENS, type PiAiGeneration, type PiAiRuntimeInfo, REGION_GATEWAYS, type RawChatDelta, type RawChatMessage, type RawChatTool, SseDecoder, type SseEvent, TRAE_ACCOUNT_STATUS_PATH, TRAE_AI_PROVIDER, TRAE_BADGE_TONES, TRAE_CHANNEL_PRIORITY, TRAE_CHECKIN_PATH, TRAE_CN_AGENT_TASK_PATH, TRAE_CN_TITLE_PATH, TRAE_COMMON_FUNCTIONS, TRAE_ENTERPRISE_PROVIDER, TRAE_MODELS_TEST_PATH, TRAE_MODEL_DETAIL_FUNCTIONS, TRAE_MODEL_DETAIL_PATH, TRAE_OFFICIAL_ROSTER_PATH, TRAE_PANELS, TRAE_PAY_BASE, TRAE_PROBE_TIMEOUT_MS, TRAE_PROVIDER, TRAE_PROVIDERS, TRAE_PROVIDER_DISPLAY_NAMES, TRAE_PROVIDER_IDS, TRAE_PROVIDER_ID_DISPLAY_NAMES, TRAE_PROVIDER_ROUTES, TRAE_RAW_CHAT_V1_PATH, TRAE_RAW_CHAT_V2_PATH, TRAE_REASONING_EFFORTS, TRAE_REGIONS, TRAE_REGION_PARAM, TRAE_SETTINGS_NS, TRAE_SOLO_CHAT_PATH, TRAE_SOLO_FUNCTION, TRAE_SOLO_MODELS_PATH, TRAE_SOLO_REMOTE_BASE, TRAE_STATE_DB_FILENAME, TRAE_STREAM_IDLE_TIMEOUT_MS, TRAE_USAGE_PATH, TRAE_VERSION_CODE_FALLBACK, type TraeActivityRule, type TraeAdapter, type TraeBadgeTone, type TraeCachedModelConfig, TraeCatalog, type TraeChatResult, type TraeCheckinClaim, type TraeCheckinStatus, type TraeContextBudget, type TraeCredential, TraeCredentialStore, TraeDelegatingUpstreamClient, type TraeDiscoveredModel, type TraeDiscoveredReasoning, type TraeEdition, type TraeFailure, TraeFallbackUpstreamClient, type TraeFallbackUpstreamOptions, type TraeFusionRawChatEnvelope, TraeGatedUpstreamClient, type TraeGatedUpstreamOptions, type TraeIdentity, type TraeInputModality, type TraeModelBadge, type TraeModelDetailRequest, type TraeModelGroup, type TraeModelInfo, type TraeModelProbeVerdict, type TraeModelView, type TraeModelsTestResponse, type TraeObservedModelConfig, type TraeOfficialChannel, type TraeOfficialFilterResult, type TraeOfficialRoster, TraeOfficialRosterClient, type TraeOfficialVerdict, type TraeOrderableModel, type TraePanel, type TraeProbeResult, type TraeProbeVerdict, type TraeProviderRoute, TraeRawCapabilityController, type TraeRawCapabilityControllerOptions, type TraeRawCapabilitySnapshot, TraeRawCapabilityState, type TraeRawChatBehaviorConfig, type TraeRawChatCapability, type TraeRawChatClientOptions, type TraeRawChatConfig, type TraeRawChatFailureReason, type TraeRawChatRuntimeConfig, TraeRawChatUpstreamClient, type TraeRawDiagnostic, type TraeRawDiagnosticState, type TraeRawGateway, type TraeRawGatewayOptions, type TraeRawResolverResult, type TraeReasoningCapability, type TraeReasoningEffort, type TraeRefreshDevice, type TraeRegion, type TraeRegionGateways, TraeRegionState, type TraeShim, TraeSoloBridge, type TraeSoloClientOptions, TraeSoloRemoteCatalogClient, type TraeSoloRemoteCatalogOptions, TraeSoloUpstreamClient, type TraeStorageCandidate, type TraeStreamEvent, TraeStreamFailure, type TraeUpstreamClient, type TraeUpstreamErrorKind, TraeUsageClient, type TraeUsageOptions, type TraeUsagePack, type TraeUsageRouteOptions, type TraeUsageSnapshot, type TraeUsageSummary, type TraeUsageView, type TraeWebAccountState, type TraeWebActivity, type TraeWebCheckin, type TraeWebCheckinClaim, type TraeWebCredits, type TraeWebUsage, type TraeWireModel, type TraeWireTarget, UnconfiguredTraeUpstreamClient, adaptLegacyPiAiContext, adaptModernPiAiContext, apply, applyContextBudgets, applyImageSelection, applyOfficialRoster, applyReasoningEffort, asVolatile, bridgeTraeSoloStream, buildTraeAgentTaskBody, buildTraeCnHeaders, buildTraeFusionRawChatEnvelope, buildTraeModelDetailRequest, buildTraeRawChatDraft, buildTraeRawChatRuntimeConfig, classifyProbeError, classifyProbeResult, classifyTraeRawChatFailure, configuredAccountsOf, createTraeAdapter, createTraeRawGateway, createTraeShim, creditPosition, decidePiAiGeneration, decodeRawChatChunk, decodeTraeEvent, decryptTraeStorageValue, deriveCatalog, describeIdShape, describeNameShape, describeTraeFailure, discoveredCatalog, displayNameOfTraeProvider, fallbackModelsFor, filterTraeModels, generationOf, groupTraeModels, hashTraeRawChatArg, identityHeaders, inject, isEnterpriseAccount, isPromotableWireModel, legacyTraeOwnAuthPath, maskUserPath, mergeTraeModelSources, name, nextRegionCreditPosition, nextRegionEnabled, nextRegionSlots, normalizeTraeCredential, normalizeTraeToolSchema, normalizeTraeToolSchemas, normalizeTraeVersionCode, officialVerdictOf, orderTraeModels, panelOfKey, panelOfProvider, parseObservedModelConfig, parseReasoningCapability, parseTraeAuthValue, parseTraeCachedModel, parseTraeModelExtraConfigLogLine, parseTraeOfficialRoster, parseTraeRawChatBehaviorConfig, parseTraeRemoteModel, parseTraeStorageDocument, piAiRuntimeInfo, pickTraeStorageIdentity, prepareSoloBody, probeBody, probeModelsSequentially, probeOneModel, probeTraeRawChatCapability, providerOfPanel, rawCapabilityDiagnostic, rawCapabilityFingerprint, readTraeCachedModel, readTraeCliIdentity, readTraeIdentity, refreshTraeCredential, regionCreditPositionOf, regionEnabled, regionEnabledOf, regionOfCredential, regionOfEdition, regionOfHost, regionOfPanel, regionOfTraeProvider, regionOfTraeStatusUrl, regionOfUserRegion, regionStateOf, registerTraeUsageRoute, resolveTraeIdentity, resolveTraeRawRuntime, routeOfTraeProvider, sanitizeCatalog, scopeTraeModels, servedContextWindow, settingsNamespaceOf, sidebarPanelEnabled, thinkingEffortsOf, traeEndpoint, traeInputModalities, traeModelBadge, traeModelCallChannel, traeModelDisplayName, traeModelInView, traeModelMatchesQuery, traeOwnAuthPath, traeRawChatExtraInfo, traeStateDatabaseCandidates, traeStorageCandidates, traeWebUsage, traeWindowsAppNames, unwrapVolatile, unwrapVolatileDeep, wireTargetsOf, withChatCallableFunctions, withContextAdaptation, withTraeRegion };

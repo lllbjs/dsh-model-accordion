@@ -5,6 +5,93 @@ import { Context } from "@deepseek-ai/cordis";
 type QoderRegion = 'cn' | 'global';
 /** 上游错误分类，供 shim 映射为 DSH 可判定的 code。 */
 type UpstreamErrorKind = 'network' | 'auth' | 'rate-limited' | 'invalid-request' | 'content-policy' | 'quota-exhausted' | 'transient' | 'unknown';
+/**
+ * 一笔**专属积分包**（issue #38）—— 上游 `qoderUsage.dedicatedResourcePackages[]`。
+ *
+ * 国际版实测（`GET /sash/api/v2/me/usage`）：
+ *
+ * ```json
+ * [{ "id": "pkg-example", "name": "act-example", "total": 888, "used": 0,
+ *    "remaining": 888, "percentage": 0, "unit": "credits",
+ *    "expiresAt": 1798732800000, "available": true,
+ *    "status": "QUOTA_DETAIL_STATUS_ACTIVE",
+ *    "displayLabels": [
+ *      { "dimension": "title", "value": "sota model series",
+ *        "valueI18n": { "en-US": "SOTA Exclusive Credits", "zh-CN": "SOTA 专属积分" } },
+ *      { "dimension": "description", "value": "…",
+ *        "valueI18n": { "en-US": "…", "zh-CN": "…" } } ] }]
+ * ```
+ *
+ * 三条「不用自己编」的性质，正是这个类型只透传、不解释的理由：
+ *
+ *  - **名字上游自己就给了**（`displayLabels` 的 `valueI18n` 带 zh-CN / en-US），
+ *    所以 DTO 里存的是**两种语言的原文**，由界面按当前语言挑一条 —— 插件翻译
+ *    一个营销词只会在上游改词时落后；
+ *  - 它有 `remaining` / `total`，能直接填读数；
+ *  - 它有 `status`，`QUOTA_DETAIL_STATUS_ACTIVE` 以外的不该算。
+ *
+ * ⚠️ 国内版实测 `qoderUsage` 里**没有**这个键，所以这一整块天然只在国际版出现。
+ */
+interface QoderDedicatedPackage {
+  /** 上游的包 id（同一次报文内唯一；界面用它做 React key）。 */
+  id: string;
+  /** 上游给的**两种语言**标题；两边都没有时才缺席（那时界面不外显这一个包）。 */
+  title?: {
+    zh?: string | undefined;
+    en?: string | undefined;
+  } | undefined;
+  /** 上游给的双语说明（「在模型选择器中选择 Sonus 时优先抵扣」）。 */
+  description?: {
+    zh?: string | undefined;
+    en?: string | undefined;
+  } | undefined;
+  /**
+   * 剩余额度；`undefined` = 上游这一行没报（不是 0）。
+   *
+   * 与 `creditsOf` 里的积分包同一条规矩：0 是关于账号的一个断言，缺席只是
+   * 「这次没读到」。
+   */
+  remaining?: number | undefined;
+  total?: number | undefined;
+  /** 这一包的到期时刻（ms）。有它就能放进悬停，不必另编一个倒计时。 */
+  expiresAtMs?: number | undefined;
+  /** 上游的原始 `status`（`QUOTA_DETAIL_STATUS_ACTIVE` 等），原样保留。 */
+  status?: string | undefined;
+}
+/** 用量信息（sash/api/v2/me/usage 的 qoderUsage 形状，官方 SDK UsageInfo 核对）。 */
+interface QoderUsage {
+  userType?: string | undefined;
+  expiresAt?: number | undefined;
+  upgradeUrl?: string | undefined;
+  userQuota?: {
+    total?: number | undefined;
+    used?: number | undefined;
+    remaining?: number | undefined;
+    percentage?: number | undefined;
+  } | undefined;
+  addOnQuota?: {
+    total?: number | undefined;
+    used?: number | undefined;
+    remaining?: number | undefined;
+    percentage?: number | undefined;
+    detailUrl?: string | undefined;
+  } | undefined;
+  orgResourcePackage?: {
+    used?: number | undefined;
+    cap?: number | undefined;
+    remaining?: number | undefined;
+    percentage?: number | undefined;
+    available?: boolean | undefined;
+  } | undefined;
+  /**
+   * 专属积分包（issue #38）。**只有国际版下发**；国内版实测没有这个键。
+   *
+   * 缺席 = 这个账号没有（或上游这次没给），不是「读失败」——两者的处理不同：
+   * 前者界面不画那一列，后者与「积分读不出来」同路。
+   */
+  dedicatedResourcePackages?: readonly QoderDedicatedPackage[] | undefined;
+  isQuotaExceeded?: boolean;
+}
 //#endregion
 //#region src/promo.d.ts
 /**
@@ -37,6 +124,11 @@ type UpstreamErrorKind = 'network' | 'auth' | 'rate-limited' | 'invalid-request'
  * 这里**不做**的事：不猜活动意图、不从 `discount_factor` 反推文案、不把
  * `link_url` 变成可点击动作（卡片上的胶囊只是提示）、不在解析时挑定一枚
  * 徽标（判定放在渲染时刻，理由同 workbuddy 的 `selectPromoBadge`）。
+ *
+ * 折扣数字（`discount_factor` / `before_promotion_price_factor`）现在**保留**：
+ * 它不是用来反推文案的（文案仍原样取上游），而是给 {@link displayMultiplierOf}
+ * 在渲染时刻算「活动实际倍率」——issue #41 里 Qoder 官方显示 `x0.00` 而插件只
+ * 显示基准价 `0.1x` 的那处不一致。计算只在 UI 层用，计费与落盘仍走基准价。
  *
  * @module dsh-connect-qoder/promo
  */
@@ -88,6 +180,23 @@ interface QoderPromotion {
   windowUnreadable?: boolean;
   /** 上游的活动说明页。 */
   link?: QoderPromoLabel;
+  /**
+   * 上游的折扣系数（`discount_factor`，形如 `0.4` = 基准价打四折、`0` = 免费）。
+   *
+   * 只给 {@link displayMultiplierOf} 算 UI 展示用倍率，绝不参与计费/落盘。
+   * 缺席（上游没给或不是有限数）≠ 0：前者是「不知道有没有折扣」，回退基准价。
+   */
+  discountFactor?: number;
+  /**
+   * 上游声明的「折前倍率」（`before_promotion_price_factor`，形如 `0.5`）。
+   *
+   * **只作记录，不参与计算**：`displayMultiplierOf` 的公式是「当前基准价 ×
+   * `discount_factor`」（实测 `0.5 × 0.4 = 0.2`，见 PROMO_BADGE.md §5.1）。不拿
+   * 这个字段去校验基准价——一旦上游给的值与目录里的 `price_factor` 对不上
+   * （改价、或限时免费这种特价活动），用它当门会把本来该显示的 `x0.00` 又压
+   * 回基准价，正是 issue #41 要修的病。留着它是为了不丢上游声明，供日后复核。
+   */
+  beforePromotionPriceFactor?: number;
 }
 //#endregion
 //#region src/catalog.d.ts
@@ -147,6 +256,86 @@ interface QoderModelInfo {
  */
 declare const QODER_GITHUB_URL = "https://github.com/dingminhua/dsh-connect-qoder";
 /**
+ * One credit bucket as the card renders it, node-free.
+ *
+ * ⚠️ **没有 `expiresAtMs`，也没有 `monthly`**（issue #31 的两条）。
+ *
+ * - `expiresAtMs` 曾经挂在这里，但上游那个字段是 `qoderUsage.expiresAt` ——
+ *   账号级**套餐 / 14 天试用**的到期，不是「这个积分包过期」。`userQuota` /
+ *   `addOnQuota` 自己都不带任何到期字段。把它挂在一个叫「积分包」的类型上，
+ *   等于用一个误导性的名字请后来者再踩一次。套餐到期改在 {@link QoderWebCredits}
+ *   上单出 `planExpiresAtMs`。
+ * - `monthly` 在 Qoder 这边**恒为 `false`**（没有按月刷新的桶），它没有编码
+ *   任何信息。family 的约定是「有按月刷新的桶时，用 `monthly` + `cycleRefreshMs`
+ *   这一对表达」，不是「每个连接器都必须有」。留着它只会让读者无法区分
+ *   「不按月刷新」与「作者没填」。
+ */
+interface QoderWebCreditPackage {
+  /** Stable bucket key — 'base' | 'addon' | 'org'; the card localizes it. */
+  packageName: string;
+  remain: number;
+  size: number;
+}
+/** Aggregated credit answer rendered by the plugin card. */
+interface QoderWebCredits {
+  total: number;
+  packages: readonly QoderWebCreditPackage[];
+  /**
+   * 3 天内到期的积分**金额**（不是包数）。
+   *
+   * 同名二义曾经存在（issue #31 附带那条）：`creditsOf` 累加的是**包数**，而
+   * `poolMemberCredits` 累加的是**金额**，卡片文案 `row.poolCreditSoon` 写的是
+   * 「{count} 积分 3 天内过期」—— 金额措辞。现在两处都只算金额，计数那一份
+   * 从 DTO 里删掉（它没有读者）。
+   */
+  expiringSoon: number;
+  /**
+   * 最早一批**积分**的到期时刻（ms）。只来自真正带到期语义的批次（签到批），
+   * 与套餐到期无关 —— 池排序的「临期紧急度」读的就是它。
+   */
+  nearestExpiryMs?: number;
+  /**
+   * 账号级**套餐 / 试用**到期时刻（ms），来源是上游 `qoderUsage.expiresAt`。
+   *
+   * issue #31 的语义拆分：这个值此前伪装成 `packages[].expiresAtMs`，于是
+   * 「14 天试用到期」被显示成「积分包到期」。它与积分紧急度是两件事，所以既不进
+   * `expiringSoon`，也不进 `nearestExpiryMs`，更不参与池排序。
+   */
+  planExpiresAtMs?: number;
+}
+/**
+ * 一笔专属积分包，面板要画的那几个字段（issue #38）。
+ *
+ * 与上游 DTO（`QoderDedicatedPackage`）分开声明，理由与
+ * {@link QoderWebProbeOutcome} 相同：`status-paths.ts` 是**无 node 依赖的桥**，
+ * 客户端会 import 它，不该顺着类型把上游模块（`node:http`、cosy 签名那一套）
+ * 拖进浏览器包里。
+ */
+interface QoderWebDedicatedPackage {
+  /** 上游的包 id —— 同一次报文内唯一，界面拿它做 React key。 */
+  id: string;
+  /**
+   * 上游自己的双语标题（`SOTA 专属积分` / `SOTA Exclusive Credits`）。
+   *
+   * **插件不翻译它。** 上游在 `displayLabels[].valueI18n` 里已经给了两种语言，
+   * 自己再写一份译文只会在上游改词时落后一步，而这是个营销词、不是术语。
+   */
+  title?: {
+    zh?: string;
+    en?: string;
+  };
+  /** 上游自己的双语说明（「在模型选择器中选择 Sonus 时优先抵扣该积分」）。 */
+  description?: {
+    zh?: string;
+    en?: string;
+  };
+  /** 剩余额度；缺席 = 上游这一行没报（**不是 0**）。 */
+  remaining?: number;
+  total?: number;
+  /** 这一包的到期时刻（ms）。 */
+  expiresAtMs?: number;
+}
+/**
  * Outcome vocabulary of one model probe, shared by the Host and the card.
  *
  * Mirrors `QoderProbeOutcome` in `./probe.ts`; kept as its own declaration
@@ -199,6 +388,22 @@ declare const QODER_CONNECT_VERSION: string;
  */
 type QoderPoolProbeSource = 'test-batch' | 'live-request';
 /**
+ * 一条测量的 `retryAtMs` 是谁给的（issue #32）。
+ *
+ * `upstream-reported` 是上游自己申报的等待时长（排队信封），`quota-refresh`
+ * 是从签到快照推出来的当日窗口结束时刻 —— 后者是**本地推算**，卡片必须说清楚，
+ * 否则用户会把「我们猜的」读成「上游说的」。`retry-after` / `upstream-message`
+ * 来自探针路径（HTTP 头、失败报文里的重置句）。
+ *
+ * `unknown-cooldown` 与前面四个**语义不同**，务必看清：它表示 `retryAtMs`
+ * **缺席**，这次排除用的完全是本地兜底节奏（{@link POOL_UNKNOWN_COOLDOWN_MS}），
+ * 上游没有、快照也没有给出任何时刻。它存在的唯一理由是让「我们在按 30 分钟
+ * 自己重试」这件事在数据里留下痕迹 —— 只看着 `retryAtMs` 缺席的话，它与
+ * 「上游没说、我们也不打算再试」完全无法区分，而实际上系统会拿真实聊天请求
+ * 每 30 分钟撞一次。
+ */
+type QoderPoolProbeRetrySource = 'retry-after' | 'upstream-message' | 'quota-refresh' | 'upstream-reported' | 'unknown-cooldown';
+/**
  * What the pool knows about ONE account's last test of the target model.
  *
  * `undefined` means "never tested", deliberately distinct from every measured
@@ -220,6 +425,12 @@ interface QoderPoolProbe {
    * ABSENT when the upstream named no time — never a locally invented one.
    */
   retryAtMs?: number;
+  /**
+   * WHICH source supplied {@link retryAtMs}（issue #32）。
+   *
+   * 缺席 = 写这条记录的版本还没有这个字段（旧文件照常可读，卡片按「没说」处理）。
+   */
+  retrySource?: QoderPoolProbeRetrySource;
   /**
    * 上游的排队信息（issue #26）。
    *
@@ -252,6 +463,22 @@ interface QoderPoolProbe {
   modelId?: string;
 }
 //#endregion
+//#region src/credit-expiry.d.ts
+/**
+ * 一次签到领到的积分批次。
+ *
+ * `validityDays` 缺席 = 上游这次没说有效天数（不猜）。`amount` 缺席 = 没说数额
+ * （只影响「临期多少分」，不影响「哪一批先过期」）。
+ */
+interface QoderCheckinBatch {
+  /** 领取时刻（epoch ms）。这是上游没给的 `claimAtMs`，由本地在领到的那一刻记下。 */
+  atMs: number;
+  /** 有效天数，来自 `benefit.validity.days`。 */
+  validityDays: number;
+  /** 这一批的数额，来自 `benefit.amount`。 */
+  amount?: number;
+}
+//#endregion
 //#region src/index.d.ts
 declare const name = "dsh-connect-qoder";
 /** The model registry and settings service required before providers register. */
@@ -277,6 +504,18 @@ declare function asVolatile<T>(schema: z<T>): z<T>;
 declare function unwrapVolatile<T>(value: T): T;
 interface Config {
   regions: Record<string, unknown>;
+  /**
+   * 是否在 DSH 侧边栏放一个 Qoder 面板（行 + 整页）。**默认关闭**。
+   *
+   * 参考：dsh-connect-workbuddy 的 `Config.sidebarPanel`（PR #188，MIT，
+   * Copyright (c) 2026 LaoDing）。
+   *
+   * 为什么要用户显式打开：这一行占的是 `sidebar.panellist` —— 所有插件共用的
+   * 全局侧边栏座位，点开还会接管中央面板。打开它是对用户整个侧边栏的决定，
+   * 不是对这张卡片的偏好；「插件」页本来就能看到同一张卡片，所以默认值必须是
+   * 「不替用户动侧边栏」。缺席读作关闭（`=== true` 判据见 `status-paths.ts`）。
+   */
+  sidebarPanel?: boolean;
 }
 declare const Config: z<Config>;
 /**
@@ -337,10 +576,58 @@ declare function regionEnabled(config: {
 declare function retryPolicyOf(config: {
   regions?: Record<string, unknown> | null;
 }, region: QoderRegion): RetryPolicyConfig | undefined;
+/**
+ * 某区域「上游排队时插件自己等多久」的上限（毫秒，issue #29）。
+ *
+ * 返回 `undefined` 表示关掉（0）：失败原样交给宿主的重试阶梯。本地读取而不是
+ * 依赖 schema 默认值 —— 这样在设置存在之前写下的配置读出来是「关」还是「60 秒」
+ * 由这里一句话决定，不随 schema 默认值漂移。
+ *
+ * 为什么默认开着：宿主的阶梯前两次一定短于上游申报的 30 秒（见 issue #29 的
+ * 28 次重试实测），不在这层等掉就等于每次都在对方说「别来」的窗口里敲门。
+ */
+declare function queueWaitMsOf(config: {
+  regions?: Record<string, unknown> | null;
+}, region: QoderRegion): number | undefined;
 /** 某区域是否配置了凭据（设置 PAT 或环境变量其一）。 */
 declare function regionHasCredential(config: {
   regions?: Record<string, unknown> | null;
 }, region: QoderRegion): boolean;
+/**
+ * 把一次用量解析成卡片可渲染的积分包。
+ *
+ * ⚠️ **上游那个 `expiresAt` 不是积分包的到期**（issue #31 的主问题）：它是
+ * `qoderUsage` 的同级字段，等于 `userId`（UUIDv7）前 48 bit + 14 天 ——
+ * **账号级套餐 / 试用**的到期。`userQuota` / `addOnQuota` 自己都不带到期字段。
+ * 此前它被挂到 `addon` 包上，于是「试用期到期」被显示成「积分包到期」，池排序
+ * 也拿它当积分紧急度。现在它单独出 `planExpiresAtMs`，与积分彻底分开。
+ *
+ * 积分本身的到期只可能来自**签到批次**（上游 `validity.days` 只在活动里给过），
+ * 那一路见 `credit-expiry.ts`。
+ */
+declare function creditsOf(usage: QoderUsage): QoderWebCredits;
+/**
+ * 把专属积分包映射进面板那一列的 DTO（issue #38）。
+ *
+ * **不并进 `total`。** 这是这一条最容易做错的地方：专属包是「选了某个模型才
+ * 优先抵扣」的一笔钱（上游原文：在模型选择器中选择 Sonus 模型时优先抵扣该
+ * 积分），与「普通积分」是**两个池子**。把它们相加会让胶囊显示一个用户花不掉
+ * 的数字 —— 不选那只模型，这笔钱一分都动不了。所以它单独一列，普通积分那一列
+ * 一个字都不变。
+ *
+ * 只留 `remaining > 0` 的（issue #38 的原话：「且 remaining > 0 时才多出这一
+ * 列」）：一个用光的专属包留在读数里，用户会以为那笔钱还在。`remaining` 缺席
+ * 的行**保留**（那是「上游没报」，不是「用完了」），界面画成「—」。
+ */
+declare function dedicatedPackagesOf(usage: QoderUsage): QoderWebDedicatedPackage[];
+/**
+ * 把签到批次的到期推算并进积分视图。
+ *
+ * 分成两步（而不是把批次塞进 `creditsOf`）的理由：`creditsOf` 是纯的、只吃
+ * 一次 usage 报文；批次是**另一份状态**，进程重启后才需要落盘。分开之后，
+ * 「没有批次」是一个自然状态（新装的插件、从没签到过），而不是一种要特判的错误。
+ */
+declare function creditsWithExpiry(credits: QoderWebCredits, batches: readonly QoderCheckinBatch[], nowMs?: number): QoderWebCredits;
 declare function apply(ctx: Context, config: Config): void;
 /**
  * 「凭据被拒」这条结论**有没有凭据**。
@@ -395,7 +682,20 @@ declare function liveRequestProbe(kind: UpstreamErrorKind, message: string, mode
     queueCount?: number;
     queueType?: string;
     retryAfterSeconds?: number;
+    serviceAvailable?: boolean;
   } | undefined;
+  /**
+   * 「当日用量用尽」的恢复时刻（签到快照里的 `refreshAtMs`），issue #32。
+   *
+   * 真实请求撞 `110` 时，上游报文里**没有**等待时长（那是 `10605` 排队信封
+   * 才有的字段），于是这条路径此前只能落一条没有 `retryAtMs` 的记录，池子
+   * 按 30 分钟兜底 —— 一个要等到次日窗口才恢复的号，每 30 分钟被真实请求
+   * 撞一次。探测路径（`probeThrough`）早就接上了这个值，真实路径没有。
+   *
+   * 只在 `out-of-credit` 时采用，与 {@link cooldownOf} 同一顺序：上游申报的
+   * 时长优先，其次才是快照推出来的窗口时刻。
+   */
+  quotaRefreshAtMs?: number | undefined;
 }): QoderPoolProbe | undefined;
 /**
  * 一次真实请求的失败要不要记成**区域级**的「上游报额度耗尽」通知。
@@ -471,24 +771,55 @@ declare function shouldAnnounceFailoverOnce(seen: Map<string, number>, input: {
 /** 某个账号不再被排除时，把它参与过的播报记录一并清掉（下一次重新播报）。 */
 declare function clearAnnouncedFailoversFrom(seen: Map<string, number>, accountId: string): void;
 /**
- * The region's daily quota refresh point for one PAT, as `probeModel` wants it.
+ * @deprecated 用 {@link quotaRefreshOfAccount}（按账号 id）或
+ * {@link quotaRefreshOfStored}（再叠一层磁盘）。
  *
- * 「当日用量用尽」(code 110) 的恢复时刻是**次日窗口开启**，不是 30 分钟。上游
- * 在签到报文里给了这个时刻（`daily.endAt`），签到批次把它存进快照；这里就
- * 从快照取。
+ * 保留它只为**不删已发布过的导出**（1.17.4 的 `lib/index.d.ts` 里有这个名字，
+ * 补丁版本不该把它拿走）。但它正是 issue #32 那个坑的形状：它替调用方把 PAT
+ * 派生成 id，而真实请求路径手里**本来就是 id** —— 再派生一次得到
+ * `pat-<hash(pat-…)>`，永远取不到，修复静默失效而纯函数测试全绿。
  *
- * 取不到时返回 `{}`（不传）。这是**故意的保守**：宁可用 30 分钟兜底，也不在
- * 本机编一个「次日零点」。官方页面上那个数字才是准的，编出来的会让用户在错的
- * 时间回来 —— 与 `cooldownOf` 的既有注释同一条规矩。
- *
- * 抽成纯函数是为了能被断言：它是 `probeThrough` 里唯一无法单测的闭包边角，
- * 而恰恰是这一处此前**从未传过** `quotaRefreshAtMs`，让 out-of-credit 一直
- * 走兜底。
+ * 只在你手里确实是 PAT 时用它；其余情况直接用 id 那个入口。
  */
 declare function quotaRefreshOf(snapshot: Readonly<Record<string, {
   refreshAtMs?: number;
 }>> | undefined, pat: string): {
   quotaRefreshAtMs?: number;
 };
+/**
+ * 「当日用量用尽」(code 110) 的恢复时刻，从签到快照按**账号 id** 取。
+ *
+ * 上游在签到报文里给了这个时刻（`daily.endAt`），签到批次把它存进快照；这里
+ * 就按 id 取。取不到时返回 `{}`（不传）—— 这是**故意的保守**：宁可用 30 分钟
+ * 兜底，也不在本机编一个「次日零点」。官方页面上那个数字才是准的，编出来的会
+ * 让用户在错的时间回来（与 `cooldownOf` 的既有注释同一条规矩）。
+ *
+ * ⚠️ **键是账号 id（`pat-…`），不是 PAT**，这是 issue #32 那个坑：真实请求路径
+ * （`onServingFailure`）只拿得到 `accountId`，而探测路径手里是 PAT。曾经有一个
+ * 内部先 `qoderAccountId(pat)` 再取的入口，把 `pat-abc…` 再哈希一次得到
+ * `pat-<hash(pat-…)>`，于是永远取不到、修复静默失效（纯函数测试还全绿）。
+ * 现在派生一律由**调用方**做，本函数只认 id —— 少一个入口就少一处能踩。
+ */
+declare function quotaRefreshOfAccount(snapshot: Readonly<Record<string, {
+  refreshAtMs?: number;
+}>> | undefined, accountId: string): {
+  quotaRefreshAtMs?: number;
+};
+/**
+ * 同上，但在进程内快照之外再看一眼**落过盘**的窗口时刻（issue #32 第三条）。
+ *
+ * 为什么需要第三个入口：`checkinSnapshots` 是进程内对象，注释里也写了「重启后
+ * 由下一次签到重新写入」。而 110 的兜底冷却恰恰只在「窗口时刻不知道」时生效 ——
+ * 于是进程一重启兜底就必然生效，用户看到的就是「这个号每半小时被试探一次」。
+ * 窗口时刻本身是一个**绝对时间点**（上游活动行的 `endAt`），它跨重启仍然成立。
+ *
+ * 顺序：进程内快照优先（它带今天的 `claimed` 语境），其次磁盘。两者都没有时
+ * 返回 `{}`，让调用方走兜底 —— 与这套代码一贯的「宁缺勿错」同规。
+ */
+declare function quotaRefreshOfStored(snapshot: Readonly<Record<string, {
+  refreshAtMs?: number;
+}>> | undefined, stored: Readonly<Record<string, number>> | undefined, accountId: string, nowMs?: number): {
+  quotaRefreshAtMs?: number;
+};
 //#endregion
-export { Config, PoolGate, QODER_CONNECT_VERSION, QODER_GITHUB_URL, apply, asVolatile, catalogSnapshotDeclaresEfforts, clearAnnouncedFailoversFrom, credentialOutcomeOf, failoverAnnounceKey, inject, liveQuotaExhaustion, liveRequestProbe, name, poolAllowsFailover, quotaRefreshOf, regionEnabled, regionHasCredential, regionStateOf, retryPolicyOf, serveSavedCatalog, settingsNamespaceOf, shouldAnnounceFailoverOnce, shouldRecordPoolFailure, unwrapVolatile, withHardTimeout };
+export { Config, PoolGate, QODER_CONNECT_VERSION, QODER_GITHUB_URL, apply, asVolatile, catalogSnapshotDeclaresEfforts, clearAnnouncedFailoversFrom, credentialOutcomeOf, creditsOf, creditsWithExpiry, dedicatedPackagesOf, failoverAnnounceKey, inject, liveQuotaExhaustion, liveRequestProbe, name, poolAllowsFailover, queueWaitMsOf, quotaRefreshOf, quotaRefreshOfAccount, quotaRefreshOfStored, regionEnabled, regionHasCredential, regionStateOf, retryPolicyOf, serveSavedCatalog, settingsNamespaceOf, shouldAnnounceFailoverOnce, shouldRecordPoolFailure, unwrapVolatile, withHardTimeout };

@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.9.3 (unreleased)
+
+- **Re-synced the three vendored connector hosts to the current upstream
+  releases.** The copies under `vendored/` had drifted several minor versions
+  behind the published packages, so models, quota panels and login flows were
+  missing the fixes shipped since 0.9.0:
+  - WorkBuddy `5.17.0` → **`5.24.15`**
+  - Trae `4.6.12` → **`4.18.5`**
+  - Qoder (`@dmh2002/dsh-connect-qoder`) `1.16.4` → **`1.26.4`**
+  Each is a verbatim copy of the published artifact, including the nested
+  `node_modules/` that ships inside those packages; the `file:` entry ids are
+  unchanged, so saved accounts, regions and `lastCatalog` keep applying.
+- **schemastery `3.18.4` → `3.19.0`, cosmokit `1.8.5` → `1.9.0`.** WorkBuddy
+  5.24.15 pins schemastery `3.19.0`, and its bundled copy is what the
+  `install.sh` shim links for every host. The newer version still satisfies the
+  other two peers' ranges (`trae` ≥3.18.4, `workbuddy`/`qoder` ≥3.18.2) and
+  keeps `.volatile()` that OpenCode's `Config` needs.
+- The hub's connector cards now show the new versions.
+- Verified with a fresh `install.sh` run on a clean profile: boot has zero
+  errors, WorkBuddy/Trae/Qoder `/usage` all answer 200 with live account data
+  ("17号" / "18号" signed in), the OpenCode IP-pool bridge still accepts its
+  POST, and the vendored opencode-go hub reports the configured account.
+
 ## 0.9.2 (unreleased)
 
 - **OpenCode Free no longer fails with `MISSING_BUN_RUNTIME`.** Upstream stores

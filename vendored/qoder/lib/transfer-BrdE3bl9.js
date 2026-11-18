@@ -1,4 +1,4 @@
-import { N as QODER_REGION_TRANSFER_DOMAIN, g as qoderAccountId } from "./host-heartbeat-CNzgGURF.js";
+import { I as QODER_REGION_TRANSFER_DOMAIN, _ as qoderAccountId } from "./host-heartbeat-D7KYRipn.js";
 //#region src/transfer.ts
 /**
 * Account transfer: the export / import file format shared with sibling

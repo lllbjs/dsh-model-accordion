@@ -50,7 +50,7 @@ stable_root="$(dirname "$dir")/node_modules"          # ~/.dsh/profiles/node_mod
 [ -d "$stable_root/@deepseek-ai/dsh-llm" ] || stable_root="$dir/node_modules"
 
 # schemastery >= 3.18.4 is required (opencode's Config uses .volatile()); prefer
-# the copy vendored with workbuddy, else the desktop profile's 3.18.5.
+# the copy vendored with workbuddy (3.19.0), else the desktop profile's own copy.
 sc="$here/vendored/workbuddy/node_modules/@deepseek-ai/schemastery"
 ck="$here/vendored/workbuddy/node_modules/@deepseek-ai/cosmokit"
 [ -d "$sc" ] || sc="$dir/node_modules/@deepseek-ai/schemastery"

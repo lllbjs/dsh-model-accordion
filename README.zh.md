@@ -81,8 +81,8 @@
 
 ## 自包含连接器 + 统一设置界面（连接器中心）
 
-**从 0.8.0 起，本插件是一次真正的物理合并。** WorkBuddy（5.17.0）、Trae（4.6.12）、
-Qoder（`@dmh2002/dsh-connect-qoder` 1.16.4）、OpenCode（`@opencode2dsh/dsh-plugin`
+**从 0.8.0 起，本插件是一次真正的物理合并。** WorkBuddy（5.24.15）、Trae（4.18.5）、
+Qoder（`@dmh2002/dsh-connect-qoder` 1.26.4）、OpenCode（`@opencode2dsh/dsh-plugin`
 0.3.14）四个连接器的**完整代码已复制进本包的 `vendored/` 目录**。停用原独立 bundle、改由本插件
 提供这四个宿主入口后，**即使在 GUI 里把原来那四个连接器插件全部卸载，模型、登录态、已保存配置
 和设置页都照常可用** —— 这正是「代码直接复制到当前插件，在卸载其他插件的情况下可以正常使用」。
@@ -104,7 +104,7 @@ Qoder（`@dmh2002/dsh-connect-qoder` 1.16.4）、OpenCode（`@opencode2dsh/dsh-p
 - workbuddy / trae 的 `config:` override 行去掉了 `name:`，尾部两条 `disabled: true` 也删了，
   这样账号 / 地区 / lastCatalog / enabledModelIds 等已保存配置按 id 落在新的 vendored 入口上。
 - 四个宿主的裸 import（schemastery、pi-ai、dsh-llm、undici…）通过 `install.sh` 建的
-  `node_modules/` shim 从 workspace 真实路径解析：schemastery 3.18.4 + cosmokit 来自 workbuddy
+  `node_modules/` shim 从 workspace 真实路径解析：schemastery 3.19.0 + cosmokit 来自 workbuddy
   自带的副本（opencode 的 `Config` 需要 `.volatile()`，全局树只有 3.18.2 没有它），其余依赖指向
   DSH 自带的 `~/.dsh/profiles/node_modules`（全局-backed，`pnpm remove` 不会删）。已验证：DSH 的
   `ResolutionRouter` 把这些 `file:` URL 交给原生 ESM，shim 正是解析裸 import 的地方。
@@ -387,7 +387,7 @@ install.sh                          链接本包 + 建 node_modules shim + 写 5
 - DeepSeek Harness `0.2.1-rc.5` 及以上（在桌面版 bundle 上验证）。
 - 无需构建：仓库里的 `lib/client.js` 就是浏览器 bundle；vendored 四包为已发布产物的原样复制。
 - 运行时依赖由 `install.sh` 建的 shim 指向 DSH 自带的 `~/.dsh/profiles/node_modules` 与 workbuddy
-  自带的 schemastery 3.18.4，不需要 `pnpm install` 本仓库。
+  自带的 schemastery 3.19.0，不需要 `pnpm install` 本仓库。
 
 ---
 

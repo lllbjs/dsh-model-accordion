@@ -2,6 +2,2114 @@
 
 格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## 1.26.4 (2026-11-18)
+
+> **修 issue #47：无 PAT 打开设置卡片，「活动」区报「HTTP 502」，真正的
+> 「未配置凭据」被前端丢了。** 一处是语义分级（「未登录」不该冒充上游故障），
+> 一处是前端读错地方（`!response.ok` 时没读响应体），两处都修，patch 版本。
+
+### 修复
+
+- **Host：`/campaigns` 对「无可用凭据」回 401 + `reason:'no-credential'`，不再一律 502（issue #47）。**
+  - **症状**：不添加任何 PAT（含用企业版账号登录 Qoder 客户端、但插件侧没有
+    PAT 的场景）打开设置卡片，「活动」区显示「活动信息暂不可用：HTTP 502」；
+    `curl` 那条路由的响应体其实是 `{"error":"未配置凭据"}`，`/usage` 也是
+    `status:"signed-out"`，但用户看不到。
+  - **根因**：`campaignsOf()` 无凭据时抛普通 `Error('未配置凭据')`，路由的 catch
+    把**所有**异常都映射成 502 —— 把「这个区域还没登录」的正常状态同化成了
+    「读上游失败」。
+  - **改法**：新增 `QoderNoCredentialError`（带 `reason:'no-credential'`），
+    `campaignsOf` 抛它；`/campaigns` 的 catch 先用它分级：无凭据 → 401 + reason，
+    真正的上游故障仍是 502（原行为不变）。只改这一条路由，其余路由的 502 语义
+    不碰。
+  - **为什么不直接用 503/409**：401 表达「未认证、需要先配置凭据」，与 `/usage`
+    的 `signed-out` 同义；`reason` 字段让前端不必靠错误文本匹配。
+- **客户端：`QoderCampaigns` 失败时先读 `body.error`，并对无凭据给添加 PAT 的引导（issue #47）。**
+  - **根因**：`!response.ok` 时直接 `throw new Error('HTTP 502')`，从不读响应体，
+    而同文件其他路由（`AddAccount` / `AccountTransfer`）早就是
+    `body.error ?? HTTP 状态码` 的写法 —— `/campaigns` 是漏网之鱼。
+  - **改法**：沿用同仓库的读法：`response.json().catch(() => ({}))`，优先用
+    `body.error`，取不到才回退 HTTP 状态码（非 JSON 错误体不吞错）；当
+    `body.reason === 'no-credential'` 时额外渲染一句「请在账号池添加一个 PAT」。
+    新增双语 key `row.campaignsNoCredential` 与一条中性提示样式，错误行仍保留
+    真实原因（读出来是什么就显示什么）。
+
+### 测试
+
+- `tests/campaigns.spec.tsx`：新增 502 读 `body.error`、`reason=no-credential` 时
+  渲染引导、以及错误体非 JSON 时回退状态码三条（前两条先写失败断言、确认变红
+  再修到绿）。
+- `tests/web-status.spec.ts`：`/campaigns` 路由新增无凭据 → 401 + reason 一条。
+- `tests/index.spec.ts`：从**真插件**挂载的 `/campaigns` 路由取证，不配置 PAT 时
+  回 401 + `no-credential`、错误体带「未配置凭据」。三条新增用例修前均红、修后均绿。
+
+## 1.26.3 (2026-11-18)
+
+> **修 issue #44 标题里那条 `10605`：`403 + 10605`（模型请求排队）被报成
+> 「连不上上游——上游没有给出可用答复」，两句都错。** 上游给了明确答复，而且
+> 官方定义 `10605 = Model request is queued`（模型级排队），不是连不上、更不是
+> 凭据问题。只补一个「业务码兜底」判据，没动码表、映射或存储形状，patch 版本。
+
+### 修复
+
+- **业务码 `10605` 自身作为排队信号，不再依赖能否从报文里读出 `isQueued`（issue #44）。**
+  - **症状**：issue #44 标题的现场是聊天撞上 `403 {"code":"403","message":
+    "{\"code\":\"10605\",\"message…"}`（内层被 UI 截断），池子把账号标成红色
+    `✗ 连不上上游——上游没有给出可用答复` + 整号冷却。维护者定性「换个模型试试」
+    ——是模型级排队，不是账号坏、不是没答复。
+  - **联网核查**（本次）：用户问的「10065」Qoder 官方三份文档（docs.qoder.com
+    英/中、docs.qoder.cn）出现 **0 次**，是 `10605` 的数字转位笔误。官方对
+    `10605` 的原文定义是 **「Model request is queued」→ 模型请求排队**，
+    qodercli 通常自动等待重试；[Qoder 论坛 topic 9918](https://forum.qoder.com/t/topic/9918)
+    的实拍信封也带 `isQueued/queueType/retryAfterSeconds/serviceAvailable`。
+  - **根因**：`10605` 在码表里归 `transient`，`liveRequestProbe` 判断「是否排队」
+    **只认** `context.queue.isQueued===true`。现场那条报文内层是字符串 message、
+    `queueOf` 读不出 `isQueued`（或形态是 #24 的 `isQueued:false + RESOURCE_LIMIT`
+    等待型），于是 `queued=false` → `transient → unavailable` →「连不上上游」。
+  - **改法**：`liveRequestProbe` 里 `queued = queue.isQueued===true || context.code==='10605'`。
+    业务码是上游自己给的、比「按 kind 猜」强；flag 仍优先（带 serviceAvailable
+    等更具体信息，「上游整体不可用 serviceAvailable:false → unavailable」的
+    #29 判据不变）。只认明确的业务码，不猜任何字段。
+  - **顺带修正一条旧断言**：issue #6 的「实拍排队帧 → 池里不落永久排除」用例
+    此前把 outcome 钉成 `unavailable`（记录的是旧误判），本版改为 `queued`——
+    它要守的不变量是「403 猜的 auth 不落成永久 credential-rejected」，`queued`
+    同为冷却档、到期自愈，不变量仍然成立。
+  - **与 1.26.2 的 `112` 无关**：那次修的是后来那张 6 账号图里的额度耗尽码；
+    本条修的是 issue 标题本身的 `10605` 排队码。两条都是「别把 403 里的业务码
+    误读成连不上/凭据问题」，但码与语义不同，分开记账。
+
+### 测试
+
+- `tests/index.spec.ts`：新增「10605 没解析出 isQueued 时仍按 queued」与
+  「10605 + serviceAvailable:false 仍是 unavailable（别改坏 #29）」两条；
+  更新 issue #6 那条旧断言。
+- `tests/probe-label.spec.ts`：钉住 10605→queued 后文案说「排队」不是「没给出答复」。
+- 均**先写失败断言、确认变红，再修到通过**。`pnpm run check` 全绿
+  （**1505 通过 / 12 跳过**），`tests/privacy.spec.ts` 27 条全绿。
+
+## 1.26.2 (2026-11-18)
+
+> **再修一个「额度不足被当成连不上上游」的误判（issue #44）：业务码 `112`。**
+> 和 1.26.1 的 `144` 完全同构——都是往同一张 `QUOTA_CODES` 码表里补一个码，
+> 没动任何框架、映射或存储形状，patch 版本。
+
+### 修复
+
+- **`code 112`（message 带 `pricingUrl` 指向充值页）归入 `quota-exhausted`（issue #44）。**
+  - **症状**：issue #44 现场 6 个账号同时撞 `403 {"code":"112","message":
+    "{\"pricingUrl\":\"https://qoder.com/pricing?client=qoder\"}"}`，全部被标
+    `✗ 连不上上游——上游没有给出可用答复` + 整号冷却。上游明明给了明确答复
+    （还附了充值页），这句文案是错的；而维护者定性「模型额度用完，换模型即可」
+    ——换 PAT 无效、会恢复，与 `110`/`144` 同族。
+  - **根因链**：112 不在码表 → `classifyFailure(403)` 回落 `auth` →
+    `credentialOutcomeOf` 把「裸 403 猜的 auth」降级 `unavailable` →
+    文案「连不上上游」+ `exclusionOf` 整号冷却。降级本身是 issue #6 的防线，
+    但源头分类错了，最终还是误导。
+  - **改法**：`QUOTA_CODES` 加 `'112'`。改后：`classifyFailure → quota-exhausted`
+    → 池记录 `out-of-credit` → 冷却结束自动回池，文案也不再说「没给出答复」。
+  - **为什么 1.26.1 没一起修 112**：那次 #45 报告只把 112 当「同族候选」、
+    明确说未单独验证。本次 issue #44 由维护者给出权威定性 + 6 号同型号现场 +
+    逐字报文（`pricingUrl`），证据补齐才动——不猜码表是这条线一贯的规矩。
+  - **仍没动的 `10605`**：issue #44 原截图里的 `403 + 10605` 信封被 UI 截断，
+    内层字段拿不到。10605 在图里有「排队」「等 5 秒」等多种已知形态，没完整
+    报文就不猜——避免把别的 10605 误改成「额度用完」。若后续拿到完整内层对象
+    再单独处理。
+
+### 测试
+
+- `tests/upstream.spec.ts`：新增 112 的 `classifyBusinessCode` / `classifyFailure`
+  / SSE 信封三条断言（含变异检查），并把「配额族全覆盖」清单补上 `112`/`144`。
+- `tests/index.spec.ts`：新增整条链断言——403+112 → `quota-exhausted` → 池探针
+  `out-of-credit` → 冷却结束回池（不再是 unavailable 的「连不上上游」）。
+- 均**先写失败断言、确认变红，再修到通过**。`pnpm run check` 全绿，
+  `tests/privacy.spec.ts` 全绿。
+
+## 1.26.1 (2026-11-18)
+
+> **修一个「积分不足被当成凭据失效」的误判（issue #45）。** 上游业务码 `144`
+> （专属积分包余额不足）不在码表里，403 回落到 `auth`，宿主侧报 `401
+> invalid_api_key`、账号被标 `credential-rejected` 永久排除（充值也不回池）。
+> 只是往配额族码表里补一个码，没有改任何分类框架、映射表或存储形状 ——
+> patch 版本。
+
+### 修复
+
+- **`code 144`（专属积分包余额不足）归入 `quota-exhausted`（issue #45）。**
+  - **症状**：6 个并行子代理里 4 个在 18 秒内撞 `403 {"code":"144",
+    "message":"Dedicated resource package balance is low","modelKey":"smodel"}`。
+    插件码表没有 144 → `classifyFailure` 回落 `classifyHttpStatus(403)` → `auth`。
+    后果两层：诊断文案说「凭据无效 / 请换 PAT」（实际该充值或等待），且
+    `credential-rejected` 在 `exclusionOf` 里**不看冷却期、永久排除**——一个只是
+    专属积分用完的号被踢出池，第二天补充了也不会自动回。
+  - **为什么归配额族**：144 与已在表里的 110（当日用量）是同一语义——额度不足、
+    会自愈、换 PAT 无效，只是粒度不同（110 账号级、144 某个专属包级）。上游
+    `message` 带 `modelKey`，探针的 `modelId` 字段与本轮已有的 `exclusionOf`
+    按模型判定，会在探针记录了 modelId 时只排除那一个模型。
+  - **改法**：`QUOTA_CODES` 加 `'144'`，其余不动。改完后的链路：
+    `classifyFailure → quota-exhausted` → shim 映射 `429 quota_exceeded`、
+    池记录 `out-of-credit` → `exclusionOf` 走 `retryDue` 冷却、到期自动回池。
+  - **一处澄清**：issue 报告里「宿主拿到 401」的链路在本版本里已被 issue #6
+    的 `credentialOutcomeOf` 部分挡住（裸 403 的 auth 在池记录里降级成
+    `unavailable` 冷却），但**宿主侧 shim 错误**和探针分类仍是错的；本修复让两者
+    都走配额语义，不再依赖那层降级兜底。
+  - **没一起处理的 `112`**：issue 提到它带 `pricingUrl`、像额度类，但没有确认过
+    确切含义，报告本身也建议不要直接归类。缺证据就不猜——保持现状，等有实测码表
+    再动。
+
+### 测试
+
+- `tests/upstream.spec.ts`：新增 144 的 `classifyBusinessCode` / `classifyFailure`
+  / SSE 信封三条断言（含「去掉 144 就变红」的变异检查）。
+- `tests/index.spec.ts`：新增整条链断言——403+144 → `quota-exhausted` → 池探针
+  `out-of-credit`（带 modelId）+ 冷却结束回池 + 别的模型不受影响。
+- 均**先写失败断言、确认变红，再修到通过**。`pnpm run check` 全绿，
+  `tests/privacy.spec.ts` 全绿。
+
+## 1.26.0 (2026-11-17)
+
+> **修两个「数字看着对、语义是错的」问题（issue #42 / #43）。** 一个是每轮换
+> `session_id` 让 prompt cache 100% 失效（成本问题），一个是把用途不同的专属积分包
+> 相加成一个花不掉的数（决策误导）。两者都改的是**展示 / 请求标识的语义**，
+> 计费规则、上游协议字段的含义与账号池逻辑一个字符没动。
+> 版本取 minor：新增了「模型 compat 开 session-affinity 头」这一对外可见的
+> 请求行为（老宿主读不到头时自动退回旧行为，向后兼容）。
+
+### 修复
+
+- **同一会话的 `session_id` 不再每轮换新，prompt cache 能跨轮命中（issue #42）。**
+  - **症状**：`chatStream` 每轮 `template.session_id = randomId()`，而 Qoder 网关的
+    prompt cache 按 `session_id` 分桶 —— 每轮换桶、命中恒 0。用户实测对照：
+    同一份请求体、只把 `session_id` 固定住，命中率从 **0% 变成 99.8%**；真实
+    长会话里 `cached_tokens` 恒定卡在系统提示 + 工具定义那一段（约 15002），
+    **对话内容一个 token 都没进缓存**。长对话每轮都为前 N-1 轮重复付全价。
+  - **根因**：`messages.ts:63` 那句「每个请求必须换 ID」被套到了 `session_id`
+    身上。但 `request_id` / `chat_record_id` / `request_set_id` / `business.id` 是
+    **单次请求**标识（换新正确），`session_id` 是**会话**标识（必须稳定）。
+  - **稳定值从哪来**：DSH 的 agent loop 每轮都把 `session.id` 盖进 LLM 请求
+    （`dsh-agent-loop/src/agent.ts:746`，`Session.id` 即不可变 header id），
+    pi-ai 的 session-affinity 机制在 `compat.sendSessionAffinityHeaders` 打开时
+    把它写成 `session_id` 头。这个 compat 默认只给 OpenRouter 开，所以本次在
+    `toPiModel()` 里显式打开 `sendSessionAffinityHeaders: true` +
+    `sessionAffinityFormat: 'openai'`（DSH 的 compat 门禁 `withhold` 只校验配置文件，
+    本插件自注册 Provider 的 compat 直达 pi-ai，不受影响）。
+  - **接线**：shim 的 `handleChat` 从入站头读 `session_id`（兼容别名
+    `x-session-affinity` / `x-client-request-id`），作为 `chatStream` 的新可选参数
+    `sessionId` 传下去；上游把它写进请求体 `session_id`，其余单次请求 ID 照旧
+    每轮换新。**读不到头就退回 `randomId()`** —— 老宿主 / 非 DSH 客户端行为不变。
+  - **范围**：这是 per-session 值；同一会话内分支 / 子代理有各自的 session id，
+    分桶独立属预期，不影响正确性。
+
+- **专属积分列不再把用途不同的包相加（issue #43）。**
+  - **症状**：国际版同一账号下发两个包 —— SOTA 专属 1960（绑 Sonus）与极致专属
+    500（绑另一个模型），面板主列显示 **2460**。这个数不对应任何能花出去的额度：
+    用 Sonus 时超出 1960 的部分会掉回通用积分（当时为 0 → 直接充值提示）。两笔钱
+    各绑各的模型、不能互换，悬停里逐包明细本来是对的，只有主列的汇总数算错了语义。
+  - **为什么当时选了合计**：issue #38 在「合计 / 按包分行」之间选了合计，理由是
+    列宽只有 56px、分行会让一个账号占三四行。但那个决定建立在「多个同类包」的
+    假设上，上游这次从 1 个变 2 个、且用途不同，才暴露出「合计 = 一个花不掉的数」。
+  - **修法**（issue 建议里的 D 方案）：主列显示**主包（第一个有余额的包）自己的
+    真实余额 + `+N`** 溢出标记（本例 `1,960+1`），逐包明细留在悬停；悬停那行
+    「共 N 个专属包」不再带合计数字。宽度仍在 56px 预算内（四位数 + 两字符），
+    不占额外行，又保证「一个数字对应一件真事」。双语 locale 的 `dedicatedMultiple`
+    文案一并去掉 `{remaining}` 占位。
+
+### 测试
+
+- 新增/扩充三个测试文件，均**先写失败断言、确认变红，再修到通过**：
+  `tests/adapter.spec.ts`（compat 开 affinity 头）、`tests/shim.spec.ts`（头透传
+  为 `chatStream` 的 `sessionId`）、`tests/upstream.spec.ts`（同一 sessionId 两轮
+  写进同一个 `session_id`，其余 ID 每轮换新）；`tests/composer-billing.spec.tsx`
+  从「合计 1,000」改为钉住 `1,960+1` / `888+1` 与悬停无合计。
+- `pnpm run check` 全绿：**1496 通过 / 12 跳过**（比 1.25.3 多 6 条）。
+  `tests/privacy.spec.ts` 27 条全绿。
+
+## 1.25.3 (2026-11-17)
+
+> **修一类中「两个客户端倍率对不上」的显示 bug（issue #41）。** 只改展示：
+> 计费、落盘、pi-ai 请求、目标模型 id 与「免费即 0」判据一个字符没动。
+> 版本取 patch——没有新界面能力，也没有改任何请求/存储形状（`promotion` 只是多带
+> 两个可选数字字段，老存档读回照旧）。
+
+### 修复
+
+- **活动期倍率显示活动实际价，与 Qoder 官方菜单一致（issue #41）。**
+  - **症状**：用户实拍国内区 `qfmodel`（Qwen3.8-Flash）在「限时免费」活动里，Qoder
+    官方下拉显示 `x0.00`，DSH 的卡片、内置模型选择器、账号池「测试用模型」下拉
+    一律显示基准价 `0.1x`。其余非活动模型两边一致，所以不是整体算错，是**活动
+    那一层没参与显示**。
+  - **根因**：上游 `model/list` 每行的 `promotion` 里带着 `discount_factor` /
+    `before_promotion_price_factor`（实测 `qmodel_38max` 是 `0.4` / `0.5`，活动期
+    实际价 = 基准价 × 折扣系数，`0.5 × 0.4 = 0.2`，与官方菜单的 `x0.20` 对得上），
+    但 `src/promo.ts` 当初为了「不从数字反推文案」把这两个数字**连数字本身一起
+    丢掉**了。于是徽标画得出「错峰 4 折」，倍率却永远是基础价。
+  - **修法**：在 `QoderPromotion` 上保留这两个可选数字（`parseQoderPromotion` 与
+    `readPromotion` 两端都补；`rule_id` 仍丢，插件不给它语义），新增纯函数
+    `displayMultiplierOf(source, now)`：仅在 `promoDisplayAt === 'live'` 且有可信
+    `discountFactor`（有限数、`0 ≤ x ≤ 1`）时算「当前基准价 × 折扣系数」，按两位
+    小数归一；否则原样退回基准价。三个 UI 面统一接它：
+    - 卡片模型行（`QoderCard.tsx` 的 `(N.NNx)`）——与徽标共用同一个 `new Date()`，
+      两种判据不会在某一帧打架；
+    - DSH 内置模型选择器 / 发现（`modelDisplayName` 增加可选 `now` 参数，适配器与
+      `registerModelDiscovery` 照旧调用，不改签名）；
+    - 账号池「测试用模型」下拉（`poolModelOf` 把 `promotion` 单独带出来，从
+      `creditMultiplier` 旁路过去，见下）。
+  - **为什么不是把活动价写进目录字段**：活动随窗口开关，是渲染时刻的纯函数；
+    写进 `lastCatalog` 会把夜里读到的一份冻结到第二天早上，与 `docs/PROMO_BADGE.md`
+    §3.2「判定必须在渲染时刻」是同一条理由。所以三个面各自用当前时钟现算。
+  - **折算公式不拿 `before_promotion_price_factor` 当门**：限时免费这类活动里它
+    可能与目录当前 `price_factor` 对不上，用它校验恰好会把该显示的 `x0.00` 压回
+    基准价。基准价只取目录当前值，折前快照只作记录。
+  - **计费与「免费即 0」完全隔离**：`priceFactor` / `creditMultiplier` 仍是基准价，
+    落盘的 `priceFactor` 也仍写基准价。尤其 `poolModelOf` 只把 `promotion` 放在
+    另一个字段，绝不把活动期 `0` 折叠进 `creditMultiplier`——那样一个「基准收费、
+    活动免费」的模型会被 `pickFreeModel` 当成免费反复探测，静默烧掉真实积分。
+  - **误读防护**：活动价与基准价不同时，倍率标签的悬停补一句「活动价，基准价
+    x0.10」（新增 locale key `row.ratePromoHint`，双语各有），避免用户拿 `x0.00`
+    去和别处对账以为计费出错；窗口外或无折扣时不挂这句悬停。
+
+### 测试
+
+- 新增 `tests/discount-multiplier.spec.ts`：先写会失败的断言，覆盖折扣数字解析/
+  落盘往返、`displayMultiplierOf` 的 live/窗口外/缺数字/越界/浮点归一、以及
+  「三条计费路径（落盘、pool 免费判据、pi-ai 名）不被活动价污染」。
+- 新增 `tests/discount-multiplier-render.spec.tsx`：卡片实渲染钉住活动期 `(0.00x)`、
+  窗口外 `(0.10x)`、以及倍率悬停；`tests/promo.spec.ts` 的「解析后的精确形状」
+  用例同步改为纳入两个折扣数字（它此前把「丢弃数字」钉成了契约）。
+- `pnpm run check` 全绿：**1490 通过 / 12 跳过**（比 1.25.2 多 18 条）。
+
+## 1.25.2 (2026-11-14)
+
+> **只升依赖树与文档，不改运行时代码。** 宿主从 `0.2.2-rc.2` 升到 `0.2.2-rc.3`。
+> pi-ai（`1.3.0`）、cordis（`4.1.0`）、schemastery（`3.19.0`）第三轮没换；rc.3 的内容
+> 几乎全部来自一个 commit（DeepSeek 官网对话导出导入，一个全新的 experimental bundle）。
+> **插件直接 import 的 11 个 `dsh-*` 包在 rc.3 里逐字节相同** —— 这是本轮零改动的硬证据。
+
+### 修复
+
+- **夹具的 `extractedAt` 会在 UTC+8 的凌晨写错一天。**
+  - **症状**：本轮 00:47 跑的 `pnpm run fixture:host-classifier` 把日期记成
+    `2026-11-13`，而当天是 11-14。根因是 `new Date().toISOString().slice(0, 10)`
+    取的是 **UTC** 日期。
+  - **为什么一直没被发现**：`source.extractedAt` 只作溯源提示、不参与任何断言，
+    所以错一天**永远不会让测试变红**——正因为它不会红，只能靠把代码写对。改成
+    `toLocaleDateString('sv-SE')`（该 locale 的默认格式恰好是 ISO 形状的本地日期）。
+  - **这条与 1.25.1 那条是同一件事的延伸**：上一轮把「再抄一遍夹具」自动化成了一条
+    命令，但脚本只自动化了**抄写**，没有自动化**抄对元数据**。
+
+### 变更
+
+- **开发依赖树升到 `0.2.2-rc.3`**（`pnpm-workspace.yaml` 的 overrides + 锁文件）。
+  `dsh-*` 之外仍是 cordis 4.1.0 / schemastery 3.19.0 / pi-ai 1.3.0 —— 宿主没换。
+- **夹具按 rc.3 的 asar 重提取**：`classifyPiAiError` / `isQuotaExceededError` /
+  `LEADING_HTTP_STATUS` 三段源码**逐字没变**（升级前 `--check` 就直接报一致），
+  变的只有 `source.dshVersion` 与 `source.asarSha256`。
+- **peer 范围仍然不需要新分支**（这是第二次实证，不是新待办）：`0.2.2-rc.3` 与
+  rc.1 / rc.2 同一元组，第四支 `>=0.2.2-rc.1 <0.3.0-0` 已经开闸。
+  `tests/dsh-line.spec.ts` 把 `0.2.2-rc.3` 加进 `ADMITTED_PRERELEASES` 与宿主门禁
+  那条用例，注释写明「第二次实证同一判断」。下一个待补的仍是 `0.2.3-rc.1`。
+
+### 文档
+
+- 新增 [`docs/DSH-0.2.2-RC3-FOLLOWUP.md`](docs/DSH-0.2.2-RC3-FOLLOWUP.md)：钉在 rc.3 的
+  329 个 `@deepseek-ai/*` 依赖逐包 diff 的结果（17 个有实质变化、11 个被 import 的
+  逐字节相同）、槽位目录从 114 条到 116 条的逐条比对、复现命令，以及「看起来要改其实
+  不用」的清单（新的 `sidebar.session.action` hoc 槽、`workspace.picker` Factory、
+  `ui-settings-general` 只差版本串、`settings-jump.ts` 依赖的三个外壳形状逐字未变）。
+- README 双语：「当前宿主」小节轮换到 rc.3，rc.2 的一节降级为「上一轮基线」。
+  两份 README 的 peer 范围表**不用改**（见上一条）。
+- `package.json` 的 `files` 与 `RELEASING.md` 的打包清单收入新文档。
+
+### 其余
+
+- 回归：`pnpm run check` 全绿，**1472 通过 / 12 跳过**（与 rc.2 树完全一致）。
+- 明确排除：新的 `dsh-deepseek-chat-import`（需用户显式安装的 experimental bundle）、
+  `dsh-session-log-export` 的「缺附件不再整包失败」、CUA helper 的二进制换 hash
+  （macOS 上可能要求重新授权一次，属宿主行为）—— 逐条理由见 followup 文档 §六。
+
+## 1.25.1 (2026-11-12)
+
+> **只改测试与文档，不改运行时代码。** 宿主从 `0.2.2-rc.1` 升到 `0.2.2-rc.2`。
+> pi-ai（`1.3.0`）、cordis（`4.1.0`）、schemastery（`3.19.0`）都没换，`dsh-*` 的改动
+> 全是新增面 —— 唯一被打破的是**我们自己的 golden 夹具**。
+
+### 修复
+
+- **宿主改写了「失败分类器」，夹具必须重提取（否则测试红，且红得像别的问题）。**
+  - **症状**：`tests/shim.spec.ts` 只有一条红，是自检 ——
+    `classifyPiAiError 第 38 个字符起与装机宿主不一致`。宿主 rc.2 把第一道判据从
+    「扫全串」改成「**先取报文开头的状态码**」（新增 `const LEADING_HTTP_STATUS = /^[45]\d\d\b/`），
+    理由是正文里可能转述别人的状态码（网关 500 内嵌上游 401），只有开头的那个
+    才算本跳自己的。
+  - **为什么不影响用户**：插件的净化一直把裸 401/403 改写成 `4xx`，并给非 auth 档加
+    `qoder upstream <kind> (http 4xx):` 前缀 —— 新判据读到的就是这条前缀里的状态码，
+    结论与旧版逐条相同（配额仍是 `QUOTA`、限流仍是 `RATE_LIMIT`、真凭据失败仍是 `AUTH`）。
+    夹具里六个真实文案的对比表见 followup 文档 §二。
+  - **差点踩的坑**：手工补夹具时先补了两个函数、漏了新常量，`new Function(...)` 当场
+    `ReferenceError: LEADING_HTTP_STATUS is not defined`。于是把「再抄一遍」换成一条命令：
+    新增 `scripts/extract-host-classifier.mjs`（按签名定位 + 花括号配平截取 + 唯一性检查），
+    `package.json` 加 `pnpm run fixture:host-classifier`，`--check` 只比对不写。
+    自检现在会逐字比对**三段**（含新常量），少了常量会以「与宿主不一致」红，而不是语法错。
+
+### 文档
+
+- 新增 [`docs/DSH-0.2.2-RC2-FOLLOWUP.md`](docs/DSH-0.2.2-RC2-FOLLOWUP.md)：逐包 diff、
+  六个真实文案的新旧分类对比、以及「看起来要改其实不用」的清单
+  （`dsh-llm-pi-ai` 的 `PrefixDigests`/`onThinkingOmitted`、`HarnessError` 搬到
+  `@deepseek-ai/dsh-error`、`ui-slots` 的 `hoc` 种类、`settings.launcher` 的
+  `openSettings(sectionId?)`、`ui-primitives` 删掉 `useAnchoredPosition`、以及
+  `settings-general` 里多出来的第二颗 `aria-haspopup` 按钮）。
+- README 双语：新增「当前宿主：0.2.2-rc.2」一节，上一轮的 rc.1 小节降级为「上一轮」。
+  两份 README 的 peer 范围表**不用改**（见下一条）。
+- `package.json` 的 `files` 与 `RELEASING.md` 的打包清单收入新文档。
+
+### 其余
+
+- **peer 范围不需要新分支**（这一条直觉相反，所以用断言钉住）：`0.2.2-rc.2` 与
+  `0.2.2-rc.1` 是**同一元组**，第四支 `>=0.2.2-rc.1 <0.3.0-0` 已经开闸。加分支的判据是
+  「补丁号变了」，不是「rc 号变了」。`tests/dsh-line.spec.ts` 把 `0.2.2-rc.2` 加进
+  `ADMITTED_PRERELEASES` 与宿主门禁那条用例；下一个待补的仍是 `0.2.3-rc.1`。
+- **开发依赖树升到 `0.2.2-rc.2`**，并显式钉住 `@deepseek-ai/dsh-error`：rc.2 起
+  `HarnessError` 从 `dsh-llm` 搬进这个独立包，`dsh-llm` 与 `dsh-attachment` 都以**精确版本**
+  声明它为 peer —— 将来某个包放宽成 `^` 时，解析出第二个副本会让
+  `instanceof HarnessError` 在两个类之间失效。
+- 回归：`pnpm run check` 全绿，**1472 通过 / 12 跳过**（rc.1 树上是 1471 + 1 条夹具自检红）。
+
+## 1.25.0 (2026-11-12)
+
+> 版本号是 **minor**：两处**用户看得见的目录 / 界面变化** —— 国际版模型选择器里
+> 多出 `Sonus` / `Cantus` 两条，composer 积分面板在国际版有专属包时多一列。
+> 不改配置键、不动凭据、不改路由。
+
+两个 issue（#37 / #38）都来自同一位报告者，而且**指向同一个子系统**：1.20.0 为了
+「别显示抽象选项」加的那张过滤表，顺手把两只具体模型也藏了；而国际版那两只模型
+之所以重要，正是因为上游给它们配了一笔**专属积分**——那笔钱此前既看不到、也选不到
+要它的方式。
+
+### 修复
+
+- **`Sonus` / `Cantus` 不再被当成「抽象命名」过滤掉（issue #37）。**
+
+  1.20.0 的判据是「只有一个抽象形容词，看不出背后是哪家的哪个模型」，据此把
+  `fast` / `ultimate` / `efficient` / `smodel` / `cmodel` 一起塞进
+  `ABSTRACT_MODEL_IDS`。前三条成立，后两条不成立：`Sonus`（x8）与 `Cantus`（x4）
+  是**产品名**，与 `Qwen3.8-Max`、`GLM-5.3` 同一层级。两条旁证都指向同一结论：
+
+  - 上游给它们 `is_new: true`（`fast` / `efficient` / `ultimate` 都没有）——
+    上游把它们当新模型推送，而不是路由档位；
+  - 它们是全目录**最贵的两条**，恰恰是付费用户最可能想主动选的。
+
+  净效果：国际版的选择器与卡片都重新列出这两条（修复前它们被过滤掉）。**我没有拿真实 PAT 复核最终的条数** —— issue 里给的现场是「上游 15 条、插件只展示 10 条」，差的 5 条里 3 条是抽象词（`fast` / `ultimate` / `efficient`，仍按原判据隐藏）、2 条是这两只；按此推算国际版应回到 12 条。要复核就照 issue 的复现步骤跑一次，别把这里的推算当成实测。
+
+- **移出之后必须补一条新判据，否则国内版会多出两只上游没有的模型。**
+
+  这一条是本次唯一的「连锁反应」，也是它值得写进 CHANGELOG 的理由：静态兜底目录
+  `QODER_FALLBACK_MODELS` 是**两个区域共用**的（它没有区域轴），里面本来就写着
+  `smodel` / `cmodel`（注释原文：「仅国际版下发（cn 没有这几条）」）。它们过去被
+  「抽象命名」那张表顺手挡住，所以**没人发现兜底目录在国内版其实是超集** —— 把产品名
+  移出那张表，这层遮挡就消失了。
+
+  于是新增 `GLOBAL_ONLY_MODEL_IDS` + `withoutForeignRegionModels`：国内版按 id 去掉
+  国际版专属的条目，国际版原样返回。两套判据**刻意不合并**——一条说的是「看不出
+  是什么」，另一条说的是「国内版根本没有」，理由不同就必须能单独改，`index.ts` 里
+  用一个 `visibleModels()` 把两者串起来，两处读点（`configuredModels` /
+  `stampRuntimeCatalog`）共用同一份判定。
+
+  表里**只有 `smodel` / `cmodel` 两个 id**。兜底目录的注释把 `ultimate` /
+  `efficient` 也写在「仅国际版下发」那一栏，但 `src/upstream.ts` 那张实测条数表
+  （国内 10 / 国际 14，多的只有 `smodel` / `cmodel` / `fast`）说明这两条国内版
+  **是有的** —— 两份记录互相矛盾。这一点不碍事（它们已被抽象表在两区都过滤），
+  所以选择**不背书**自己没实测过的那一半：一张将来可能被用来解释「为什么国内版
+  少了某个模型」的表，只该放能拿出证据的 id。
+
+  依据仍是 `src/upstream.ts` 里那张实测表（2026-10-29，两区各一枚真实 PAT）：
+  国内版 10 条、国际版 14 条，差的就是 `smodel` / `cmodel` / `fast`（`fast` 两区
+  都有）。国内版请求一个不存在的 key，上游**不会提前告诉你**，所以这条判据只能自己挡。
+
+### 新功能
+
+- **composer 积分面板：专属积分作为独立一列，出现在「积分」左边（issue #38）。**
+
+  上游 `qoderUsage.dedicatedResourcePackages` 里早就有这笔钱的实时余额，插件此前整个
+  丢掉。现在逐号读 usage 时顺带带上，面板按账号列表格：
+
+  ```
+  改前  | 账号   | 积分  |
+  改后  | 账号   | SOTA | 积分  |
+  ```
+
+  四个决定，每个都有一个「反过来会怎样」：
+
+  1. **不计入普通积分。** 上游原文：「在模型选择器中选择 Sonus 模型时优先抵扣该积分」
+     —— 不选那只模型，这笔钱一分都动不了。加进 `total` 会让胶囊显示一个用户花不掉的
+     数字。所以 `creditsOf` **看不见**它，另出 `dedicatedPackagesOf`。
+  2. **只在下发时才画这一列**，连 `th` 一起不渲染：国内版实测没有这个键，没有专属包的
+     用户也不该看到一列「—」。判据是「有没有哪一行真的带 `dedicated`」，不是「哪个区域」
+     —— 面板是逐号读数，可能混着两个来源。
+  3. **表头用上游自己的话**（`displayLabels[].valueI18n` 的 zh-CN / en-US），插件不翻译
+     一个营销词；字典里那条 `composer.dedicated` 只是上游没下发标题时的兜底。语言信号
+     复用 `promo-badge.ts` 的 `hostLanguage(t)`：浏览器语言不会跟着 DSH 的语言设置变。
+  4. **多个包显示合计，逐包细节进悬停**（issue 留给实现选，这是取的那一边）：那一列只有
+     56px，分行会让一个账号占掉三四行高，而面板回答的是「谁在服务、还剩多少」。
+
+  附带两条容易漏的：`remaining: 0` 的包**不显示**（留着会让用户以为那笔钱还在），
+  `remaining` **缺席**的包**保留**（画「—」——上游没报不是上游说 0）；浮层多一列时加宽
+  56px（`.dsm-qoder-composer-panel-wide`），表格仍是 `width:100%` + `table-layout:fixed`，
+  issue #34 那条修复一个字都没动。
+
+  > 本次新增的**所有**示例数值（示例报文里的 888、测试夹具里的 888 / 300 / 120 / 112）
+  > 都是假的。issue 原文里的真实余额与到期时刻一个都没抄进来 —— `docs/PRIVACY.md` §1
+  > 把「积分余额 + 到期时刻并列」列为**自动化挡不住**的那一类，只能靠人。
+
+### Tests
+
+`1484`（+11，基线 `1473` = v1.24.0 发布点），`skip 12`，62 个文件（其余 4 个文件按环境跳过）。
+
+实测口径：旧测试套跑在新代码上是 `1457 passed / 4 failed`，这 4 条正是本轮按**错误前提**
+改写的那几条（详见下面 `tests/index.spec.ts` 与 `tests/catalog.spec.ts`）；新套 `1472 passed`。
+
+- `tests/catalog.spec.ts` 40 → 42：`Sonus / Cantus 不是抽象词` 这条是**回归护栏**（把
+  `smodel` 加回 `ABSTRACT_MODEL_IDS` 立刻红）；`国内版过滤「上游没有的」条目` 覆盖
+  `withoutForeignRegionModels` 的三态（global 原样 / cn 去掉 / 不传区域不收窄）。
+  原来那条「两个区域都过滤」的用例跟着从五个 id 收窄到三个 —— 它是按**错误前提**
+  写的断言（把产品名当抽象词钉死了），必须一起改。
+- `tests/index.spec.ts` 124 → 127：`creditsOf` 那条钉「专属积分**不**进 total」；
+  `dedicatedPackagesOf` 两条（只留还有余额的、无 id 时退回位置索引、国内版报文给空数组）。
+  另外两条**既有**断言改了措辞与方向：`registers both regional providers…` 与
+  `抽象命名的条目在两个区域的模型选择器里都不出现` 现在同时断言
+  「国际版**有** `smodel` / `cmodel`」与「国内版**没有**」—— 这两条在修复前是反的。
+- `tests/upstream.spec.ts` 105 → 107：`parseUsage` 读 `dedicatedResourcePackages`
+  （双语标题两侧都留、裸 `value` 也能读、字段逐字透传、国内版报文里**缺席**而不是空数组）；
+  另一条钉筛除语义（`available: false` / `status` 非 ACTIVE / `null` / 字符串垃圾都不进，
+  而 `remaining` 缺席的**留**着）。
+- `tests/composer-billing.spec.tsx` 7 → 10：真挂载面板，断言三格表头且专属在左、
+  另一行画「—」、普通积分那一列一个数都不变、没有专属包时表头仍是两格且浮层不加宽、
+  多个包显示合计并把逐包细节放进悬停。
+- `tests/credit-position.spec.tsx` 37 → 38：样式层契约 —— 专属列有 `width:56px`、
+  截断兜底仍走面板数字格那条规则、浮层加宽那条存在（`304px`）。
+  理由与 issue #34 那组断言相同：jsdom 不做布局，加列这件事会让「列宽只认声明」的
+  那条修复悄悄失效，只能钉规则本身。
+
+### 变异验证
+
+- 把 `smodel` / `cmodel` 加回 `ABSTRACT_MODEL_IDS` → 4 条红（catalog 两条 + index 两条）。
+- 去掉 `withoutForeignRegionModels`（`visibleModels` 里那一层）→ 2 条红（国内版多出
+  `smodel` / `cmodel`）。
+- 把 `ultimate` / `efficient` 加进 `GLOBAL_ONLY_MODEL_IDS` → 1 条红（新加的那条反向
+  断言：区域表里不许出现没有实测依据的 id）。**没有**这条反向断言时它是全绿的 ——
+  抽象表已经先挡住那两个 id，两套判据都能让它们消失，所以只靠行为测不出「表里写了
+  一条没核实的结论」。记在这里，省得下一个人再来试一次。
+- `dedicatedPackagesOf` 的 `remaining <= 0` 筛除去掉 → 1 条红。
+- 把 `dedicated` 里的读数加进 `creditsOf` 的 `total` → 1 条红（胶囊会显示花不掉的数）。
+- 表头改成一律用字典键 → 3 条红（那条断言表头是上游原文的用例，以及两条把表头文字
+  也读进去的用例）。
+
+## 1.24.0 (2026-11-10)
+
+> 版本号是 **minor**：多了一条用户可见的配置项（卡片模式条上的「每天自动签到」开关）
+> 与一个**会替用户领取奖励**的后台动作。默认**关闭**，所以升级不改变任何人的现有行为。
+> 不改路由、不动凭据。
+
+- **每天自动签到（issue #36，默认关）。** Qoder 的每日积分窗是 10:00 → 次日 09:59
+  （UTC+8），漏一窗就白丢一份（个人用户 100 Credits、30 天有效），连签还会断。
+  可这个动作本身**不消耗任何积分**、上游又是幂等的，所以代价是不对称的：与其让用户
+  每天记着点一下，不如**让他决定一次**。开关就是那个决定。
+
+  移植自 `dsh-connect-workbuddy`（MIT）的 `src/auto-checkin.ts` 与同名 store，四条
+  安全性质原样保留：
+
+  1. **构造上幂等** —— 它调的是手动按钮调的同一个 `claimDailyCredits`：先拉活动列表
+     看 `claimStatus`，已经是 `CLAIMED` 就报「已领」而**不发**领取请求。不存在第二条
+     写入路径，所以重启 / 重试 / 重复定时器都不可能领两次。
+  2. **只碰勾进池的成员** —— 成员资格就是「可以花这个账号的积分」的同意书。
+  3. **有界重试** —— 30 秒 → 1 → 2 → 5 → 15 分钟逐级退避，之后每 30 分钟慢试一次直到
+     这一窗结束；一次有进展的尝试把退避归零。
+  4. **可观测** —— 开关旁边那一行写着「今日：已签 N / M」「待重试 K 个」「上次尝试
+     失败：…」。一个做完的窗口之后定时器仍按 30 分钟空闲心跳重挂（一次请求都不发），
+     因为一个做完第一天就停死的定时器发现不了下一次翻页 —— 那会让这个功能安静地只
+     工作一天。
+
+- **硬改动：记账单位是「窗口」，不是「日历日」。** 这是照抄参考实现唯一会错的地方，
+  也是本轮唯一偏离上游设计的决定。workbuddy 的上游在当地零点重置签到，所以它的日键
+  就是本地日历日；Qoder 的窗口边界是一个**固定绝对时刻**（10:00 UTC+8）。照抄会
+  同时错两头：
+
+  - 对 UTC+8 以外的用户，本地零点落在窗口中间，日界把一个窗口劈成两半；
+  - 即使在 UTC+8，本地零点也在窗口中间。于是 00:05 会被判成「新的一天」去领一次
+    （幂等，报「已领」并记成完成），而 10:00 真正开窗时状态仍写着「这一天已完成」——
+    **新窗口的那一份要等到第二天 00:05，晚 14 小时**，而卡片上的倒计时会一直写着
+    「现在可以签到」却没人去签。
+
+  现在的窗口身份 =「(now − 2h) 的 UTC 日期」（10:00 UTC+8 翻页），并且**优先用上游
+  说过的那一个时刻**（活动行的 `endAt`）——它还在未来就说明没翻页。两种来源的键前缀
+  不同（`upstream:` / `boundary:`），切换必然重置状态：多一轮幂等重跑，换来「翻页一定
+  会重新看一眼」。`tests/auto-checkin.spec.ts` 的头两条用例就是钉这件事的。
+
+- **进度只活在当前窗口。** 一个做完的窗口在下一拍之前仍留在内存里，把它当成今天汇报，
+  卡片就会在新窗刚开的头几分钟写着「今日：N 个全部已签」而下表每行都是「未签到」——
+  `summaryForWindow` 返回 `undefined`（渲染成「没有状态行」）而不是一份全零摘要：
+  全零会为一天编一个分母。
+
+- **落盘**：`$DSH_HOME/.qoder-auto-checkin.<region>.json`，`mode 0o600`、
+  `withFileLock` + `writeFileAtomic`。**单独一份文件**，不进 settings：卡片对用户偏好
+  用的是「草稿 → 保存」，把运行状态塞进 `regions.<region>.pool` 会让一次保存用几分钟前
+  的草稿把它覆盖回去（与 `account-pool-store` 当初把探测结果搬出 settings 同因）。
+  文件里只有账号 id、计数与一句失败原因 —— 没有令牌，没有账号显示名。读失败、JSON 坏、
+  版本不对、形状不对一律读作「这一窗没签过」，**从不抛**：一个损坏的进度文件不该让
+  插件启动失败。
+
+- **保存校验要逐位到开关**。`writePoolPreferences` 的回读比对加了 `autoCheckin`，
+  且缺省时写 `false` 而不是留空 —— 这个键参与不了比对的话，「宿主把它丢了」与「用户
+  没要」在屏幕上完全同形：开关弹回原位，而没有任何错误。
+
+- **`/usage` 投影**：`pool.autoCheckin` 只在 `=== true` 时出现（老 profile 里没有这个
+  键，而「宿主答不上来」绝不能读成「开着」）；`pool.autoCheckinToday` 只在运行器有话
+  可说时出现。
+
+### Tests
+
+`1473`（+73，基线 `1400` = v1.23.0 发布点），`skip 12`。新增：
+
+- `tests/auto-checkin.spec.ts`（40）：窗口日键（本地零点不是边界、10:00 翻页、关门时刻
+  仍属同一窗、与进程时区无关、补零）、`checkinWindowOf`（上游时刻优先 / 过去的不采用 /
+  两种键必然不同）、`latestRefreshAt`（取最远、丢过去、非有限数不污染）、
+  `stateForWindow`（换窗重置）、`foldAttempt`（跨尝试累加、有进展归零失败、清掉旧
+  `lastError`）、`nextDelayMs` / `isDue`（退避阶梯、没有待办不算到点）、`idleDelayMs`
+  （不晚于开门、上限心跳、刚过一点不空转）、`summaryForWindow`（不是这一窗 → undefined）、
+  `pendingTargets`、`autoCheckinRegions`。
+- `tests/auto-checkin-store.spec.ts`（12）：读写往返、可选字段不补 `undefined`、
+  两个区域互不覆盖、`0600` 与版本号、坏文件五类（不存在 / 非 JSON / 版本不符 / 顶层
+  不是对象 / 半截形状）、一个区域坏了不连坐、负数与非有限数不算有效状态。
+- `tests/index.spec.ts`（+4，真实 `apply()` + 真实路由）：开关关着时**连活动列表都不读**
+  、开着时先读后领且进度进入 `/usage`、`CLAIMED` 时**领取请求为 0**（「重启不会多领」
+  的判据）、关掉开关后定时器被撤掉且文档不再报进度。
+- `tests/auto-checkin-render.spec.tsx`（12）：开关与「启用账号池」同住模式条且排在其后、
+  缺席读作关、拨动即草稿（要保存）、区域不支持签到时整行不渲染、只读权限下禁用、
+  进度行三态（全签完 / 半途 / 失败原因带 `title`）、`autoCheckinToday` 缺席时不渲染
+  「0 / 0」、开关关着或草稿刚打开时不显示进度、两句说明文字都在。
+- `tests/pool-save.spec.ts`（4）：`writePoolPreferences` 落地校验 —— 全落地不抛、
+  开关被静默丢掉必须抛、缺省写 `false` 而不是留空、顺序被吞仍要抛（既有契约没被碰松）。
+- `tests/readme-parity.spec.ts`（+1）：两份 README 都要有 `autoCheckin`、
+  `.qoder-auto-checkin.`、幂等前提与 10:00 边界。
+- `tests/pool-architecture.spec.tsx`：既有那条「模式条里只有一个复选框」改成**点名**两个
+  （模式与自动签到），判据从数量改成身份 —— 同一个开关不该出现两次，而不是「模式条里只
+  许有一个开关」。
+
+变异验证（每条都确认「改坏就变红」）：开关判据改成恒 `true` → 3 红；窗口日键改回本地
+日历日 → 3 红；去掉 `summaryForWindow` 的窗口检查 → 1 红；`writePoolPreferences` 的
+回读比对去掉开关 → 1 红；池槽里不再写 `autoCheckin` → 2 红。
+
+### 发布当天 CI 抓到的一个真 bug（Windows job，ubuntu 绿）
+
+`summaryForWindow` 一开始只检查「是不是这一窗」，于是 tick 在**开批之前**把
+`emptyAutoCheckinState`（`scopeSize: 0`）发布进内存时，卡片在那一瞬间读到的是
+`{ done: 0, total: 0, pending: 0 }` —— 而卡片的判据是 `pending === 0 && done === total`，
+两个 0 相等，于是它渲染成「**今日：0 个全部已签**」。一个什么都没做的窗口被报成全部做完。
+
+窗口翻页时 `stateForWindow` 重置出来的那份空状态是同一条谎的第二个来源。
+
+修法：`lastAttemptAtMs` 缺席即视为「这一窗一次都没试过」，返回 `undefined`（卡片不渲染
+状态行）。**不能用「`scopeSize === 0` 就不报」**：池里一个成员都没有时确实没有可报的
+东西，但「试过了、两个号都失败了」必须照实报，否则用户永远看不到它在重试 —— 两种情形
+靠 `lastAttemptAtMs` 分开，不靠分母。
+
+为什么本地绿而 CI 红：Windows 的 `setTimeout` 最小分辨率约 15ms，把「开批之前那段中间
+状态」的窗口拉长到了能被观测到的长度；ubuntu 上那段窗口太短，测试总是读完批才读到。
+
+### 已知边界
+
+- 后台签到是**增强功能**：它出错只记一条日志并重新挂上慢时钟，绝不让 `apply()` 或
+  之后的某一拍把插件带走。
+- 碰到「没进展也没失败」（例如成员全部解析不出凭据）时 `failures` 不加一，于是下一拍
+  按最短退避再试 —— 这种情况下没有上游请求被发出，所以不算「轰上游」。
+
+## 1.23.0 (2026-11-09)
+
+> 版本号是 **minor**：多了一条用户可见的配置项（能力栏里的「自动刷新上游」下拉框），
+> 并**改变了一个既有节奏的默认值**（卡片 60s → 5 分钟）。不改路由、不动凭据。
+
+- **打上游的自动刷新间隔变成可配置项：`pollMinutes`，五档，默认 5 分钟。**
+
+  此前这个仓库里有**两个写死的**间隔：设置页卡片 60 秒一轮（`POLL_INTERVAL_MS`）、
+  输入框积分读数 300 秒一轮（`COMPOSER_CREDITS_REFRESH_INTERVAL_MS`）。两者问的是
+  同一个 `/usage` 路由，宿主侧本来就把几乎同时到达的读合流成一次上游请求 —— 所以
+  「两个表面各一个间隔」省不了任何请求，只制造错开的两次读。现在合成**一个全局**
+  节奏：设置页「能力」栏里的下拉框，**1 / 5 / 10 / 30 / 60 分钟**，改完立即生效
+  （不必保存、不必重开页面），两个区域共用。
+
+  为什么默认是 5 而不是沿用 60 秒：卡片上的数字是积分余额，变化频率以分钟计；
+  60 秒一轮换来的只是「早四分钟看到一次几乎不变的数」，代价是每分钟一次上游往返
+  （两个区域各一）。composer 读数在这个设置存在之前就是 300 秒，所以「读不到配置」
+  与「没改过」在屏幕上同形 —— 升级不动任何人的 composer；卡片的降频是**有意的**。
+
+  为什么是五档枚举而不是自由数字：间隔是**对上游的请求频率**，手改配置写进一个
+  `0` 或负数会变成每秒打点。schema 挡一道（写 7 直接拒绝解析），`pollMinutesOf`
+  在读取层再挡一道（手改 JSON 绕过 schema 的那条路，读出来仍是默认 5）。
+
+- **写入路径**：顶层标量，与 `sidebarPanel` 同一条路（宿主保存端点优先、settings
+  镜像次之，落地校验读解包后的值）。`/__save` 的字段白名单加了这个字段 —— 此前它
+  只认 `regions` 与 `sidebarPanel`，别的字段回 500。
+
+- **投影**：`/usage` 文档恒带 `pollMinutes`（解析后的值，缺席即默认 5）。与
+  `sidebarPanelEnabled` 不同：那个字段缺席必须读成「没要」（占全局座位的同意），
+  所以只在 true 时出现；这个字段缺席读成默认，投影不需要区分「没写过」与「写了 5」。
+
+### Tests
+
+`1400`（+17，基线 `1383` = v1.22.0 发布点），`skip 12`。新增：
+
+- `tests/poll-interval.spec.tsx`（12）：白名单读取（坏值退回默认）、卡片按配置轮询
+  （1 分钟档逐跳核对）、**运行中改配置旧定时器被拆**（时点刻意错开，能区分新旧两跳）、
+  下拉框五档/禁用态/坏配置显示默认、composer 同一条节奏（10 分钟档与无 scope 的 300s）、
+  类型穷举。
+- `tests/index.spec.ts`（+5）：schema 默认 5、投影两区域同值、缺席投影带默认、
+  `/__save` 接受该字段且写完文档跟着变、写 7 被 schema 拒绝。
+- `tests/card-render.spec.tsx`：旧轮询用例改到新默认（推进 300s 而不是 60s）。
+
+变异验证（每条都确认「改坏就变红」）：卡片回到写死 60s → 2 红；去掉 effect 依赖
+（改配置不重建定时器）→ 1 红；去掉读取层白名单 → 2 红；composer 回到写死 300s → 1 红。
+
+### 已知边界
+
+- 改配置的那一帧卡片会**立即重读一次**（镜像变化触发 revision 重读，既有行为）。
+  这是「设置改了，屏幕上的事实就该跟着问一遍」，不是轮询跳；测试里把它与轮询跳分开数。
+
+## 1.22.0 (2026-11-08)
+
+> 版本号是 **minor**：注册的**条数**随宿主的声明变化（`single` 一条、`keyed` 每个
+> provider 一条）。不改配置键、不动路由、不改用户可见的文案。
+
+- **模型标签槽改成「按宿主的声明注册」，为 `keyed` 做好准备。**
+
+  `conversation.input.model.label` 的 kind 写在宿主包里（`ui-model-selection`）。
+  在它改口之前是 `single`：只有一格，三家连接器只能按 `-101` / `-102` / `-105`
+  互相压价（qoder 实测 `-101`，输给 workbuddy 的 `-105`）。目标形态是 `keyed`：
+  每个 `options.key` 自成一格，宿主按 `provider.id` 派发 `{ entryKey }`，没人贡献的
+  provider 落回宿主自己的 fallback。
+
+  新增 `src/client/model-label-seat.ts`：运行时读 `ctx.slots.spec(key)?.kind`，
+  `keyed` 就为 `qoder` / `qoder-global` 各注册一格，其余情况（含读不到）保持历史上
+  的单条。**一个构建同时服务两条宿主线**，宿主改口那天不需要重新发版。
+
+- **为什么不能只改宿主。** 两个方向都会**静默**失败，而这里的注册包在
+  try/catch 里，于是都只剩一行 `console.error`：
+
+  | 情况 | 结果 |
+  | --- | --- |
+  | keyed 的两条打到 `single` 宿主 | 第二条抛 `already has a registration`，第一条已落地 → 半注册 |
+  | 无 key 的一条打到 `keyed` 宿主 | 抛 `keyed slot … requires options.key` → 标签消失 |
+
+  `keyed` **强制要求 `key`**，这是上游提案里没写的第一道陷阱：**此前已发布**的本族每个
+  版本都注册一条无 key 的条目，只改宿主声明会让它们一起失效（本版之后的新构建会跟着
+  声明走，所以受影响的是「已经装在用户机器上」的那些版本）。第二道陷阱见下一条。
+
+  **改声明不够：宿主还必须传 `entryKey`。** 复核实机产物
+  （`ui-model-selection@0.2.2-rc.1`）发现，渲染该槽只有一个调用点，第三个参数只有
+  `fallback`、**没有 `entryKey`**；而 keyed 分支是
+  `find(e => e.options.key === opts?.entryKey)`——`undefined` 匹配不到任何条目，于是
+  **每一行**都落到 fallback。本插件的注册会成功、回调也跑、无异常无日志，只是组件再也
+  不被调用。上游的最小改动是**两处**：声明 + 调用点补 `{ entryKey: provider.id }`。
+
+- `QODER_MODEL_LABEL_PRIORITY = -101` 不改。keyed 下它不再决定可见性，只剩
+  「同一格内谁先」；三家之间不再有压制关系——停战靠的是换槽的基数，不是再压一次价。
+
+- 委托分支（issue #23）原样保留。keyed 下运行时走不到（每条注册只在自己 provider
+  的行上被调用），但一个构建要同时服务两种宿主，而 `single` 宿主上它决定了别家的行
+  画什么。
+
+## 1.21.0 (2026-11-08)
+
+> 版本号是 **minor**：多了一条对用户可见的能力（选择器里的胶囊现在**始终**出现，
+> 不再取决于谁赢了标签槽），也改了别家 provider 行的兜底画法。不改配置键、不动路由。
+
+- **模型选择器的胶囊改走目录数据（`LlmModelInfo.badge`），与「谁赢了 single 槽」无关。**
+
+  此前的处境：`conversation.input.model.label` 是 `single` 槽，全仓只有一个占位者渲染
+  **所有** provider 的行。实测已装的三个插件是 workbuddy `-105` / trae `-102` / 本插件
+  `-101`，升序取首条 ⇒ **赢家是 workbuddy**，本插件注册成功但从不渲染：qoder 自己行上
+  的促销胶囊一次都没出现过（用户实拍：卡片里有「错峰 4 折」，选择器里没有）。反过来，
+  谁赢那格，谁的组件就决定所有行的样子——所以本插件的胶囊要么走数据，要么不存在。
+  这不是命名问题，是槽的基数问题——改名解决不了。
+
+  宿主 0.2.2 起给了数据通道：`LlmModelInfo.badge`（`{ text, tone }`）随模型目录走，
+  选择器的 `props.model.badge` 就是它。所以：
+
+  1. `adapter.listModels()` 覆盖成 `{ ...model, ...(badge ? { badge } : {}) }`——**展开
+     写法**。理由不是「直写一定报错」：把 `@deepseek-ai/dsh-llm@0.1.7-rc.1` 的类型直接
+     当 `paths` 映射实测过，`TS2353` 只在回调**带** `: LlmModelInfo` 注解时才出现，
+     不写注解的直写其实能过。选展开是因为它**抗**这种改动：给回调补一个注解看起来
+     只是「让类型更明确」，却会让直写那条路在 0.1.x 上突然编译不过。旧宿主会在注册表
+     里静默丢掉 `badge`，两个方向都自然退化成原来的样子，不需要探测版本。
+  2. 判定在 `src/model-badge.ts`：只发**此刻成立**的促销（`promoDisplayAt(...) === 'live'`），
+     文案原样取上游的 `badge.zh` / `badge.en`（中英都有就发翻译表——宿主进程里读不到
+     浏览器语言，由宿主的 `resolveText` 挑）。没有就是 `undefined`，**绝不用 `null`**：
+     后者会让注册表在 `badge.text` 上抛错，那一整个 provider 从目录里消失。
+  3. **文案上限 16 个 grapheme，超了整枚不画**（不截断）。宿主对自家目录的建议上限是
+     12，这里明示偏离：上游国内区英文原文 `Off-Peak 60% off` 正好 16 个 grapheme，按 12
+     截会截成 `Off-Peak 60`——半个词比不画更容易被读成一个完整结论。判定按
+     `Intl.Segmenter` 的 grapheme（`'👨‍👩‍👧'.length === 8`，用户看到的是 1 个字）。
+  4. 只放促销、**不放「免费」**：免费模型的名字里已经带着倍率（`Qwen3.8-Flash · x0.00`），
+     再说一遍是废话；促销在名字里完全看不出来。也不放 `pending`（窗口还没到）：宿主
+     只会按 tone 上色，没有「虚线灰显」这一档，画出来就是一句假的「正在打折」。
+
+- **别家 provider 的行：交不出去时不再是裸名字，而是「名字 + 该模型自带的 badge」。**
+
+  新的 `src/client/host-badge.tsx` 复现宿主 fallback 的两条硬要求：`placement === 'trigger'`
+  时胶囊在**前**，`menu` / `option` 时在**后**；文案按读者语言取（当前语言 → 基语言 →
+  `en`），空格与缺 `en` 都当「没有」（宿主自己会把空串原样画成真空胶囊，这里更严）。
+  `tone` 认不出来按 `neutral` 上色，**不抛**——它一抛，宿主会把整个组件从那一格摘掉，
+  整片模型标签换成别家或裸名字。
+
+  委托仍然首选（它保住对方的完整装饰：负载图标、倍率后缀、新模型标记）。只有三条退路
+  落到这里：账本里没有别人、拿不到 locale 面、对方命名空间的 `t` 绑不出来。空串风格的
+  「裸名字」在 0.2.2 宿主上等于把别家挂在目录里的胶囊一起抹掉。
+
+- **自己的行也按 placement 摆位置了：trigger 在前、菜单在后。**
+
+  此前外来行按 `placement` 决定胶囊在名字前后，而**本插件自己的行永远把胶囊放在名字
+  后面**——两条分支各写了一套顺序。同一份菜单里于是并存两种摆法：别家模型是
+  「胶囊 名字」，自家模型是「名字 胶囊」。宿主的 fallback 只有一种规则，两个分支现在
+  一致。免费标签不换边：它说的是模型属性（不消耗积分），不是限时事件。
+
+- **`model.name` 一个字符都没动。** 胶囊是会变的东西（折扣窗口一关就该消失），名字是
+  稳定标识；塞进名字会污染菜单行的 `title`、触发器的 `aria-label`、搜索排序键与卡片摘要。
+
+### 已知边界
+
+- **本组件当前不渲染。** 已装三家的优先级是 workbuddy `-105` / trae `-102` / 本插件
+  `-101`，升序取首条 ⇒ 赢家是 workbuddy。所以 `src/client/host-badge.tsx` 目前**永远
+  不会执行**，它的测试是「若本插件赢下那格，别家的行会怎么画」的规格，不是现网行为。
+  真正的用户可见效果只来自 `listModels()` 的数据通道——那也是本次改动的主要理由：
+  它与谁赢无关，赢不赢都成立。
+
+- `badge` 是**目录数据**：窗口关掉之后，那枚胶囊会挂到下一次目录刷新为止。要做到分钟级
+  准确，得在每次翻面时发 `llm/models-updated`，而宿主收到它会对**每个模型**调一次
+  `resolveModelInfo()`——为了一枚胶囊让整份目录重解析，代价不成比例。自己的行上仍由
+  组件按分钟重算（那里已经在做）。
+- 别家的行只有在**交不出去**时才由我们画那枚胶囊。委托成功时画的是对方的完整组件，
+  它若不复现 `props.model.badge`（例如 workbuddy 在 5.20.17 撤回了这条路径），那枚胶囊
+  在那条路上仍然看不到——责任在对方，而我们这边的路（数据）不依赖任何人。
+
+### Tests
+
+`1362`（+56，基线 `1306`），`skip 12`。新增：
+
+- `tests/model-badge.spec.ts`（19）：grapheme 计数（emoji / 组合字符）、翻译表必须含 `en`、
+  `pending` 不画、窗口读不懂不画、16/17 的边界、翻译表里任何一条超限都不画、无促销 → `undefined`。
+- `tests/host-badge.spec.tsx`（25）：两种 placement 的顺序、四个 tone 的配色（`info` 必须是
+  `state-business-primary`、`warning` 必须是 `state-warn-primary`）、六种「读不懂」都退成
+  纯名字且不抛、缺胶囊时不留分隔符、名字一字不改。
+- `tests/adapter.spec.ts`（+5）：`listModels` 带 badge、窗口外**没有 badge 键**（不是
+  `undefined` 也不是 `null`）、`resolveModel` 那份**不带** badge（方向要钉住）、时钟按
+  「读目录那一刻」算。
+- `tests/model-label.spec.tsx`（+6）：交不出去时画「名字 + 胶囊」、trigger 在前的顺序、
+  **自己的行也按 placement 摆位置**（旧行为下这条会红）、
+  `bindLocale` 缺席与 `bindLocale` 抛错两条退路、badge 形状读不懂时退成纯名字。
+- `tests/styles.spec.ts`（+1）：胶囊逐条对齐宿主 `Tag` 的几何，且**没有描边、不截断**。
+
+变异验证：六种「改坏」各自都能把测试打红，**没有一种会静默通过**。具体红数随变异
+写法浮动（同一处缺陷的不同改法命中的断言条数不同），所以只记方向不记条数——两次独立
+复核按各自的改法分别得到 7/4/3/3/3/1 与 9/4/4/3/4/1，两组数字都 >0 且覆盖同一批断言。
+
+## 1.20.1 (2026-11-07)
+
+> 版本号是 **patch**：只放宽了一条既有判据的适用范围，不改配置键、不动路由。
+> 1.20.0 已推 tag，所以这一条单独发。
+
+- **国内版也过滤掉 `Fast`。** 1.20.0 里 `withoutAbstractModels` 只作用于国际版，用户
+  随即在国内版模型栏实拍到 `Fast (0.80x)` 仍在，要求「国内版的 fast 也取消掉」。
+
+  当初那条限定（「这几条只有国际版上游下发」）的依据是错的：兜底表在两个区域共用，
+  `fast` 在国内版目录里本来就在。判据与区域无关 —— 那几行只有一个抽象形容词，换到
+  哪个区域都看不出背后是哪个模型。
+
+  区域参数留在签名里（调用点本来就握着它，将来「按区域过滤」这类判据确实该加在这里），
+  但**不改变结果**，参数名改成 `_region` 并写明这一点。连带修正两处基于错误前提的断言：
+  原来「国内版不做断言」与「国内版原样保留」都被替换。变异验证：把区域判断加回去 → 3 条红。
+
+## 1.20.0 (2026-11-07)
+
+> 版本号是 **minor** 而不是 patch：这一版有两处**用户看得见的行为变化** ——
+> 设置页多了一个「能力」tab（顺带重排了分栏顺序），国际版的模型目录不再列出上游那几条
+> 抽象命名的条目。两者都不改配置键，但「多一栏」和「少几个模型」都不属于 patch 该有
+> 的分量。
+>
+> 另有四处修正：模型选择器的促销胶囊此前**一次都没显示过**（槽位优先级输给了
+> workbuddy）、`configuredMaxTokens` 是全空表导致所有模型都拿不到 `defaultMaxTokens`
+> （issue #35）、设置页那两行设置的宽度与内缩，以及 composer 浮层那颗「设置」按钮的
+> 落点实现。
+>
+> 空表那条是从 open issue 里捞出来的（#35，报告者附了完整分析与补丁建议）；其余是同一天
+> 里用户实拍指出的。
+
+### 修复
+
+- **那颗按钮以前靠模拟用户点击到达设置页，现在先走外壳自己的状态句柄。**
+  旧实现是「点侧边栏设置触发器 → 等面板挂上 → 按**导航行文字**找到本插件那一行 →
+  点它」，因此带着四次约 260ms 的重试，而且最脆的一环是文字：宿主换了说法、标签被
+  截断、或界面语言不在我们出的两种之内，按钮就落到 `onGiveUp`（打开插件市场本插件
+  页 —— 那不是设置页）。
+
+  宿主其实公开了一条精确的路，只是不在 `settings.section` 的契约里：设置外壳把自己的
+  状态句柄作为 **store 座位**发布在 `sidebar.settings` 上，而
+  `create().actions.openSection(id)` 一次调用同时设 `activeId` 与 `open`。
+
+  现在的优先级：
+
+  | 顺序 | 路径 | 依赖 |
+  | --- | --- | --- |
+  | 1 | `slots.entries('sidebar.settings')[0].store.create().actions.openSection(id)` | 一次调用，无重试、无文案依赖 |
+  | 2 | 驱动 chrome（点触发器 → 点导航行） | 座位缺席的老外壳 |
+  | 3 | `pluginNavigation.openBundle(包名)` | 第 2 条也找不到那一行时 |
+
+  第 2 条**保留**而不是删掉：本插件声明的宿主范围跨到了可能早于该座位的 shell 线，
+  在没有座位的宿主上它仍是唯一能把用户送到本插件页的路，删掉等于拿可用兜底换一个空。
+  座位若只有 `open()` 而没有 `openSection()`（更早的 store），仍会调 `open()` 打开面板，
+  然后**继续**走第 2 条去点那一行 —— 所以老外壳上按钮也不会只停在「设置里随便某页」。
+
+  座位在**每次按下时现探**，不在 `apply` 时缓存：它属于另一个 bundle，apply 顺序不归
+  我们假设，早探一次在后加载侧边栏的宿主上会拿到 `undefined`，那颗按钮整个会话都是死的。
+
+  依据（读自 0.2.2-rc.1 的 `ui-settings-general` 客户端产物，不是推断）：
+
+      ctx.remoteAccess.whenAccess('settings/describe', () => ctx.slots.inject('sidebar.settings', () => {
+        const shellHandle = createSettingsShellStore()
+        const shellInstance = shellHandle.create()
+        const shellStore = { ...shellHandle, create: () => shellInstance }
+        ctx.slots.register({ name: 'sidebar.settings', locale: NS, store: shellStore, … })
+      }))
+      actions: { openSection: (d, id) => { d.activeId = id; d.open = true } }
+
+  `create: () => shellInstance` 是关键：座位钉在唯一活动实例上，读座位的人拿到的就是
+  用户真正看到的那个对话框；裸句柄每次 `create()` 另造一份，`openSection` 移动的是
+  一个没人渲染的副本。
+
+- **设置页里那层多余的卡片盒子拆掉了。** 用户拿同族 workbuddy 的设置页做对照
+  （「你现在外面多套了一层，能理解吗」）：那边内容直接铺在设置面板那一列里，而
+  这一页在列里**又套了一层**「1px 边框 + 底色 + 12px 圆角 + 20px 内边距」的盒子，
+  于是页面看起来是一张浮在页面里的卡，左边还多一圈 20px 的真空。
+
+  根因是 1.18.0 把正文从插件列表搬进设置面板时，把 `.dsm-plugin-card-body` 补外壳
+  的那条规则同时用在了两个形态上：
+
+  | 形态 | 有没有外层容器 | 正文要不要自己画盒子 |
+  | --- | --- | --- |
+  | 列表卡片 | 有（`<li class="dsm-plugin-card">`） | 不要 |
+  | 侧边栏整页 | **没有** | **要**（否则是一片裸内容） |
+  | 设置页 | 有（设置面板自己的列：24px 内边距 + 底色） | **不要** |
+
+  设置页当时按「整页」那一行处理了，于是叠出第二层。现在只给设置页拆掉
+  （`padding:0` / `border:0` / `border-radius:0` / `background:none`），整页那条
+  **原样保留** —— 那里确实没有外壳，去掉盒子就成了没有边界的裸列表。
+  规则与 workbuddy 的同一条对齐。
+
+  顺带记一笔为什么不抄它的另一半：workbuddy 还给设置页**补**了一层 `layer-1` 底色，
+  那是它 issue #209（个性化壁纸下内容直接压在壁纸上）的修复。本插件的面板列本来就是
+  实底，补一层只是在实底上再叠一层同色；壁纸场景由宿主自己的列底色负责。
+
+- **账号行的「测试 / 删除」从独占一行挪到名字行右端。** 用户实拍圈出这两颗按钮并画了
+  一个指向右上的箭头：它们当时是这一行的**最后一格**，靠 `flex:1 1 100%` 独占一整行、
+  还左对齐 —— 每一行因此多付一整行高度，右侧却留一条空带。而名字那一行本来是整行里
+  **最短**的一行（「当前使用」徽章右边一直空着）。
+
+  现在它们住进 `.dsm-qoder-pool-account-line`，由 `margin-left:auto` 顶到右端，
+  `flex:none` 保证按钮不被压窄（名字可以省略，按钮不行）。做法与 workbuddy 的同一次
+  改动同规。
+
+  连带的三处结构变化：
+
+  1. **宽屏少一条轨道。** 操作列原本是网格的第 5 格，现在没有独立列了，`--dsm-qoder-pool-cols`
+     从 5 条轨道减到 4 条（不支持签到的区域 4 → 3 条），空出来的宽度按比例分给前三列。
+     **没有照抄 workbuddy 的遗留**：它那一版按钮也挪进了账号格，但 5 条轨道原样留着，
+     实测 tracks 是 300/188/244/169/150 而 cells 只有四格 —— 一条 150px 的空轨。
+  2. **表头去掉末尾那个空 `<span>`**，连同 `.dsm-qoder-pool-row-head > span:last-child{display:block}`
+     这条只为它存在的规则一起删掉。
+  3. 宽屏那条 `.dsm-qoder-pool-row-actions{justify-self:end}` 不再需要，删除 —— 按钮不再
+     是网格项，而是账号格里的一个 flex 项。
+
+- **修正上一条的落点：「测试 / 删除」要右对齐到格子的右端，第一次只推到半途。**
+  用户第二次实拍那两颗按钮的局部图，说明它们虽然换到了名字行，右边仍留着一条空白。
+
+  量出来的原因很具体：`margin-left:auto` 推的是**所在 flex 容器**的右端，而按钮的容器
+  `.dsm-qoder-pool-account-name` 当时是 `flex:0 1 auto`（有多宽算多宽）。实测（564px 列）：
+
+  | 盒 | 左 | 右 |
+  | --- | --- | --- |
+  | 可用行 | 25 | 539 |
+  | 账号格 | 39 | 525 |
+  | 名字块（修复前） | 77 | 412 |
+  | 按钮（修复前） | 326 | **412** |
+
+  名字块只有 335px，于是 `auto` 推到头也只是把按钮顶到 412 —— 离格子右端 525 差
+  **113px**。修法是让名字块占满账号格（`flex:1 1 auto`，`min-width:0` 保留给长名字
+  省略用）。修完按钮右边缘 412 → **525**，与账号格、与下面「已签到」那一列的右端落在
+  同一条线上。
+
+  这条经验写进测试而不是只写进注释：光断言 `margin-left:auto` 在不在，这个缺陷是**通过**
+  的（第一次就是这么过的）。新增的断言检查名字块是否占满，变异验证：去掉 `flex:1 1 auto`
+  即红。
+
+- **账号行从三行收成两行：积分上提进第一行右端，到期两句彻底移除。**
+  用户第三次实拍（1126×174 的行局部）并给出明确要求：「这里三行，积分放到第一行最右侧，
+  第二行的信息不要了，第三行变成第二行，测试、删除按钮放在最右侧」。
+
+  | | 改前（三行） | 改后（两行） |
+  | --- | --- | --- |
+  | 第 1 行 | 名字 + 名次 + 当前使用 + ↑↓ | 同上 **+ 积分（最右）** |
+  | 第 2 行 | 积分 + 「最早一批签到积分约…到期」+「套餐…到期」 | —（整行取消） |
+  | 第 3 行 | 状态 · 签到 | 状态 · 签到 **+ 测试/删除（最右）** |
+
+  两行的分工是「左端是内容、右端是补充」：第一行左端**你是谁**、右端**多少分**；
+  第二行左端**能不能用**、右端**能对它做什么**。
+
+  连带的变化：
+
+  - **到期时刻彻底不渲染**（按用户选择「彻底不显示，也不留悬停提示」）：`.dsm-qoder-pool-soon`、
+    `-soon-plain`、`-plan` 三个元素与它们的三条 CSS 规则、三个 locale 键（`row.poolCreditSoon` /
+    `poolCreditNearest` / `poolPlanExpires`）一并删除。界面不再提供该信息 —— 这是显式决定，
+    不是遗漏。
+  - **积分改成住在账号格里**（不是行级）。放行级的话它在 DOM 顺序上排在状态之后，只会落到
+    第二行；住进 `flex:1 1 100%` 的账号格之后，`margin-left:auto` 推到的正是**第一行**的右端。
+    名字块的 `flex:1 1 auto` 因此又有了第二个职责：吃掉格内剩余宽度，`auto` 才有得推。
+  - **签到不再抢右端**（`margin-left:auto` → `0`）：第二行的右端现在归操作按钮。两个 auto
+    会把那一行撕成三截。
+  - **操作列在宽屏回来**：按钮回到行级后，宽屏又是独立一格，所以 `--dsm-qoder-pool-cols`
+    恢复末尾 96px 轨道与表头那个空 span（上一版删掉它们是因为按钮住进了名字行）。
+
+- **↑↓ 紧贴「当前使用」，不再被推到第一行最右端。** 用户第四次实拍那对箭头并要求
+  「这个要紧贴」。
+
+  它们读起来是「名字 · 第 1 位 · 当前使用 · ↑↓」这一句话，改的是**名次**，而名次就画在
+  名字旁边。早先 `margin-left:auto` 把它推到行尾，理由是「贴着名字会让人以为它只作用于
+  名字」—— 但那是三行布局时代：当时行尾没有任何别的内容，箭头独自停在空带的尽头。现在
+  第一行的右端由**积分**占据，行内不再需要谁来撑满，那段空白反而让箭头看起来像掉队的第四
+  个徽章。
+
+  改法是把 `margin-left:auto` 换成 `0`，并**删掉宽屏那条把它改回 0 的容器查询覆盖**（两条
+  规则合成一条）。变异验证：把 auto 加回去即红。
+
+- **设置页页头换成一句供应商说明，总述与三条用途整块删除。** 用户实拍把两处圈出来：红框
+  是「总述 + 三条用途」，蓝框是 tab 栏下面那句「每个 tab 是一个独立供应商（qoder /
+  qoder-global）…」，要求**用蓝框那句替代红框那段、蓝框那处不要了**。
+
+  两段讲的是同一件事 —— 两个供应商各自独立、都在生效。同时存在等于同一句话说两遍；而红框
+  那四行（一句总述 + 三条列表）把本来还能再压的页面又往下推了约 90px。
+
+  改后页头是：**标题 + 那句供应商说明**。连带删除：
+
+  - `.dsm-qoder-section-values` 整块（连同它两条 CSS：列表本体与 `::marker` 颜色）；
+  - 三个 locale 键 `section.intro` / `section.value1` / `section.value2` / `section.value3`
+    （中英各一份）—— 文案换成了 `row.tabHint`，旧键不再有使用者；
+  - 正文里 `row.tabHint` 那一行 `<p class="dsm-qoder-usage-hint">`，改成一条注释说明它
+    搬到哪去了（**不是留着不渲染**：留着就还会被将来的改动当成「这里本来就该有一句」）。
+
+- **「更多设置」标题与那句偏好说明删除，设置区去掉外围的框。** 用户实拍圈住标题与说明
+  （「圈出来的不要」）并追加一句「下面的功能设置也不要外围的框」。
+
+  两个判断依据：
+
+  1. 标题下面每一行**自己就写着是做什么的**（「测试用模型（全池统一）」「测试请求体积」
+     都是行内标题）——再加一个总标题等于给同一件事命名两次；
+  2. 那句说明解释的是「点保存才生效」，而保存行就长在下面那一条里，读的人到那里自然会
+     看见。
+
+  设置区那张卡片的边框 / 圆角 / 底色一并去掉：里面只有两行设置，外框不承托任何东西，
+  反而让页面看起来有第三张卡片（已有成员卡片与账号工具虚线框两张）。
+
+  ⚠️ **一处必须同时改的连带**：模式条复用了 `.dsm-qoder-pool-settings` 这个类名，而它
+  原来只覆盖 `border-color` —— 边框本体是共享类提供的。去框之后模式条会变成没有一个
+  边框的浮块，所以把 `border` / `border-radius` / `overflow` 全部写进它自己那条规则。
+  这一条有断言钉住，漏了会红。
+
+  连带删除：`row.poolSettingsTitle` / `row.poolSettingsHint` 两个 locale 键（中英各一份）。
+
+- **紧接着的宽度修正：那两行的左右内边距归零，窄列里改上下两段。** 用户追加「宽度也要
+  调整啊」—— 上面那条去掉外框之后，两行设置还留着 14px 的左右内边距，而那正是**卡片自己的**
+  内边距：卡片没了，它就只是让这两行比周围窄一截。
+
+  实测（564px 内容列）：
+
+  | 块 | 修复前左缘 | 修复后左缘 |
+  | --- | --- | --- |
+  | 账号工具虚线框 / 保存行 | 24 | 24 |
+  | 两行设置 | **38** | **24** |
+  | 说明文字可用宽度 | 292px（4 行） | **516px（2 行）** |
+
+  第二处更关键：这两行是「左文字 + 右下拉」并排，而下拉框固定 180px，把那句
+  「全池共用这一个模型…」挤成四行。设置面板的内容列只有 564px，这时已经没有任何
+  「并排」的价值了 —— 补上 `@container (max-width:620px)`：这一行改 `flex-direction:column`，
+  说明文字独占整宽、下拉框落到下一行并**占满整宽**（实测 2 行 → 1 行 / 4 行 → 2 行）。
+
+  三条容易踩空的细节：
+
+  1. 容器查询要有祖先声明 `container-type:inline-size` —— 加在 `.dsm-qoder-pool-settings`
+     上（设置行不在表格里，表格那个 container 管不到它）；
+  2. `width:100%` **会输给** `max-width`：基础规则有 `max-width:260px`，`@media` 又把它压到
+     180px，所以窄列那条必须同时写 `max-width:none`；
+  3. `@media (max-width:760px)` 那条**保留**：它量的是视口，服务的是插件市场那个宽页面；
+     设置面板里视口是 1400px，它永远不成立，两者不打架。
+
+- **新增「能力」栏，把那四个显示开关搬进去。** 用户要求「添加一个能力 tab，把设置内容搬
+  进去」，并选定范围：**只搬积分那几个开关**，功能设置（测试用模型 / 测试请求体积 + 保存
+  行）与账号工具虚线框留在账号栏。
+
+  搬的是四个：「在对话框显示积分」「显示位置」「显示活动」「在侧边栏显示 Qoder」。
+  它们回答的是同一个问题 —— **这个插件能替你做哪些显示上的事** —— 与账号栏那两个问题
+  （谁在服务、还剩多少；模型目录要怎么配）都不是一回事。此前它们压在账号池顶上，把那张
+  表又推下去一段。
+
+  分栏顺序：账号 / 模型 / **能力** / 诊断。默认落地仍是账号栏（打开设置最常是来看
+  「谁在服务、还剩多少」）。
+
+  能力排在诊断**之前**（用户要求）：诊断是「贴进 issue 的那份事实」，属于这一页最少
+  用到的部分；能力栏里的开关则是日常会去拨的。两边一致 —— tab 条的数组顺序与 panel 的
+  DOM 顺序同时改，否则 tablist 的箭头键导航会与视觉顺序错位。
+
+- **模型选择器里的促销胶囊一直没显示过：槽位优先级输给了 workbuddy。**
+
+  用户实拍两张图对照：卡片里 `Qwen3.8-Max (0.50x)` 后面挂着「错峰 4 折」，而模型
+  选择器里同一个模型只有名字和倍率。数据是同一条（两处都读 `model/list` 的
+  `promotion`），差别只在**谁画这一行**。
+
+  `conversation.input.model.label` 是 **single 槽**：宿主只渲染一条注册，按
+  `priority` **升序取首条**。本插件注册的是 `-1`，注释写着「workbuddy 占着默认
+  优先级 0」——**那条判断是错的**。workbuddy 的 `MODEL_LABEL_PRIORITY` 是
+  **`-100`**，比 `-1` 更小，所以它一直抢在前面。
+
+  而它的组件是**终点型**的：文件头明写 `does not read the slot ledger, does not
+  look for another plugin's registration, and does not render another plugin's
+  component`。它不会把非本插件的行交还回来，于是本插件那枚胶囊在选择器里
+  从未出现过 —— 卡片有、选择器没有，正是这个原因。
+
+  改成 `-101`（`QODER_MODEL_LABEL_PRIORITY`，由 `QoderModelLabel.tsx` 导出）。
+  只争一格，不取 `-1000` 那种大幅值：身后的位置留给将来任何正常的插件。这条
+  优先级只影响「这一行由谁画」，不会伤到别人的 provider 行 —— 本组件仍会把非
+  qoder 的行委托回去。
+
+  测试抄了对方的 `-100` 作为常量（不 import 那个包：本仓库只是引用它做参照），
+  断言 `priority < -100`。对方哪天再往前挤，这条会红 —— 那正是它该提醒的事。
+
+- **国际版的模型目录不再列出那几个「抽象命名」的条目。** 用户：「国际版不要显示这些抽象
+  选项」，指的是上游只为国际版下发的 `Fast` / `Ultimate` / `Efficient` / `Sonus` / `Cantus`
+  —— 它们只有一个抽象形容词，看不出背后是哪家的哪个模型，勾了也不知道自己勾了什么。
+
+  判据用**显式表**（`ABSTRACT_MODEL_IDS`，与 `auto` 路由器的 `ROUTER_MODEL_IDS` 同一套做法）。
+  名字启发式（「首字母大写的单词都丢」）迟早会误伤真模型。
+
+  **过滤点有两处，都不是冗余** —— 这是本次最容易搞错的地方：
+
+  | 路径 | 经过 `configuredModels`? | 过滤点 |
+  | --- | --- | --- |
+  | `applySelection`（每次保存配置） | 是 | `configuredModels` |
+  | `refreshRegionCatalog`（点「从 Qoder 刷新」/ 启动后自动重拉） | **否** | `stampRuntimeCatalog` |
+
+  只在 `configuredModels` 里过滤的话，用户点一次「从 Qoder 刷新」，这些条目就会重新出现
+  —— 而那是这一页最常被点的按钮。这一点是**变异测试逼出来的**：第一版我只在
+  `stampRuntimeCatalog` 里过滤，把那一处换成原样之后测试仍然全绿，因为
+  `configuredModels` 正好先挡住了。改完补了一条走**刷新路径**的用例
+  （上游如实下发 `fast` + `ultimate`，断言选择器里没有它们），才真正把那一处钉住。
+
+  过滤发生在**读点**，不动 `lastCatalog` 存档：存档保持上次刷新写下的原样，而这一行在新
+  代码跑起来的那一刻就消失，不必等用户手动刷新。
+
+  顺带修正一处**过期的断言**：`registers both regional providers…` 原来要求「国际版目录与
+  国内版逐条相等」。这条前提在过滤之后必然不成立（兜底表两个区域共用，而过滤只作用于
+  国际版），已改成「国际版不列出抽象条目」这一条真实要求。
+
+  一处顺带修掉的隐患：tab 标签原来是嵌套三元
+  （`id === 'accounts' ? … : id === 'models' ? … : 'row.panelDiag'`）。加第四项时它必然
+  退化成「其它情况都是诊断」—— 新栏会顶着「诊断」两个字。改成查表
+  `Record<QoderPanel, QoderSettingsKey>`，以后再加一栏忘了配文案是**编译错误**，
+  而不是界面上悄悄错一个字。
+
+- **`configuredMaxTokens` 一直是一张空表：所有 qoder 模型都拿不到 `defaultMaxTokens`**
+  （issue #35，报告者附了完整分析与可直接用的补丁建议）。
+
+  宿主 `dsh-llm-pi-ai` 的 `modelInfo()` 这样取值：
+
+  ```js
+  const configuredMaxTokens = profile.configuredMaxTokens.get(model);
+  ...(configuredMaxTokens === void 0 ? {} : { defaultMaxTokens: configuredMaxTokens });
+  ```
+
+  **命中才返回**。而本插件在 `createQoderAdapter` 里写的是 `configuredMaxTokens: new
+  Map()` —— 从头到尾没有任何 entry。于是 `resolveModelInfo()` 对每一个 qoder 模型都
+  返回 `defaultMaxTokens: undefined`，**即使 `toPiModel()` 早就把
+  `maxTokens: info.maxOutputTokens` 算了出来**（那份是给 pi-ai 请求体的，宿主读的是
+  这个 Map）。
+
+  三个下游一起落空：billion-context 的输出上限（`x-bili-plugin-max-output` 与
+  `/__bili/plugin/runtime-info` **两个**通道都靠 `info.defaultMaxTokens`）、DSH 实际
+  下发的 `max_tokens`（退回 schema 默认值）、压缩预留窗口。
+
+  修法是把那张表做成**随目录自动保鲜**的（`liveMaxTokens`）。三个要点都是这条 issue
+  点出来的，没有一条是我想出来的：
+
+  1. **键必须是 pi model id**（`toPiModel().id`，即 `info.key`），不是 `displayName`
+     —— 宿主 `get(model)` 收到的是前者。用显示名做键会得到一张「看着有内容、但永远
+     命中不了」的表，与空表等价。
+  2. **用数组身份判失效**：目录被 `catalog.set(deriveCatalog(...))` 整体替换，而
+     `set()` 只在非空时替换，所以数组身份是可靠信号。
+  3. **懒填 + 缓存**，命中一次之后走原生 `Map.get`。
+
+  ⚠️ **第一版实现被自己的测试当场抓住**：我只把命中值 `super.set()` 进原生 Map 就
+  返回，没有让缓存跟着目录一起失效。于是用户点「从 Qoder 刷新」换掉目录后，旧键仍然
+  命中那份陈旧缓存 —— 报上去的还是旧上限。「目录刷新后新值生效，且不要求重建 profile」
+  那条测试红在 `expected 32768 to be 8192`。改成按「目录代数」整代丢弃缓存才对。
+
+  `maxOutputTokens` 不是正数的模型**不写进表**：`defaultMaxTokens: 0` 会被下游当成
+  「上限就是 0」，而缺席（`undefined`）才是诚实的「不知道」。
+
+  变异验证两处：退回 `new Map()` → 4 条红；去掉缓存失效 → 1 条红。
+
+- **紧接着的补充：国内版也过滤掉 `Fast`。** 上面那条只做了国际版，用户随即在国内版的
+  模型栏里实拍到 `Fast (0.80x)` 仍在，追加一句「国内版的 fast 也取消掉」。
+
+  我当初把 `withoutAbstractModels` 限定成「只有 `global` 过滤」，理由是「这几条只有
+  国际版上游下发」。**那条依据是错的**：兜底表在两个区域共用（它没有区域轴），
+  `fast` 在国内版目录里本来就在。判据从头到尾与区域无关 —— 那几行只有一个抽象形容词，
+  换到哪个区域都看不出背后是哪个模型。
+
+  所以改了判据本身，而不只是放宽条件：区域参数保留在签名里（调用点本来就握着它，
+  将来「按区域过滤」这类判据也确实该加在这里），但**它不改变结果**，注释与参数名
+  （`_region`）都写明了这一点，免得后来的人以为少写了一个分支。
+
+  连带修正两处**基于错误前提**的断言：`tests/index.spec.ts` 里原来写着「国内版不做断言
+  （它列不列 `fast` 是上游的事）」，现在两个区域都断言；纯函数那条也从「国内版原样保留」
+  改成「两个区域给出同一个结果」。变异验证：把区域判断加回去 → 3 条红。
+
+### 测试
+
+- `tests/settings-jump.spec.tsx` 6 → 11 条（全量 `1270 → 1294`，55 个文件通过，
+  `skip 12`）：座位优先且完全不碰 chrome、每次按下重新探测、`sectionId` 默认值可覆盖、
+  只有 `open()` 时仍落到本插件那一行、以及座位缺席/不可用/抛错的七种形态都退到第 2 条。
+  另外把 `beforeEach` 清文档的约定补齐 —— 旧用例只在开头清、不在结尾清，新用例断言
+  「这台宿主上没有 chrome」时会被上一条残留的触发器满足而变成空断言。
+- **变异验证**（每一条都先确认会红）：`openSection` 换成错误 id（3 条红）、`open()` 之后
+  直接返回不再落到第 2 条（1 条红）、缓存 `slots` 服务探测结果（4 条红）。
+- `tests/settings-section.spec.tsx` 4 → 5 条：新增一条钉住「设置页作用域下
+  `.dsm-plugin-card-body` 的边框 / 圆角 / 内边距 / 底色全部归零」，并**同时**断言整页那条
+  仍带 `border:1px solid` —— 两件事各断言各的，防止将来有人为了修设置页把整页一起拆了。
+  变异验证：把盒子加回设置页（1 条红）。
+- 同文件里原来那条「页头是标题 + 总述 + 三条核心用途」按新形态改写：断言页头用的是
+  `row.tabHint`、`.dsm-qoder-section-values` **整块不存在**，并且那句说明在整页里**只出现
+  一次**（`split` 计数）—— 最后这条是关键，否则「页头加了一句、正文还留着原句」这种
+  半对状态会静默通过。
+- `tests/pool-architecture.spec.tsx` 16 → 18 条：新增一条钉住 ↑↓ **紧贴**「当前使用」
+  （`.dsm-qoder-pool-account-line .dsm-qoder-pool-move` 里不许有 `margin-left:auto`），
+  另加一条钉住**两行形态**
+  （积分 `margin-left:auto` + `nowrap` + `flex:none`、签到**不再**抢右端、按钮在第二行右端
+  且旧的全宽覆盖消失、宽屏 `justify-self:end` 与 `margin-left:0` 同时在）。轨道断言随设计
+  更新两次：先 5 → 4（按钮住进名字行、操作列取消），再 4 → 5（按钮回到行级、操作列回来）——
+  两次都保留在断言里的是同一条判据「末尾固定 px + 不出现 auto」。
+- `tests/adapter.spec.ts` 34 → 38 条：issue #35 的五条验收（键是 pi id、不用显示名、
+  非正数不入表、目录刷新后生效、未知 key 返回 undefined）。第四条的措辞刻意写成「不要求
+  重建 profile」—— 第一版实现就栽在这里（缓存没随目录失效）。
+- `tests/settings-rebind.spec.tsx` 那条优先级用例改写了：原来断言 `priority === -1`
+  （理由是「workbuddy 占着默认 0」），现在断言 `priority < -100` —— 原断言**把错误的
+  判断钉死成了测试**，所以它一直是绿的。这是本次唯一一处「测试本身是错的」。
+- `tests/catalog.spec.ts` 38 → 40 条：`withoutAbstractModels` 的两个纯函数用例（抽象条目被
+  过滤、真模型在两个区域都保留），以及「判据不属于区域」这条 —— 它替换掉了原来那条
+  「国内版原样保留」，后者钉的是一条**错误前提**。
+- `tests/index.spec.ts` +2 条：一条走**选择器路径**（`ctx.llm.listModels`）、一条走**刷新
+  路径**（上游下发 `fast`/`ultimate` 时断言不出现）。后者的存在理由写在正文里 —— 没有它，
+  `stampRuntimeCatalog` 那一处过滤可以被删掉而无人发觉。
+- `tests/card-render.spec.tsx` 27 → 29 条：原来那条「积分那两行在卡片正文里、账号池之上」
+  按新归属改写为「搬进「能力」栏：不在账号栏里，也不在账号池内部」（仍断言只有一份 ——
+  搬动不能变成复制）；另加一条钉住**四栏顺序**与「点了才显示」。
+- `tests/pool-architecture.spec.tsx` 23 条：新增三条 ——「更多设置标题与说明都不再渲染、设置区
+  仍在」、「`.dsm-qoder-pool-settings` 去壳、而 `.dsm-qoder-pool-modebar` 仍带边框」、
+  「两行设置左右不内缩（`padding:12px 0`）」以及「窄列里改上下两段」（`flex-direction:column`
+  + 下拉框 `width:100%`）。
+- `tests/pool-render.spec.tsx` 49 条：新增两条 ——「行里只留积分数字，到期两句都不再渲染」
+  （连元素与 title 都不许有）与「两行归属」（积分在账号格内、按钮是行级第二行、按钮不再嵌在
+  名字行）。原有那两条到期/临期断言按新行为改写，表头格子数随操作列回归改回 5/4。
+- 新增 `scripts/section-preview.preview.tsx`：按设置面板**真实内容列宽**（800px 面板 −
+  188px 导航 − 48px 内边距 = 564px）把 `surface: 'section'` 的真实组件渲染成 PNG。
+  结构断言证明不了「看起来是一张浮在页面里的卡」，而 jsdom 不做布局 —— 这次两个版本的
+  差别是打开图看出来的。它落在 `scripts/*.preview.tsx`，不进 `pnpm test`。
+
+## 1.19.2 (2026-11-06)
+
+> 版本号是 **patch**：不改路由、配置键、协议与宿主接口。改动全在**发布物内容**上——
+> 几张 README 截图的像素、若干文档与注释里的示例值，外加一条把「内容审查」
+> 钉进流程的测试。
+
+### 修复
+
+- **README 首屏那张设置页截图里带的是维护者本人账号的演示数据**，同屏还有积分余额、
+  快过期积分与套餐到期时刻。按**高**危处理。
+  - **修法**：三张图里的账号名一律换成 `acct-demo`；设置页那张**同时**把余额换成 `888`/`210`、
+    快过期提示换成 `50 积分 5 天内过期`、套餐到期换成 `01/01/2027`，`usage-card.png` 的余额换成
+    `88`、积分包到期换成 `01/01/2027`。设置页这张按原字体的度量重绘了名字（行内与胶囊两处，
+    胶囊保留「当前使用：」前缀），其余像素一个没动。
+  - **另两张图的问题不是「已经处理过」而是「处理方式不合格」**：`usage-card.png` 与
+    `composer-credits.png` 里的账号名用的是**模糊遮罩**，它保留了字符宽度与字距。
+    这两处一并改成实心重绘的 `acct-demo`。**模糊 / 马赛克从此定为不合格**（见 `docs/PRIVACY.md` §2）。
+
+- **第一版修复只换了一类字段、其余原样留着，被独立审查当场判回。** 这一条单独记，因为它是
+  本次最容易重犯的错：把「显示名」当成唯一的标识，而同一屏上的数值同样是。
+  - 独立审查用 `git show HEAD:` 取旧图与新图做像素 diff，指出设置页里余额与到期**逐像素未变**；
+    而 `docs/PRIVACY.md` 自己写着「三者同框时至少换两项」——等于**用自己的规则判自己不合格**。
+  - 修法：图片按上面那条把余额/到期全换成假值；本 CHANGELOG 不再复述具体数值；
+    `docs/PRIVACY.md` §2 第 3 条从「至少两项」收紧成**「三项都换」**，要求假值看得出是假的。
+
+- **文本层的同类示例值**：真实邮箱、上游账号昵称（`nick…` 形态）、PAT 派生的凭据指纹
+  （`pat-<sha256 前 16 位>`）、本机绝对路径、凭据库键名，分散在 `CHANGELOG.md`、
+  `docs/RELEASE_EXPERIENCE.md`、`docs/PROMO_BADGE.md`、`docs/audit/*`、两处源码注释（三条）、
+  四个 `scripts/` 下的探针与 preview 脚本、三个测试文件里。全部替换成 `account-a/b/c`、
+  `account-a@example.com`、`pat-0123456789abcdef`、`~`、`QODERCN_ACCOUNT_EXAMPLE`。
+  - **只换标识符，不动结论**：历史条目里「第 1 位的号已用尽却被排在最前」这类**现象描述**是
+    有效技术信息，保留；换掉的只有那个真实名字。
+  - `lib/` 是构建产物，源码注释会原样进去——所以改完必须重新 `build`，否则 npm 包里
+    仍是旧的注释（`lib/client.js` 与 `lib/index.js` 各有一处）。
+  - `tests/live-intl-session.spec.ts` 里写死的用户主目录路径改为 `join(homedir(), '.dsh')`：
+    这条本来只是「本机跑真实上游时去哪找 vault」，写死路径纯属把本机信息带进仓库。
+
+### 文档
+
+- **新增 [`docs/PRIVACY.md`](docs/PRIVACY.md)**：禁止清单（凭据 / 指纹 / 账号标识 / 财务状态 /
+  本机路径 / 设备标识）、截图四条规则、提交前自检命令、以及「已经泄露了怎么办」
+  （先修 HEAD，历史重写不可逆需维护者同意；npm 已发布版本只能 `deprecate` + 发新版，撤不回来）。
+- **新增 [`AGENTS.md`](AGENTS.md)**：给在本仓库干活的人（和 AI 助手）的一页守则，
+  第一节就是内容硬约束。`RELEASING.md` 里那条「发包前必须有一次独立审查」现在有了指向。
+- 双语 README 各加一节「隐私与截图 / Privacy & screenshots」，把规则讲给使用者听。
+- **`RELEASING.md` 新增第 0 步「发布前审查」**（必做，且要由维护者以外的一双眼睛复核）：
+  自动化的那一道跑 `tests/privacy.spec.ts`，图片那一道只能人看。这条单列成第 0 步，
+  是因为它和 CI、类型、测试都无关，漏掉时不会有任何东西报错。
+- **`.gitignore` 补 `_backup_*/`、`backup-local/`、`*.reg`**：本机状态的手工备份
+  （注册表导出、设备 dump）描述的是**这台电脑**——用户名、实例 ID、类序列号的值。
+  仓库里当时就躺着一个 127 KB 的注册表导出（未被跟踪，但 `git add -A` 会把它带上去）。
+- **`RELEASING.md` 第 5 步的 `git add` 白名单改成 `git add -A`**：原先只 add
+  `package.json` / `CHANGELOG` / 双语 README / `THIRD_PARTY_NOTICES` 五个文件。
+  一次内容修复会同时动 `src/`、`tests/`、`docs/`、`.gitignore` 与 `.github/`，
+  照白名单 add 的话这些全都不进 commit，而 tag 与 CHANGELOG 已宣称修复完成——
+  push 后 GitHub 上 `docs/PRIVACY.md` 会 404、CI 新加的那步在仓库里不存在，
+  而 npm 包（`prepack` 从工作树重建）却带着修复，两边永久分叉。
+  这是**独立审查揪出来的**，比它看起来严重：它不会让任何测试变红。
+- `screenshots.json` 补上首屏那张 `settings-page.png`：README 首屏用它，市场条目
+  却一直没声明它。这同时修掉护栏的一个盲区（原先的「图片都被跟踪」断言只遍历
+  `screenshots.json`，恰好漏掉这张主角）。
+- `docs/audit/lead-findings.md` 与 `docs/PROMO_BADGE.md` 里残留的设备令牌与账号 uid
+  片段改为纯占位描述——原文一边说「只记形状与长度，不记取值」，一边把取值写了进去。
+
+### 测试
+
+- **新增 `tests/privacy.spec.ts`**：扫真实邮箱、`nick…` 昵称、`pat-<16 hex>` 指纹、
+  本机绝对路径、凭据库键名、`pt-…` / `ghp_…` / 私钥块、手机号、设备标识取值；
+  另外校验 `package.json` 的 `files` 白名单不含 `tests/`、`scripts/`、
+  `docs/audit/`，且 README 里相对链接的 `docs/*.md` 都在白名单里（漏一项就是
+  npm 页面上的 404）。CI 加了独立一步跑它，红了要一眼看出是「混进了不该进仓库的
+  内容」而不是淹没在 500 条测试里。
+  - **`dingminhua` 与 `@dmh2002/` 明确放行**：它们是公开身份（GitHub 仓库、npm 作用域、
+    MIT 版权人）。规则挡的是「它们之外」的个人数据。这条边界写进了 `docs/PRIVACY.md` 的例外段。
+  - **做过变异测试**：往一个新文件里注入七类真实形态的样例，测试全红；
+    第一版护栏当时**照样全绿**，因为只用了 `git ls-files`（不含未跟踪的新文件）——
+    而「新写一份文档」恰恰是最容易夹带私货的时刻。改用 `--others --exclude-standard` 后修好。
+    这条教训写进了测试的注释里。
+  - 它**读不了图片内容**：`docs/assets/` 下的图只能靠人打开看，测试只管文件名、清单与文本层。
+    这一点在 `docs/PRIVACY.md`、`AGENTS.md`、双语文档里都写明了，避免下次误以为「测试绿了就等于图也没问题」。
+  - **断言本身也做过反向验证**：「每张图都被 git 跟踪」那条最初是空转的——它用的
+    `scannedFiles()` 含未跟踪文件，于是「未跟踪」永远为假；而且只遍历 `screenshots.json`，
+    恰好漏掉出事的那张。改成 `readdirSync` × `git ls-files --cached` 后才真正生效。
+
+## 1.19.1 (2026-11-06)
+
+> 版本号是 **patch**：只有 composer 积分浮层的表格布局与两处 `title`。配置键、请求
+> 形状、路由、CLI、已保存的值、宿主接口全都不动。
+
+### 修复
+
+- **composer 积分浮层：状态文案一长就把表格撑出浮层，右侧「积分」列跟着跑到框外**
+  （issue #34，报的是 `1.17.5`，而 `1.17.4` 及更早同样存在）。
+  配额被拒时那一行第二行拼出来的是「用量已达上限 · 约 7 小时后解禁（按今日额度窗口
+  推算）」，30 个字；1.17.5 新增的那一档（「上游未给出何时恢复 · 每 30 分钟自动重试
+  一次」）还更长。它不换行、不省略，于是把整张表撑宽、把「积分」列连同数字推出浮层，
+  而浮层又没有 `overflow:hidden` —— 看起来就是「文字写到框外」。
+
+  根因是三条凑在一起，逐条都量过（Chrome + 真实组件 DOM + 本仓库样式表；jsdom 不做
+  布局，所以这些数是浏览器实测，不是推断）：
+
+  | | 规则 | 后果 |
+  | --- | --- | --- |
+  | ① | 表格没有 `table-layout:fixed`，列宽跟着内容长 | `width:100%` 只是下限，内容有多长表就有多宽 |
+  | ② | `.dsm-qoder-composer-panel-switch` 的 `white-space:nowrap` 被状态文案**继承**，而它既没有 `overflow` 也没有 `text-overflow` | 那行字既不可能折行，也不可能被省略 |
+  | ③ | 账号名有 `ellipsis`、状态文案没有 | 名字被截断，红字一路顶出去（这条只解释「为什么名字没了、红字还在」，不是溢出本身） |
+
+  用**真实 `ComposerCredits`** 渲染（不是手写 DOM）后交给 Chrome 量，四种构造的溢出量：
+
+  | 构造 | 修前溢出 | 修后 |
+  | --- | --- | --- |
+  | 中文 `unlockSuffixWindow`（截图里那句，30 字） | **105px**（表 339px） | **0** |
+  | 中文 `poolRetryUnknown` + `poolRetryFallback`（1.17.5 新增，更长） | **133px**（表 367px） | **0** |
+  | 英文同一条文案（国际版更长） | **434px**（表 668px） | **0** |
+  | 超长账号名（无空格） | 名字撑开同一条通路 | **0** |
+
+  改法取的是 issue 建议里的 **A + B**，外加 D 的一部分：
+
+  - **表格 `table-layout:fixed`** —— 列宽按声明分配，内容再长也只在自己那格里；
+  - **「积分」列定宽 64px** + `overflow:hidden;text-overflow:ellipsis` 兜底。64px 是
+    实测值：Chrome、12px、`tabular-nums` 下「9,999,999」62px（最宽一档）、
+    「999,999」50.9px，11px 的表头「积分」/「Credits」更短。不写宽度的话 fixed 之后
+    两列平分剩下的 222px，账号列被砍一半去换一个三位数，反而更难读；
+    兜底截断是为了防十位数余额，正常量级永远不触发；
+  - **状态文案改成换行**（`white-space:normal; overflow-wrap:anywhere`），**不用**
+    截断也不用 `-webkit-line-clamp`。这一格里最该被读到的是「（按今日额度窗口推算）」
+    那半句 —— 它说明这个时刻是**推算**的、不是上游承诺的，截掉就等于把限定藏起来。
+    `overflow-wrap:anywhere` 是因为中文没有词间空格可断。（与
+    `dsh-connect-workbuddy` issue #108 同一个判断：那边也是先截断、后来改成换行。）
+  - **账号名与状态文案补 `title`** —— 折行之后长文案仍可能被窄浮层折得不好读，账号名
+    则会被 `ellipsis` 截掉，两者悬停都该能看到完整原文。「当前选用」不挂（它短得不
+    折行，多一个原生气泡只是噪音）。
+
+  修完后浮层的 `scrollWidth` 与 `clientWidth` 相等（246/246），每一行的「积分」格右沿
+  都落在浮层内边界之内。代价是高度：中文那句折成 3 行、英文折成 6 行，浮层从 237px
+  长到 282px（中文）/ 327px（英文）。浮层本来就没有高度上限（它挂在输入框上方的
+  `position:fixed` 里，视口收边由 `popover.ts` 负责），多两行只是多两行；而截断会
+  永久藏掉那半句限定。
+
+  守卫分两层：
+
+  - `tests/credit-position.spec.tsx` 的「面板表格不会被长文案撑开（issue #34）」——
+    三条**样式契约**（fixed 布局 / 积分列定宽 / 状态文案可折行），跑在 `pnpm test`
+    里，不依赖本机 Chrome；三条各做了变异验证（退回任一条都失败）；
+  - `scripts/composer-panel-overflow.preview.tsx`——**真实组件**交给 Chrome 做布局，
+    量 `scrollWidth - clientWidth` 与「积分」格右沿。它不进 `pnpm test`（和
+    `model-list-layout.preview.tsx` 同一个理由：要碰本机 Chrome），用
+    `npx vitest run --config scripts/vitest.preview.config.ts` 跑。四条构造在修前
+    分别溢出 105 / 133 / 434 / 105px，修后全为 0 —— 这组断言确实咬得住。
+
+  另有一组 `title` 用例（DOM 层）钉住「折行/省略之后仍能读到完整原文」：
+  `title` 必须与正文**逐字相同**（另写一套措辞等于让悬停看到的不是同一条事实）。
+
+### 说明
+
+- issue 里「顺带一提」的设置面板 `.dsm-qoder-pool-row` **本次没动**。按同样的构造在
+  Chrome 里量过：它在窄栏（578px）排三行、长文案在 `.dsm-qoder-pool-probe` 里
+  `flex-wrap` + `overflow-wrap:anywhere` 正常折行，`scrollWidth === clientWidth`
+  （576/576）；宽栏（900px）那套五列 grid 同样不溢出。它不缺 issue 报的那个毛病，
+  没有理由为了「一起改」去动一个没坏的东西 —— 若日后在别的字号/语言下真的长出边界，
+  那该是另一条 issue、另一组实测。
+
+## 1.19.0 (2026-11-06)
+
+> 版本号是 **minor**：账号池成员区的**结构**变了 —— 从「标题 + 裸表格」变成一张
+> 带卡头的成员卡片，行在窄栏里从两行紧凑排法改成三段（账号 / 事实 / 操作），宽栏才
+> 升成五列。没有破坏性变更：配置键、请求形状、路由、CLI、已保存的值全都不动。
+> 形状参照 `dsh-connect-trae` 的账号池（用户实拍：「账号池显示学习一下 trae 插件的做法」）。
+
+### 修复
+
+- **账号池的成员表在实际使用的那一栏里从来没排对过。** 用户实拍「账号池」显示学习一下
+  trae 插件的做法。查下去不是审美问题，是断点测错了对象：布局对的是**视口**宽度，
+  而这张表画在**设置面板 578px 的内容栏**里，窗口却是 1440px。
+  - 1440px 的窗口让 `@media (min-width:761px)` 永远成立，578px 的表格于是拿到了
+    宽屏那套五列：实测账号列独占 402px、行高 108px，而右边 134px 的积分列里只有
+    「888」三位数。
+  - 更隐蔽的是那套宽屏规则**从来没赢过**：它写的是一个类
+    （`.dsm-qoder-pool-row`），而「有签到列」那条窄屏规则是两个类
+    （`.dsm-qoder-pool-table-checkin .dsm-qoder-pool-row`）。后者的层叠特异性更高，
+    于是国内版与国际版（都支持签到）在任何窗口尺寸下都只渲染两行紧凑形态，
+    五列那套是死代码。
+  - 表头因此与数据**错位**：实测「签到」标签停在 x=1476，它的值在 1573，差 97px。
+  - 现在断点改成**表级容器查询**（`container-type:inline-size` + `@container
+    (min-width:700px)`），列轨道只在 CSS 变量 `--dsm-qoder-pool-cols` 里声明一次，
+    行与表头读同一个变量，不可能再分叉。窄形态下**不画表头**（它的标签描述的是宽屏
+    那套轨道，一堆对不上的表头比没有更糟），与 `dsh-connect-trae` 同一个判断。
+  - 尾部两列改成固定 px：表头第 5 格是没有标签的空 span，它若是 `auto` 轨道会在表头里
+    塌成 0px，四条 fr 轨道于是各多分一点，标签整体右移、越往右错得越多。
+
+- **成员行在窄栏里是三段，不是一段挤在一起。** 第一版把「积分 · 状态 · 签到 · 测试 ·
+  删除」全塞进一条 flex 行，读起来是「888 50 积分 5 天内过期 可用(1.5s) 测得 ·
+  1 分钟前 已签到 [测试] [删除]」——两个可点按钮和三个只读事实长得一样。现在按
+  `dsh-connect-trae` 的窄形态排三行：账号 / 三个事实 / 操作按钮，删除那类不可逆动作
+  自己一行。
+
+- **一个账号都没有时不再留一条悬空的表头。** 表头唯一的作用是给下面那些行贴标签，
+  零行时它只剩一条没有内容的标签，读起来像表格加载失败。空状态那句已经说清了去哪
+  加账号，同一个空白不必展示两次。
+
+### 变更
+
+- **成员区合并成一张卡片（学 `dsh-connect-trae` 的 `.dsm-trae-pool-card`）。**
+  此前是「标题浮在外面 + 表格自己描一圈边」，卡头上那枚「已选 2 / 2」与它要看管的
+  复选框之间还隔着一条批量条和一道 gap，读起来像三件不相干的东西。现在卡头（标题 +
+  已选/全选/全不选）、批量条、表格都在同一个边框里，用分隔线分三段；表格自己不再
+  描边（那会得到「框中框」，两圈相距 1px，看着像渲染出错）。
+
+- **「删除」按钮的红色分了三档。** 用户实拍「删除按钮红色弱一点」。它和「测试」并排、
+  两个都是 outline 小按钮，删除若用满饱和红（#ef4444），整行右侧会一直有一块红在喊，
+  而这一行绝大多数时候是被扫视而不是被操作的。现在：
+  - **静止态**用 color-mix 把危险色调到 62% 再混一点标签灰，实测 #cf676a ——
+    看得出是危险动作，但不抢注意力；
+  - **悬停**回到满饱和 #ef4444，边框也跟着点亮（指针已经停在上面，此刻该明确）；
+  - **确认条里的「确认删除」**仍是实心红底白字，那一档不动 —— 只有走到这一步才是
+    真的要删，弱化它等于弱化最后一道门。
+  
+  兜底值写成 #c76a6a 而不是 #ef4444：不支持 color-mix 的环境拿到的是同一条柔和红，
+  而不是突然变回满饱和。
+
+## 1.18.0 (2026-11-06)
+
+> **配置入口从「插件市场的插件详情页」搬进「设置面板」。**
+> 这是一次用户可见的入口迁移，所以走次版本号而不是补丁号。插件本身的功能、配置项、
+> 已保存的值全都没有变化 —— 变的只是**到哪里去改**。
+
+### 变更
+
+- **配置页现在是设置面板左侧导航里的独立一页（设置 → Qoder）。**
+  它注册在宿主的 `settings.section` LIST 槽位（0.2.1-rc.5 起提供），与「账号与余额 /
+  通用设置 / 模型 / 插件」并列；导航图标用插件自己的 LD 品牌标记，与页面在**同一个**
+  `inject` 回调里注册（外壳取图标是 `renderSlot('settings.section.icon', …, { only: row.id })`，
+  id 必须与页面完全一致，否则静默退回默认齿轮）。
+- **删除了 `plugins.bundle.config` / `plugins.row.config` 两处注册。**
+  同一份配置不该有两个编辑入口。`src/client/slot-keys.ts` 随之删除 —— 那套键是按
+  **包名**寻址的（改包名时失配过一次：插件显示「运行中」、描述与组件行都在，但配置
+  正文什么都不渲染，且没有任何报错），而 `settings.section` 按 **id** 寻址，与包名解耦。
+- **页面结构：标题 → 一句话总述 → 三条核心用途 → 活动瓦片 → 正文。**
+  这一页把账号池、签到、模型目录、积分读数四件事装在一起，落地时用户最先看到的是
+  tab 栏与账号表，得靠这三行知道**哪些开关买到了什么**。
+- **设置页不再套插件列表的折叠外壳。** 原来那份 `<li class="dsm-plugin-card">`
+  是「插件列表里的一行」（折叠 header、上下分隔线）；设置页不是列表项，套进去会得到
+  一个既不像列表项也不像页面的东西。正文与侧边栏整页**逐字同一份**（同一个
+  `cardBody`），不是第二个真相。
+- **composer 积分面板里那颗「设置」按钮改了目的地。** 它以前调用
+  `pluginNavigation.openBundle(包名)`（打开插件市场里本插件那一页，配置卡片就在那儿）；
+  卡片搬走之后那个落点已经没有配置可看，所以改成**驱动真实界面**：点侧边栏的设置
+  触发器 → 在面板里按导航标签找本插件的行 → 点它。
+
+### 修复
+
+- **那颗按钮不再依赖宿主服务到货。** 主路径是 DOM 跳转，`apply` 那一刻就有一个确定的
+  值，所以按钮**总是**渲染；`pluginNavigation` 降级成**退路**，只在标签对不上时
+  （外壳换了文案、被截断、面板换了容器属性）把用户送回插件市场，而不是留一颗点了
+  没反应的按钮。退路是**现查**的，不是 apply 时探一次存起来 —— 那个服务由
+  `ui-plugin-manager` 在自己的 slot 生成器里 `reflect.provide`，加载顺序由 profile
+  决定，早探必然永远是 `undefined`。
+
+### 界面
+
+- **活动区改成瓦片网格。** 原来每条活动是一行压到底的窄条：正文栏有 ~580px 宽，
+  而一行只用到最左边那 200px，右侧整片空白，三条活动就要吃掉近 300px 高度。现在
+  每条活动是一个等高的小卡片，`auto-fill` + 260px 下限让它跟着栏宽自动排两列
+  （窄容器退回一列）；描述限两行（全文在悬停里），状态与「查看详情」贴底对齐，
+  同一排的卡片因此共用一条基线。额度从灰字标签改成标题行里的强调项。
+- **账号行从 155px 压到 52–86px**（Chrome 实测：单行账号 52px、带到期/排除说明的 86px；原来一律 155px，整张表 504px → 309px）。两个独立原因叠在一起：
+  - 账号那一列原来竖排 5 行（名次 / 上下移 / 「当前使用」/「测试于」/ 上一行结果），
+    同行其余四列都只有一行，高度全浪费在这一列。现在压成 2 行：身份一行
+    （名字 + 名次 + 当前使用 + 上下移），原因一行（只有这个号当前不能用时才渲染）。
+    「测试于 HH:MM」整句删除 —— 状态列里本来就写着「测得 · 1 分钟前」。
+  - **账号表的断点是反的**：原来是「5 列 + `@media(max-width:760px)` 折成 2 列」，
+    而这一页住在设置面板里，面板内容栏**固定 612px**（800 的对话框 − 188 的导航栏），
+    于是那个分支在设置页里**恒成立** —— 每个账号都被折成 264px 宽的两列堆叠。
+    现在是「窄形态默认 + `min-width:761px` 才升 5 列」，窄形态用显式 grid
+    两行两列而不是 `flex-wrap`（wrap 的折行点取决于名字长短，行高会跟着抖）。
+- **活动区的样式从来没生效过（修复）。** `.dsm-qoder-campaigns*` 那十几条规则一直住在
+  `QODER_COMPOSER_CSS` 里，而那份样式表由 composer 积分读数组件注入 —— 设置页
+  从不渲染那个组件，所以活动区一条规则都没应用：界面上是一列没有边框、没有分栏
+  的裸文字。样式必须跟着**渲染它的组件**走（活动区由卡片正文渲染）。这条在
+  1.18.0 的截图里一眼可见，是这次重新设计的直接起因。
+
+### 修复
+
+- **积分面板里那颗「设置」齿轮又没了（1.18.0 自己弄丢的）。** 搬迁时把
+  `openPluginSettings` 的赋值写在了 `bindSettingsScope()` **之后**，而后者会立刻
+  跑一次 `registerAllSlots()` —— `inject` 闭包在那一刻读到的是 `undefined`，
+  积分面板据此不渲染那颗齿轮。
+
+  而且**没有任何东西会纠正它**：渲染器把 `inject()` 的结果 `useMemo` 掉了，
+  依赖是 `[actions, definition, scopeBinding]`，注册对象不变就不会重算。想靠
+  「之后再重绑一次」补救，就意味着一改设置就要拆了重挂 composer 读数。
+
+  修法是把赋值移到 `bindSettingsScope()` 之前。守卫也换成了「注册那一刻求值」：
+  测试桩现在像 `runInject` 一样在 `register()` 里立刻调用一次 `inject()`，
+  断言的是那次求值的结果，而不是事后再取一次 —— 后者永远看不出来。
+
+### 新增
+
+- **「显示活动」开关（每区域独立，默认开）。** 活动区是读上游得来的附加内容，
+  与积分开关同类：默认显示（签到额度与限时活动本来就是用户来这一页看的东西），
+  但每个区域可以单独关掉 —— 两个区域的上游活动本来就不同（国际版签到需要设备
+  风控组件，取不到时那一侧会如实报错）。设置路径是 `regions.<region>.showCampaigns`，
+  面板上的勾选框在偏好区、紧挨积分那两条之后。
+
+  判据是 `!== false` 而不是 `=== true`：这是**内容开关**，不是「占用共享座位」
+  那种必须显式授予的东西（对比 `sidebarPanel` 的 `=== true`）。没写过 = 保持原样，
+  升级不能让一页本来有活动的人突然看不见。
+
+  值由**宿主的 usage 应答**下发（`showCampaigns`），不由浏览器设置镜像读 ——
+  与积分开关同一条理由：在受影响的部署上那个镜像收不到经宿主保存端点写入的值，
+  读它的控件会一直显示旧值。老宿主没有这个字段时缺席读成「显示」。
+
+### 兼容性
+
+- `settings.section` 是 **0.2.1-rc.5** 引入的槽位。本插件**没有**写能力探测：
+  `ctx.slots.inject()` 本身就是探测 —— 宿主没声明这个槽位时它只等待、不抛错、也不
+  执行回调，插件其余部分（provider、积分读数、模型徽标）完全不受影响。
+  反过来写一层 `typeof ctx.slots.specOf === 'function'` 的探测会让**失败的探测静默
+  关掉整页**（兄弟项目 dsh-subagent-default-model 2.1.16/2.1.17 就是这么丢的：
+  那个访问器不在 `ctx.slots` 上，探测恒为 false，整段注册被跳过，界面上没有任何痕迹）。
+- 在**没有** `settings.section` 的旧宿主上，配置页不再可达（插件市场里也没有卡片了）。
+  这是搬迁的代价，写在这里以免当成缺陷排查：升级宿主即可。
+
+### 测试
+
+`1237 passed / 12 skipped`（1217 → 1237）。新增与改写的守卫：
+
+- **新的设置页形态**（`tests/settings-section.spec.tsx`）：没有 `<li>` 折叠外壳、没有
+  返回按钮、标题/总述/三条独立用途逐条渲染、正文与侧边栏整页同源；
+- **跳转模块**（`tests/settings-jump.spec.ts`）：面板已开时不再点触发器（那一下会把面板
+  关掉）、导航行晚一帧渲染时重试能接上、标签对不上时退回 `onGiveUp`、没有触发器时
+  不静默；
+- **身份守卫**（`tests/plugin-id.spec.ts`）：页面与图标的 `id` 必须是同一个
+  `QODER_SETTINGS_NS`（写成两个字面量时页面能渲染、图标静默消失）、源码里不得出现
+  `slots.specOf(` 调用、构建产物里旧的 `plugins.bundle.config` / `plugins.row.config`
+  必须已经消失；
+- **重绑**（`tests/settings-rebind.spec.tsx`）：槽位名从两个 keyed 槽改为
+  `settings.section` + `settings.section.icon`。**在册条数仍然是 5**（两个卡片槽换成
+  页面 + 图标两个槽），所以那一组用例改为断言**具体的 cell 名**而不只是条数 ——
+  只数条数的话，这次换血根本看不出来。
+
+- **布局与样式归属**（`tests/pool-architecture.spec.tsx`）：账号行默认两行网格
+  （断点不能反）、5 列那套必须在 `min-width:761px` 里面、活动区的规则必须在
+  `QODER_CARD_CSS` 而不是 `QODER_COMPOSER_CSS`、活动瓦片的三个关键规则
+  （`auto-fill` 网格 / 两行截断 / 页脚贴底）都在。
+
+- **「显示活动」开关**：渲染处忽略它、宿主把缺席读成「隐藏」、helper 默认值反过来，
+  三条各自触发用例失败；另有一条**纯文本守卫**（文案里不许出现 `**`／反引号）——
+  它是真出事之后补的：这条开关的提示一度写着「**只读**」，而所有文案都是插进
+  纯文本节点的，界面上原样显示了两个星号。
+
+变异验证 9/9 命中：把图标 `id` 改成别的字面量、删掉第三条用途、让设置页掉回
+`<li>` 外壳、把账号行改回宽屏优先、把活动瓦片的网格规则改名、渲染处忽略活动开关、
+宿主缺席读成隐藏、helper 默认值反过来、把 `openPluginSettings` 的赋值挪回
+`bindSettingsScope()` 之后（那颗齿轮又消失）。
+
+## 1.17.6 (2026-11-05)
+
+> **适配宿主 DSH 0.2.2-rc.1。**
+> 宿主把 pi-ai 从 `1.1.0` 升到 `1.3.0`，`dsh-llm-pi-ai` 给 provider profile 加了两个必填字段、
+> 给 api 入参加了品牌类型，`dsh-client-locale` 把语言扩到 8 种并加宽了 `register` 的签名。
+> 不跟上的后果不是崩溃：是**类型检查红**，加上**图片条数上限静默失效**。
+
+### 修复
+
+- **profile 的两个新必填字段**（宿主 0.2.2 起有「单请求图片条数上限」）。
+  - **症状**：`ResolvedPiAiProviderProfile` 新增 `maxRequestImages` / `imageOffloadCountQuantum`；
+    插件是**手工拼** profile 的，宿主的 `?? 50` 默认化跑不到 —— 不报错、不崩溃，
+    只是 Qoder 路由失去条数上界，而宿主自有路由都有。
+  - **修法**：`REQUEST_IMAGE_BUDGETS` 显式补 `50` / `10`（= `min(10, 50)`，与宿主默认一致）。
+- **legacy 分支适配 pi-ai 1.3.0 的 `TranscriptContext`**。
+  - **症状**：1.3.0 把 `api.stream/streamSimple` 的入参品牌化（「只有 `normalizeContext()`
+    能产出」），`adaptLegacyPiAiContext` 返回的普通 `Context` 不再可赋值。
+  - **修法**：新增 `ApiContext` / `legacyContextOf()`，把两次断言收敛到世代边界一处，
+    并注明 1.3.0 宿主走 modern 直通、执行不到这里。**modern 分支仍然是透传** ——
+    折叠是 0.2.1 已论证过的错误方向。
+- **`QoderLocale` 补 string 索引签名**。
+  - **症状**：`ctx.locale.register` 的签名加宽成
+    `Record<BuiltInLocaleId, …> & Record<LocaleId, …>`（`LocaleId = string`），
+    固定 `{ zh, en }` 的接口缺索引签名，客户端 `tsc` 直接红。
+  - **修法**：加索引签名。它**不降低**键校验（`zh`/`en` 仍是完整的 `Record<QoderSettingsKey, string>`），
+    只是允许在双语之外追加 `de` / `ja` 这类新语种；缺的语种按英文兜底。
+
+### 调整
+
+- **peer 范围追加 `>=0.2.2-rc.1 <0.3.0-0`**：标准 node-semver 下 `0.2.2-rc.1` 原先判 false
+  （宿主门禁因 `includePrerelease` 一直判 true），所以 npm/pnpm 安装会被 peer 解析拒绝。
+- **开发依赖树整体迁到 0.2.2 线**（`dsh-* 0.2.2-rc.1`、`cordis 4.1.0`、`schemastery 3.19.0`、
+  `pi-ai 1.3.0`）。上一轮的问题正是主树停在 0.1.7 线，`typecheck` / `test` 从未对着真宿主跑过。
+- **删掉 `dsh-invariants` 的 override**：该包在 `0.2.0-rc.2` 之后停版，0.2.2 线已无包引用。
+- **中途 system 消息显式声明 `supportsMidConvoSystemMessages: false`**：0.2.2 起宿主开始真正读这个能力，
+  为 false 时把对话中途的 system 文本包成 user 角色的 `<system-reminder>`。Qoder 网关连
+  `developer` 角色都会 400，中途插系统角色没有实测依据，因此取保守侧并把决定写进注释。
+
+### 测试
+
+- **`pi-ai-runtime.spec.ts` 的版本断言不再写死 `0.85.x`**：改成「落在声明的 pi-ai peer 范围里」。
+  宿主换线时该改的是钉版，不是判据。
+- **modern fixture 从 1.1.0 升到 1.3.0**（与宿主同代）；「钉了什么」的断言改为
+  「确切版本 + `generationOf` 判 modern + 主版本是 1」。
+- **legacy 组按已装世代门控**：主树迁到 1.3.0 后，那 4 条强制 `legacy` 的用例跑在 1.x api 上
+  必然失败（1.x 只读 `messages`，顶层 `tools` 不进 body）—— 那是世代错配，不是回归。
+  跳过时用例名里带原因，不是静默通过。
+- 结果：`typecheck`（host + client）0 错误；`vitest` **1217 passed / 12 skipped / 0 failed**。
+
+### 文档
+
+- 新增 [`docs/DSH-0.2.2-RC1-FOLLOWUP.md`](docs/DSH-0.2.2-RC1-FOLLOWUP.md)：逐条实测证据、
+  复现脚本、落地记录，以及两处有意留下的缺口。
+- README 双语的「当前宿主基线」整节换成 0.2.2-rc.1 的实测结论（0.2.1-rc.4/rc.5 的逐条核查
+  不再冒充「当前」）。
+
+## 1.17.5 (2026-11-05)
+
+> **#31 / #32 两条 issue 的后续（两份回复里逐条答完）。**
+> 「到期日」其实是账号套餐，被当成积分包显示；
+> 签到积分算不出何时作废；
+> 兜底重试节奏在数据里看不见，且进程一重启就必然生效。
+
+### 修复
+
+- **`expiresAt` 的语义拆开**（issue #31 建议 1）。
+  - **症状**：积分行那个「到期日」是账号 **14 天试用 / 套餐**到期（实测 = `userId` 前 48 bit + 14 天），
+    却被挂在 `addon` 包上显示成「积分包到期」，还参与池排序的「临期紧急度」。
+  - **修法**：`QoderWebCreditPackage` 去掉 `expiresAtMs`；`QoderWebCredits` 新增
+    `planExpiresAtMs`，卡片单独一句「套餐 {at} 到期」。池排序的 `_atRisk` / `_expiring`
+    不再读它 —— 那个日期说的是「账号还能用多久」，与「手上的分会不会作废」是两件事。
+  - 取证实测：`lib/client.js` 里 `expiresAtMs` / `packages` 各 0 命中，包级到期没有外部消费者。
+- **签到批次的积分到期**（issue #31 建议 3）。
+  - 新增 `src/credit-expiry.ts`：签到成功时记 `claimAtMs` + `validityDays` + 数额，
+    落盘到 `.qoder-pool.<region>.json` 的 `credits`，按 FIFO 记账。
+  - **显示取悲观上界**：不冲销任何批次，直接取「最早一批还没过期的」。FIFO 若成立，
+    真实到期只会更晚 —— 这一行存在的意义是提前提醒，报晚了等于没有提醒。
+  - `claimAtMs` 缺席（旧记录 / 只见过「已领取」）时不显示；文案改成「最早一批签到积分
+    约 {at} 到期」，不冒充上游的确定时刻。只在 `RELATIVE_DAYS` 下成立。
+- **`monthly` 从 Qoder 的 DTO 里摘掉**（issue #31 建议 5）。它恒为 `false`，没有编码任何
+  信息；family 的约定是「有按月刷新的桶时用 `monthly` + `cycleRefreshMs` 表达」，不是
+  「每个连接器都必须有」。留着只会让读者分不清「不按月刷新」与「作者没填」。
+- **`expiringSoon` 的同名二义消掉**（issue #31 附带那条）。此前 `creditsOf` 累加**包数**、
+  `poolMemberCredits` 累加**金额**，而文案是金额措辞。现在两处都只算金额（来源统一为
+  签到批次），计数那一份从 DTO 删掉（它没有读者）。死 key `row.poolRetryAt` 一并删除。
+- **兜底冷却可见**（issue #32 建议 1）。
+  - 新增 `retrySource: 'unknown-cooldown'`：上游与快照都没给时刻、这次排除走的是本地
+    30 分钟兜底时写下它。**只写来源，不写 `retryAtMs`** —— 那个字段继续只放上游/推算
+    给出的时刻。
+  - 卡片那一格从沉默改成「上游未给出何时恢复 · 每 30 分钟自动重试一次」：沉默与
+    「已经放弃」同形，而实际系统每半小时就拿真实请求再撞一次。
+  - 30 分钟这个**数值刻意不动**：官方只说了「次日可继续」，编 6 小时与编 30 分钟性质
+    相同。真正降代价的是下一条。
+- **签到窗口时刻落盘**（issue #32 第三条，也是这条回复里收益最大的一条）。
+  - `.qoder-pool.<region>.json` 新增 `windows` 键，签到成功即写入；启动时读回。
+  - 取值顺序：进程内快照 → 磁盘；**已经过去的时刻不采用**（拿旧日期当恢复时刻会把号
+    判到很久以后才解禁）。`window` 缺失时照旧走兜底。
+  - 此前 `checkinSnapshots` 只在进程内，而兜底恰恰只在「窗口时刻不知道」时生效 ——
+    于是每次重启都让兜底必然生效。
+
+### 兼容
+
+- `quotaRefreshOf(snapshot, pat)` 保留为 `@deprecated`：1.17.4 的 `lib/index.d.ts`
+  里有这个导出，补丁版本不该把它拿走。但它正是 #32 那个坑的形状（替调用方派生
+  id），所以新代码一律走 `quotaRefreshOfAccount` / `quotaRefreshOfStored`，并各钉
+  一条「传 id 时必然取不到」的用例。
+
+### 文档
+
+- 中文 / 英文 README 各补两节（套餐到期 vs 积分到期、兜底重试与窗口落盘），排序规则
+  同步改写（补上「用户手排顺序」这一层，原文漏了）。
+- `tests/readme-parity.spec.ts` 增 3 条守卫：两份文档都要解释这两处语义、都要写出
+  落盘文件名 —— 这次的两条 issue 都源于「字段名骗人」，只有真去读文档的人会撞上。
+
+### 测试
+
+- 1213 passed / 8 skipped；两个 tsconfig 干净；`pnpm run build` 成功。
+- 每条修复都做了变异验证：去掉 `fallbackCooldownOf` → 2 条红；把悲观上界改成乐观
+  → 1 条红；把 `planExpiresAtMs` 塞回排序 → 2 条红；把 `windows` 从 merge 里去掉
+  → 3 条红。
+
+## 1.17.4 (2026-11-05)
+
+> **三处「只修了一条路径」的缺口。**
+> 上游整体拒服务时，插件还在每一轮重试前白等 30 秒；
+> 真实请求撞 `110` 时，池子按 30 分钟反复试探一个要等次日窗口的号；
+> 积分行的到期日已经过去了，却照旧挂着「3 天内过期」。
+>
+> npm 上一直停在 `1.16.4`，所以这一版同时带上 `1.17.0`–`1.17.3` 的全部内容
+> （侧边栏面板、默认思考档位、池目标解析只留一份目录等），升级一次到齐。
+
+### 修复
+
+- **上游整体拒服务时不再等待**（issue #30）。
+  - **症状**：`serviceAvailable: false`（上游整体拒服务、`queueCount: 0`）时，
+    插件仍按信封里的 `retryAfterSeconds` 等满 30 秒再重发；而 `queueWaited` 是
+    **请求内**的局部变量，宿主每次重试都是新请求 —— 一条用户请求被放大成 5 次
+    30 秒的白等（#29 现场：28 次重试、纯等待 296 秒）。
+  - **根因**：等待判据只看 `isQueued`，把「上游整体不可用」也吞进了「排队」。
+    同一个 `serviceAvailable` 字段，插件在 `outcomeOfFailure`、`liveRequestProbe`、
+    `probeModel` 三处都区分了，唯独等待这一处没看 —— 是不一致，不是设计选择。
+  - **修法**：判据加 `!upstreamUnavailableOf(queue)`，与「要不要换号」共用同一个
+    纯函数。语义边界三条：`false` ⇒ 不等、直接交给宿主 / 换号链；`true` ⇒ 照旧等
+    （#29 的行为不变）；字段**缺席** ⇒ 照旧等（不推断）。
+- **真实请求路径接上「当日窗口时刻」**（issue #32）。
+  - **症状**：真实请求撞 `110`（当日用量限制）后，池记录里没有 `retryAtMs`，冷却
+    落回 `POOL_UNKNOWN_COOLDOWN_MS` = 30 分钟；30 分钟后账号回池、再撞一次 `110`，
+    一个要等到次日窗口的号被以 30 分钟为周期反复试探，每次试探都是一发真实请求。
+  - **根因**：`cooldownOf` 早就支持「`out-of-credit` 用签到快照的窗口结束时刻」，
+    `probeThrough` 也把 `quotaRefreshOf(...)` 传进去了 —— 但那只覆盖**探测路径**；
+    用户真正走的 `shim → onServingFailure → liveRequestProbe` 没有人把窗口时刻递
+    进来，而 `110` 的报文里本来就没有等待时长。
+  - **修法**：`liveRequestProbe` 的 `context` 新增 `quotaRefreshAtMs`，
+    `onServingFailure` 用新增的 `quotaRefreshOfAccount()` 从签到快照取值（按账号 id
+    直接取 —— 真实路径拿不到 PAT，走按 PAT 派生的那个会把 id 再哈希一次，永远取不到）。
+    取值顺序与 `cooldownOf` 一致：上游申报的时长优先，其次窗口时刻，且只对
+    `out-of-credit` 采用。
+  - **来源不再混为一谈**：池记录新增 `retrySource`，卡片把「上游申报的时刻」与
+    「按签到快照推算的时刻」分开说 —— 后者写成「约 N 小时后解禁（按今日额度窗口
+    推算）」，不再冒充上游的承诺。旧记录没有这个字段时仍用原句。
+- **过期时刻必须有下界**（issue #31）。
+  - **症状**：试用期结束后，池表格那行会**永久**显示「{remain} 积分 3 天内过期」，
+    而且池排序会把它当成最紧急的号。
+  - **根因**：`creditsOf` 与 `poolMemberCredits` 的判据都是
+    `expiresAtMs - Date.now() < SOON_MS`，**没有下界** —— 一个已经过去的时间戳同样
+    满足它。
+  - **修法**：两处都加 `expiresAtMs > now`；`nearestExpiryMs` 同样只在将来时记录。
+- **到期日带年份**（issue #31）。
+  - 池表格的「最近积分包 {at} 过期」此前借用探针的 `formatProbeMoment`（只有月日
+    时分），跨年时 `01/05 08:00` 是哪一年读者无从判断。新增 `formatExpiryMoment`
+    带年份，两件事不再共用同一个格式化函数。
+
+### 测试
+
+- `tests/shim.spec.ts`：`queuedThenOk()` 的帧改成可参数化（默认是真排队），拆出
+  「整体拒服务不等（`calls.length === 1`、502）」「字段缺席照旧等」两条 —— 旧用例
+  恰好用 `serviceAvailable: false` 的帧把「应该等」钉成了正确行为。
+- `tests/index.spec.ts`：新增 5 条覆盖 `liveRequestProbe` 的窗口时刻（采用 / 申报值
+  优先 / 只对 out-of-credit / 不编倒计时）与 `quotaRefreshOfAccount` 的按 id 取值；
+  新增 3 条覆盖 `creditsOf` 的过期下界（过去不计、3 天内计、更远只记最近到期）。
+- `tests/probe-label.spec.ts`：新增 4 条覆盖 `retrySource` 的文案分档与
+  `formatExpiryMoment` 的年份。
+
+## 1.17.3 (2026-11-04)
+
+> **卡片写着「测试用模型：qfmodel」，点「测试」却只是闪一下。**
+> Host 每次都回了 200，只是回的是 `{"action":"test","rows":[]}`。
+> 不是网络、不是账号、不是凭据 —— 是同一个进程里有**两份模型目录**，
+> 而测试这条路径吃到的是被「已勾选模型」裁剪过的那一份。
+
+### 修复
+
+- **池的目标解析只认一份目录**（issue #33）。
+  - **根因**：`buildPoolDeps()/poolFor()` 把 `catalog` 接成
+    `stacks[region].catalog.current()` —— 那是被 `deriveCatalog` 按
+    `enabledModelKeys` 裁过的**运行时**目录（DSH 选择器读它，所以它必须裁）。
+    而卡片与 `/usage` 读的是 `displayModels(region)`（完整目录）。于是两处必然
+    分叉：目标模型只要不在 `enabledModelKeys` 里，测试路由就永远解不出目标。
+  - **两条分支同时落空**：手选模型在裁剪目录里查不到 ⇒ `stale`（`modelId`
+    缺席）；「自动」档唯一的免费模型被裁掉 ⇒ `pickFreeModel` 一个候选都没有
+    ⇒ `none`。两条都到 `target.modelId === undefined`，于是 `rows: []`。
+  - **修法不是「把两份对齐」，是只留一份**：测试路由与池视图都改读
+    `deps.catalogs`（卡片那份完整目录），并共用新增的
+    `resolvePoolTarget()` + `poolModelOf()`（投影规则也只有一份）。
+    `QoderPoolDeps.catalog` **整个删掉** —— 分叉在类型层面就不可能被接回来。
+  - 连带修掉一个相邻缺口：`displayModels()` 在「本进程还没拉到实时目录」时
+    退回**被裁剪**的运行时目录（与它自己的注释矛盾），冷启动 + 首次拉取失败
+    的窗口里会让未勾选的模型从卡片和目标解析里一起消失。现在补了
+    `cardCatalog`（`applySelection` / `refreshRegionCatalog` 写入的完整目录）
+    作中间兜底。
+  - `enabledModelKeys` 的语义不受影响：它管的仍然是「DSH 选择器里列哪些」，
+    与「允许测哪些」无关。
+- **「解析不出目标」不再伪装成「批量跑完了、一行都没有」**（issue #33 建议 2）。
+  - 此前回 `200 {rows: []}`，客户端只能渲染成 `row.poolLogTestRowMalformed`
+    ——「{accountName}：Host 未返回该账号的结果」，字面像是凭据失效 / 号不在池里，
+    把排查方向带偏。
+  - 现在回 `409` + 有区分度的 `reason`：`target-model-stale`（带
+    `staleTargetModelId`）或 `no-free-model`。客户端已有的
+    `poolErrorText` 直接把它们渲染成「目标模型已不在本区域目录中」/
+    「本区域没有可用的免费模型」。
+- **客户端文案不再把空结果归咎于「没有免费模型」**（issue #33 建议 4）。
+  - 批量 `rows: []` 的真实原因最常见的是「勾选的账号都没有可用 PAT」（幽灵 id
+    在宿主侧被跳过，那一步不产出行），而不是没有免费模型。有成员却一行都没有时
+    改说新增的 `row.poolLogTestNoneRan`。
+  - `row.poolTargetNone` / `row.poolTargetNoneHint` 重写：原来把原因单方面归给
+    「倍率要等目录刷新」，而真实现场常常是「唯一的免费模型不在目录里」。现在
+    把两种原因都写出来，并点明**勾不勾选不影响测试**。
+
+### 测试
+
+- `tests/index.spec.ts` 新增一组 **走真实 `apply()` + 真实路由** 的端到端用例
+  （3 条）：手选目标不在 `enabledModelKeys` 里照样测得出；「自动」档唯一免费模型
+  没勾选也照样解得出目标（并断言真的打了一次上游对话，而不是空转）；解析不出
+  目标时回 409 而不是 200+空数组。
+  - 为什么必须在**装配层**钉：真正的缺陷在宿主的 deps 接线上，纯逻辑测试注入的是
+    自己给的 catalog，接错线照样全绿。
+- `tests/web-status.spec.ts` 新增 4 条：`409 no-free-model`、`409
+  target-model-stale`（带那个失效 id）、目标解析读卡片目录而不是裁剪目录、
+  卡片与测试路由回报**同一个** `targetModelId`。
+- 既有「answers an empty batch when no target model can resolve」按新契约改写
+  （它钉的正是被修掉的旧行为）。
+- 变异验证：把目标解析改成「看不到免费模型」（等价于旧缺陷的后果）⇒ 上面 5 条
+  立刻转红；恢复后全绿。
+
+## 1.17.2 (2026-11-03)
+
+> **卡片写着「medium（上游默认）」，DSH 的模型选择器却显示 Default。**
+> 上游逐模型声明了默认档，适配器没有把它报上去 —— 宿主于是不知道该用哪一档。
+> 现在选择时直接落在那一档上。
+
+### 修复
+
+- **逐模型的默认思考档位报给宿主**（用户实拍：「这里既然有默认设置选择的思考强度，
+  选择的时候就应该直接进入到这个对应的默认设置，而不是跳动到 default」）。
+  - **根因**：适配器没有 advertise `reasoning.defaultEffort`。宿主正是从这份元数据取
+    「当前档位」与选项表（`ui-model-selection` 的 `catalog.reasoningFor`），默认档
+    缺席时它只能显示 **Default** —— 尽管卡片那一行写着「medium（上游默认）」。
+  - **新增 `src/default-effort.ts`**：取值优先级是**用户保存过的档位 > 上游声明的
+    默认档 > 该模型自己声明的中档**。第三档不是「最弱的那一档」—— Qwen 系声明
+    `low/medium/xhigh`，取 `low` 等于默认关掉思考；而 `low/high/max` 那一族没有
+    `medium`，所以兜底取该模型**自己**的中档。
+  - **新增 `DefaultEffortAdapter`**（`src/adapter.ts`）：在 `resolveModel` 与
+    `prepareCall` 两处 advertise 默认档。只改一处 ⇒ 界面是 Default、请求里却带着
+    档位（或反过来）。**绝不报一个该模型没声明的档位** —— 宿主会以
+    `UNSUPPORTED_REASONING_EFFORT` 拒掉整个请求，那比显示 Default 糟得多。
+  - **不能用 `profile.reasoning` 顶上**：它是**路由级**的一个常量，而 Qoder 的档位是
+    **逐模型**的（Qwen 系 `low/medium/xhigh`，DeepSeek/GLM 系 `low/high/max`）——
+    一条常量配不上一份花名册。
+- **shim 侧不再丢掉请求里带下来的档位**（`src/shim.ts`）：此前只认自己那张保存表，
+  于是宿主物化下来的默认档被丢掉 —— 界面写着「medium（上游默认）」、请求体里却没有
+  档位字段。现在**保存值优先**（那是用户明确选过的），没有保存值时采用请求里那一份
+  （宿主此刻的决定，比一张可能过期的保存表更近）。
+
+### 测试
+
+- 新增 `tests/default-effort.spec.ts`（11 条）：档位表过滤（只保留 DSH 认识的）、
+  取值优先级（用户 > 上游 > 中档兜底）、保存值失效时退回上游默认档、一个档位都没
+  声明时不编一个出来。
+- `tests/adapter.spec.ts` 新增「逐模型的默认思考档位」一组（6 条）：默认档被报给
+  宿主、`prepareCall` 那份也带、用户保存的值胜过上游默认档、保存值不在档位表里时
+  退回上游默认档、不声明档位的模型不报默认档、目录里没有的模型照旧被拒。
+- `tests/shim.spec.ts` 新增两条：没有保存值时采用请求里带下来的档位、保存过的档位
+  仍然胜过请求里那一份。
+- 变异验证（五条）：adapter 不再 advertise → 3 条转红；只改 `resolveModel` 不改
+  `prepareCall` → 1 条转红；shim 丢掉请求里的档位 → 1 条转红；兜底档退回最弱的一档
+  → 1 条转红；保存值不覆盖上游默认档 → 2 条转红。
+
+## 1.17.1 (2026-11-02)
+
+> **上游说「等 30 秒」，这 30 秒以前从来没被等过。**
+> 排队时插件把失败交给宿主，宿主的阶梯是递增的（5s → 10s → 20s），
+> 前两次**一定**短于申报值 —— 一轮 28 次重试、纯等待 296 秒，其中 11 次是在
+> 上游说「等 30 秒」之后 5 秒内就重发的。这次让插件自己把这一次等掉。
+> 另：`isQueued:true` 的两种形态（服务可用 / 整体拒服务）此前被压成同一句
+> 「排队中」，用户会因此去换 PAT —— 而换 PAT 没用。
+
+### 修复
+
+- **排队时插件自己等掉上游申报的时长，不再让宿主的阶梯白猜**（issue #29）。
+  - **现场**：`@dmh2002/dsh-connect-qoder@1.16.4` + 宿主 0.2.1-rc.5，一次普通任务
+    连续 28 次重试、总耗时 11 分 9 秒，其中纯等待 296 秒。每次失败的信封逐字相同：
+    `{"isQueued":true,"queueCount":0,"queueType":"p3","retryAfterSeconds":30,
+    "serviceAvailable":false,"subCode":"RESOURCE_LIMIT"}`。
+    而宿主实际给的等待是 5282 / 9158 / 19362 ms 一档，28 次里最大 21 990 ms ——
+    **一次都没达到上游要求的 30 000 ms**。
+  - **根因一（申报值到不了宿主）**：#24 修好了「值被丢弃」，但值只写进了给人看的
+    文案（`[upstream retry-after 30s]`）与 `Retry-After` 头。`pi-ai` 那条路由既没有
+    `providerRetryAfterMs` 通道、也不解析 `retry-after`（本次复核：该模块与底层
+    vendor `openai-completions.js` 里 `retry-after` 各出现 0 次）。所以在转发层自己
+    等，是唯一能让「等 30 秒」真的等于 30 秒、又不消耗宿主重试预算的办法。
+    **改法**：`shim` 在首字节未写时，若 `queue.isQueued === true` 且申报了正的等待
+    时长、且该值 `≤ queueWaitMs`，就 `await sleepAbortable(retryAfterMs)` 后重发一次，
+    这次失败**不交给宿主**。
+  - **三道闸门防死等**：每个请求只等一次（重发仍排队就交回宿主，那时它还有剩余
+    预算）；申报值超过上限**不截断等待**、原样交回（「只等一半再重发」正是本条
+    issue 抱怨的行为）；等待可中断，用户点停止立即返回。
+  - **新配置** `regions.<region>.retry.queueWaitMs`（默认 `60000`，`0` 关掉）。
+    默认开着而不是关着：宿主的阶梯前两次一定短于实测的 30 秒申报值，不在这层等掉
+    就等于每次都在对方说「别来」的窗口里敲门。
+
+- **「排队中」与「上游整体不可用」分开，不再误导用户去换 PAT**（issue #29）。
+  - **现场**：同一个 `isQueued: true` 下，`serviceAvailable: false` 与
+    `queueCount: 0` 同时出现 —— 队列里**一个人都没有**，不是这个账号在排队，是上游
+    整体在拒服务（实测 global 区 14 个模型全部如此，含倍率 8 的 `smodel`，所以也不是
+    免费额度问题）。用户按「排队」去换了 PAT，换完才发现不是自己的问题。
+  - **改法**：`queueOf()` 把 `serviceAvailable` 一并带出（此前读到了却不带出来），
+    新增 `upstreamUnavailableOf()`：只有 `isQueued: true` + **显式**
+    `serviceAvailable: false` 才算「整体不可用」，字段缺席不推断。
+  - **池与探针的结论分开**：`serviceAvailable: false` 记 `unavailable` 而不是
+    `queued`，不写「账号排队中」这种指向凭据的冷却；探针路径（`outcomeOfFailure`
+    与 `probeChat` 抛错兜底）同步区分。
+  - **换号提示分三种**：新增「上游整体不可用（不是该账号的问题）」，与「上游排队中」
+    「其它失败理由」并列 —— 前者明确告诉用户别在这上面花时间换凭据。
+
+### 变更
+
+- **README 补两节**：`queueWaitMs` 的作用与默认值；两种「排队」的区别（表格）。
+  同时更正旧文「配了 30000 就万事大吉」的暗示 —— 那个预算管不到「上游明确要求等
+  30 秒」的情形。
+  - **英文 README 此前一字未提**（issue #29 的修复只补了中文那份）：英文读者读到的
+    仍是「配了 `maxDelayMs: 30000` 就万事大吉」，而那正是 issue 第四节指出的错误
+    结论。现已补齐同样的两节，并把「三个 0 表示跟随宿主默认」更正为「**前三个** 0
+    是跟随宿主默认，第四个 `queueWaitMs: 0` 是关掉」—— 那第四个 0 的含义与前三个
+    **不同**，混为一谈会让用户以为配 0 是「用宿主默认」，于是关不掉这个功能。
+  - 新增 `tests/readme-parity.spec.ts`（4 条）钉住双语同步：四个配置键、两种排队的
+    判据（`serviceAvailable` 的 true/false 两种形态）、`queueWaitMs: 0` 的关掉语义、
+    以及 issue 编号这个引用锚点。这类缺口不会让任何构建或测试失败——文档不是产物
+    的一部分，只有真去读它的人才会撞上，所以它需要一条钉住同步的用例。
+
+## 1.17.0 (2026-11-02)
+
+> **侧边栏里也能打开这张卡片了 —— 但默认关闭，你不勾它，侧边栏一行都不会变。**
+> 做法对齐 `dsh-connect-workbuddy` 的 PR #188（同一套 `sidebarPanel` opt-in）。
+> 另：composer 积分面板页头的「一键测试」换成「设置」，直接打开插件设置页。
+
+### 新增
+
+- **可选的侧边栏面板**：卡片「账号」栏多了一行「在侧边栏显示 Qoder」。勾上之后
+  DSH 侧边栏会出现一个 Qoder 图标行，点开就是这张卡片的**整页版**（同一份账号池、
+  模型目录、诊断栏，占满中央那一列），页头带「返回会话」。
+  - **默认关闭、显式 opt-in。** 这一行占的是 `sidebar.panellist` —— 所有插件共用
+    的**全局**侧边栏座位，点开还会接管中央面板；打开它是对整个侧边栏的决定，而不是
+    对这张卡片的偏好。「插件」页本来就能看到同一张卡片，所以没主动勾过的人**升级后
+    界面不会有任何变化**。判据是 `=== true`：缺席、`false`、被手工改成字符串
+    `"true"` 的垃圾值一律读作关闭。
+  - **注册是条件的，不是「渲染成 null」。** 侧边栏那一行由插槽**注册元数据**渲染
+    （标签取 `options.label`、图标取 `renderSlot(...)`），一个 `return null` 的组件
+    留下的是**空白但可点击**的按钮。所以开关关着时那一行根本没有在册，打开时才注册、
+    关掉时当场撤回。
+  - **点一下即生效，不用保存。** 关掉时如果整页正开着，中央那一列会自动回到对话
+    （宿主 `ui-layout` 会丢掉 `main` key 已不存在的选中项）。
+  - 存为**顶层**配置项 `sidebarPanel`（没有区域轴：一行、一页，与国内版/国际版无关），
+    所以某一区域签出、甚至两个区域都关掉时它仍可打开——面板本身就是去添加第一个
+    PAT 的地方之一。声明成 volatile：翻它不会 dispose 两个 provider 栈、不会掉光在飞
+    的请求。
+  - 值由 **Host 在 usage 文档里下发**（`sidebarPanelEnabled`，GLOBAL，随每个区域的
+    文档一起带），而不是只读浏览器设置镜像——那个镜像在受影响的 0.1.7 部署上被记录
+    为陈旧，一个陈旧的 `false` 会让行永远不出现，且之后没有任何事件去纠正它。
+  - 写入走与其它开关同一条已验证的路径（Host 保存端点优先、settings 作用域兜底），
+    并且**只在落地之后**才让那一行出现：Host 拒绝过的值不会长出一行。
+  - 整页与设置页渲染的是**同一份正文**（抽成 `cardBody`，两种外壳）：写成两份就会有
+    两个真相，而用户会拿其中一份去对照另一份。
+
+### 变更
+
+- **composer 积分面板页头多一颗「刷新」按钮，在「设置」左边。** 它重测**玩家池**
+  里的每个成员（就是设置页账号池工具栏那颗「一键测试所有账号」同一条路：
+  `POST /pool?action=test`），所以两处测出来的结论必然一致。
+  - **为什么需要它**：面板的圆点与第二行原因（被拒绝／用量已达上限／限流 · 约
+    N 分钟后解禁）全部来自**探针结论**，只读余额读不出「还能不能用」。刷新之后
+    颜色与原因才是刚测出来的，而不是打开面板那一刻的旧账。
+  - **与「设置」是两件事**：刷新改的是「此刻的结论」，设置改的是「以后怎么跑」
+    （换号、开池、改阈值）。所以顺序是「先看结论、再去改配置」，刷新在左。
+  - **批量是串行的真实探针**（一个号十几秒到几十秒），所以不干等整批响应：边跑
+    边读宿主的**只读**进度（`action=progress`，不碰上游），每落一行就把账号表
+    重取一次，用户能看着圆点一行一行翻新。整批结束（成败都）再补最后一读。
+  - **点它不关浮层**：用户要看的就是圆点翻新，浮层关了就没得看。「设置」那颗才
+    关（设置页要接管中央列，浮层留在半空只会挡路）。
+  - **没有可测的东西时那颗是置灰的**，而不是消失：宿主不发 `pool` 段的旧宿主、
+    以及池成员名单空，都判为「无可测」。判据是**池成员**而不是面板上的账号行 ——
+    宿主侧的 `pool.test` 遍历的就是池成员，用行数判会把「池空但有一个选中号」误判成
+    有东西可测。
+  - **池关着时这颗照样可点**：手动动作**不受池开关约束**（workbuddy 那边把这条写成
+    了显式理由）：池的开关管的是「插件要不要替用户自动选号/换号」，不是「用户能不能
+    对勾选过的号点一下测试」。宿主的 `pool.test` 走 `scope = prefs.memberAccountIds`，
+    不看 `pool.enabled`；若 UI 按开关判定，用户就点不到一颗其实能发的请求。
+  - 样式对齐 workbuddy 的同名控件（`acc8f2f` / `92078a8`，用户给的参照图就是它在
+    真实宿主里的渲染）：**刷新是透明底的灰字药丸**（hover 才出色），**设置是淡紫底的
+    深色字药丸**。两个一样响的胶囊会让页头读成一条工具栏，而「设置」是那个会**离开**
+    面板的动作。在飞时循环箭头转起来 —— 用户看着一颗不动的按钮等了半分钟，会以为它
+    没点上；减弱动效下不转但**变暗**，而不是消失（它是「批次还活着」的唯一提示）。
+  - **提示里写明它会花积分**：「刷新」听起来是免费重读，而它底下是一批真实的探测 ——
+    花积分、最长约一分钟。让人意外掏钱的控件，比标签长一点的控件更糟。
+
+- **composer 积分面板页头的「一键测试」换成「设置」。** 那颗按钮此前是批量探针
+  （用户实拍：面板右上角一颗「一键测试」，读了余额却去跑一遍全部账号）。它搬运的
+  动作在设置页的账号池工具栏上本来就有（`row.poolTestAll`），而**按账号的结论表**
+  也只在那里 —— 在这块浮层上放一个只会测、却打不开设置的动作，是面板离「设置」
+  最远的一处。现在点它直接打开本插件的设置页（账号池、模型目录、诊断一处不落），
+  并且先关掉浮层：设置页要接管中央列，浮层留在半空只会挡路。
+  - **那颗批量探针没有消失**：它就是上面那颗「刷新」，只是搬到了「设置」左边。
+  - 目的地交给宿主自己的 `pluginNavigation.openBundle(<npm 包名>)`（`ui-plugin-manager`
+    用 `reflect.provide` 提供，语音输入插件同款用法），**软探测、绝不写进 `inject`**：
+    一旦写成依赖，没装 Plugins 页的 profile 上整个客户端插件都不会激活，卡片、积分
+    读数与模型徽标会一起消失，而这里只该丢一颗按钮。
+  - 拿不到导航服务时**不渲染那颗按钮**，而不是渲染一个点了没反应的：一颗死按钮比
+    没有更糟。
+  - 批量测试本身没有任何损失 —— 它仍在账号池工具栏上，那里也是逐账号结论的表格
+    所在。
+  - 样式对齐 `dsh-connect-workbuddy` 的同名按钮：品牌色 10% 底的**药丸** + 12px
+    齿轮，而不是带框按钮，也不是下划线链接。那两条路 workbuddy 都试过并记下了
+    理由（下划线让一个单词读成「碰巧能点的正文」；带框在 13px 标题旁太吵）。
+    `margin-left:auto` 放在**外壳**上而不是按钮上：按钮并非总在（宿主没有去处的
+    路由时不渲染），始终存在的外壳才能让页头在两种情形下排布一致。
+  - **样式表改为「就地刷新」，并且按 npm 包名打标。** 这一条修的是「样式没学对」
+    的**真正**原因：CSS 本身与参照插件逐字一致，但浏览器里那一版是**页面第一次
+    加载时的旧版**。
+    - **样式表此前只「缺失时才追加」。** 宿主重建 bundle 会重新 import 本模块，
+      于是这段顶层代码再跑一遍，而那张表**已经存在** —— 新样式永远进不去。症状是
+      「代码更新了、样式没更新」：设置按钮本该是品牌色药丸，浏览器却还在用第一版
+      （那版里根本没有这颗按钮的规则），于是它渲染成一颗浏览器默认的按钮。
+    - **`data-plugin` 此前写的是 Loader entry id**（`dsh-connect-qoder`），而宿主
+      按 **npm 包名**（`@dmh2002/dsh-connect-qoder`）认领样式表
+      （客户端图谱的一行 id 就是包名，`removeOwnedStyles` 删的就是
+      `style[data-plugin=<包名>]`），两者对不上，宿主永远清不掉它的样式表。
+      同族的 `dsh-connect-workbuddy` 没有这个毛病，纯粹因为它的包名恰好等于它的
+      entry id。
+    - 现在两张表（设置卡片的、composer 读数的）都走同一个注入器：存在就**更新
+      内容并纠正打标**，不存在才新建。宿主重建后浏览器里的样式与代码同一版。
+
+### 修复
+
+- **静态兜底目录整体对齐上游实测**（网关不可达时用的那张表）。
+  - **依据是实测**：2026-11-02 用探针拉 cn 与 global 两区的 `model/list` 原始行，
+    逐字段抄下来（不是凭模型名推，也不是抄旧版本）。
+  - **这张表此前整体过期**：`qmodel_latest` / `qmodel_preview` / `qmodel` /
+    `q36fmodel` / `gm51model` 五个 key 上游**已经不存在**（上游换成了
+    `qmodel_38max` / `qfmodel` / `gmodel`），模型名也停在 Qwen3.7-Max、GLM-5.2、
+    MiniMax-M2.7 那一代。网关不可达时兜出来的目录有一半是**上游没有的模型**。
+  - **思考声明照抄上游**：每个条目带上上游的档位表、默认档与「能否关掉思考」。
+    - **MiniMax 现在与上游一致**：上游对 `mmodel`（MiniMax-M3.1-Flash）声明
+      `is_reasoning: false` 且**根本没有** `thinking_config` 字段，所以它没有档位、
+      也没有 off 档。老兜底表写的 `isReasoning: true` 是上游早已不承认的旧声明
+      （那时它还是 M2.7）——一个网关不可达的用户会看到一个上游从未提供过的档位。
+    - `canDisableThinking` 从「一律 true」改成「上游声明了 `disabled` 才是 true」。
+      老写法给**每一个**模型都发 off 档，包括 MiniMax 这种上游根本没提思考的。
+    - 两区的档位表实测**完全一致**；只有三个模型的 `is_reasoning` 相反，而它们
+      都有 `thinking_config`，所以结论按 `thinking_config` 判时相同（只把 false
+      补成 true，绝不把 true 降成 false）。
+  - `contextTiers` **不**写进兜底表：拉不到目录时无从得知窗口档位，写死一档
+    反而会让卡片渲染出一个上游没有的预算下拉。
+
+### 测试
+
+- `tests/credit-position.spec.tsx`：页头两颗按钮的**结构与行为**——刷新在左、
+  设置在右（同一条断言钉住顺序）、刷新发的是 `POST /pool?action=test`（与设置页
+  账号池那颗同一条路）、点刷新**不关**浮层（点设置才关）、循环箭头不被播报、
+  **池关着时刷新照样可点**（手动动作不受池开关约束）、以及「没有可测的东西」
+  （宿主不发 `pool` 段 / 成员名单空）得到同一颗**置灰**的按钮。测试夹具的 usage
+  文档因此带上 `pool` 段，且**池成员**与**账号行**分开设定——这两者不是一回事。
+- `tests/credit-position.spec.tsx` 新增「页头控件的 CSS 契约」一组（4 条）：页头渲染的
+  每个类都有对应规则（没规则的类 = 浏览器默认按钮）、**刷新是透明底**而设置才有底色、
+  右对齐由**外壳**而不是按钮自己负责、箭头在飞时会转且减弱动效下变暗而不消失。
+  jsdom 不做样式计算，所以这一组是唯一能断「那颗药丸有没有底色」的地方。
+- `tests/locales.spec.ts` 新增「页头「刷新」控件的文案」一组（3 条）：标签按**结果**
+  命名（不许出现 test／测——卡片里还有逐账号的「测试」）、提示里必须同时说出机制与
+  代价（探测 + 积分）、账号状态刷新失败与积分刷新失败是**两条**不同的消息。
+- 变异验证：把 `poolTestable` 从 `disabled` 里去掉 → 1 条转红；打乱两颗按钮的顺序
+  → 1 条转红；点刷新时顺手关掉浮层 → 1 条转红；把「池关着」重新纳入禁用判据
+  → 1 条转红；提示里删掉成本说明 → 1 条转红；给刷新按钮加回灰底 → 1 条转红
+  （这一条**最初漏过**——组件测试跑在 jsdom 里，断不到底色，是补了 CSS 契约才抓住的）。
+- `tests/catalog.spec.ts` 新增「静态兜底目录」一组（6 条）：表里每个 key 都是
+  上游真实存在的（不再有过期 key）、模型名与上游一致、档位与默认档与上游一致
+  （顺序按强度升序）、**投影后**的模型带着档位（不是只在表里写着）、MiniMax 与
+  上游一致（不是推理模型、没档位）、兜底模型仍能拿到真实档位表（不是全 null 的
+  map——那会让 DSH 内核判定整条 provider 路由作废）。
+- 变异验证：把 MiniMax 改回 `isReasoning: true` → 1 条转红；把兜底表退回过期
+  key → 4 条转红；把投影层的档位丢掉 → 1 条转红（这条最初**漏过**，是补断言
+  才抓住的：断言只在表里写，等于没断投影）。
+- 顺带更新两处钉着旧事实的断言：`tests/catalog.spec.ts` 的显示名（Qwen3.7-Max
+  → Qwen3.8-Max）、`tests/index.spec.ts` 的 provider 模型 id（`qmodel_latest` →
+  `qmodel_38max`）。
+
+### 测试
+
+- 新增 `tests/style-injector.spec.tsx`（5 条）：样式表按 **npm 包名** 打标（宿主
+  按包名就能删掉；断言它**不是** entry id）、两张表都归宿主管、同一张表再次注入
+  时**更新内容**而不是留下第一版、以及一张被旧版本注入的表（entry id 打标）也会被
+  认领回包名并刷新。
+- 变异验证：把刷新逻辑退回「只追加」→ 2 条用例转红；把打标退回 entry id → 4 条
+  用例转红。
+
+### 测试（侧边栏面板与设置按钮）
+
+- 新增 `tests/sidebar-panel.spec.tsx`（15 条）：读写 helper 的同意语义（缺席 / `false`
+  / 字符串 `"true"` 都不算打开，volatile 的 `{get()}` 必须先解包）、开关 store 的
+  幂等与坏监听者隔离、**针对真实 `apply()`** 的条件注册（关着时两条注册都不在册、
+  打开才出现、关掉当场撤回、反复翻不撞 `already has an entry`）、以及卡片里那份
+  控件的三级读法、写入形状与「落地后才发布」。
+- `tests/index.spec.ts` 加了一组**端到端**接线断言（真实 mount 插件 + 真实路由应答）：
+  配置没写这一项时 `/usage` 不带它，写了 `true` 时两个区域都带、且 `/__save` 认这个
+  字段并能回读。**两端都对、中间那根线没接**是这类开关最典型的失效形态，单测两端
+  覆盖不到。
+- `tests/web-status.spec.ts`：GLOBAL 语义（两个区域都带 / 关闭与 dep 缺席都不带 /
+  `signed-out` 那一支也带——零账号的用户正是最需要从面板去添加第一个 PAT 的人）。
+
 ## 1.16.4 (2026-10-31)
 
 > **上游说「排队中，30 秒后再来」，插件却报「连不上上游」并冷却 30 分钟。**
@@ -1365,8 +3473,8 @@ rc.3 的客户端改动全部是增量的，且都落在本插件用不到的地
   `current`=接管者且 `servingSource='failover'`）。
 
 - **名次表宣称「第 1 位」的号其实用不了，与实际发号顺序相反。** 用户实拍
-  （2026-10-18）：`nick1064248741` 用量已达上限却排在第 1 位，第 2 位才是
-  「✓ 可用」的 `shangxinyu2002@msn.com`。
+  （2026-10-18）：`account-a` 用量已达上限却排在第 1 位，第 2 位才是
+  「✓ 可用」的 `account-b@example.com`。
 
   原因是卡片侧的排序函数 `sortAccountsByOrder` **只按 `orderAccountIds` 排名，
   完全不看 `excludedBy`**，而宿主 `rankPool` 的第 1 层恰恰是可用性。于是只要
@@ -1382,8 +3490,8 @@ rc.3 的客户端改动全部是增量的，且都落在本插件用不到的地
   不再把自己报成当前优先。
 
 - **「当前使用」与「用量已达上限」同时出现在一行，读起来像自相矛盾。** 用户实拍
-  （2026-10-18）：标着「当前使用」的 `nick1064248741` 同一行写着「✗ 用量已达上限 ·
-  上游未给出何时恢复」，而上面 `nick2223682662`（100 分）、`nick3428576356`（210 分）
+  （2026-10-18）：标着「当前使用」的 `account-a` 同一行写着「✗ 用量已达上限 ·
+  上游未给出何时恢复」，而上面 `account-b`（100 分）、`account-c`（210 分）
   的目标模型列都还是「✓ 可用」。**两句其实都对**，问题是卡片只说了一半：
 
   1. `resolveServing` 返回的是 `store.resolve(sources, selectedAccountId)` ——
@@ -2268,7 +4376,7 @@ pi-ai 从 1.3.0 回落到 1.1.0 是同一 `^1.1.0` 范围重新解析的结果�
   - **`checkinSupported` 改为真实检测**：CN 为 true、国际版暂为 false（国际版同样有该活动，但需要本机 UMID 组件生成的设备风控头 `Cosy-MachineToken/MachineCode/MachineType`，未接通——字段保留，卡片按它隐藏整列）。
   - **UI 对齐 workbuddy**：账号池表格补回「签到」列（5 列 grid，规则本就存在）、批量动作里补回「一键签到所有账号」（primary、排最前，签到是唯一带来收益的动作），以及签到日志（逐账号三态：已领取 N Credits / 今天已领过 / 失败原因）。签到单元格是**三态**而不是两态——还没读到的账号说「未知」，不说「未签到」，否则会与用户刚亲眼看到的领取结果矛盾。
   - 签到会改变积分余额，因此批次结束后作废该区域的用量缓存，卡片不会继续显示领取前的数字。
-- **卡片正文不再重复额度明细**（用户实拍：「红色框出来的部分，也不需要了，因为下面已经显示了」）：那行「附加额度 · 92 / 100 (12/31, 08:00 到期)」与账号池表格的「积分」列是同一组数字（连日期的分钟都一致），而池里是**逐账号**显示、粒度更细。成功状态下这一块不再渲染；`renderCredits` / `bucketLabel` / `formatDate` 三个随之失去引用的函数一并删除。
+- **卡片正文不再重复额度明细**（用户实拍：「红色框出来的部分，也不需要了，因为下面已经显示了」）：那行「附加额度 · 88 / 100 (01/01, 08:00 到期)」与账号池表格的「积分」列是同一组数字（连日期的分钟都一致），而池里是**逐账号**显示、粒度更细。成功状态下这一块不再渲染；`renderCredits` / `bucketLabel` / `formatDate` 三个随之失去引用的函数一并删除。
   - **但「读不到」的情况保留**：池行只能显示一个「—」，说不出原因，而 `creditsError`（凭据被拒 / 上游未响应）只存在于这份 usage 文档里——池行拿不到。所以现在只渲染失败文案，成功时什么都不显示。这一条同样有测试守着（做过变异验证：把失败文案也删掉，测试会失败）。
 - **幽灵成员（凭据已删除的池成员）改为自动清理，不再提示用户**（用户实拍：「这个我之前移除了 2 个 PAT，你应该直接就清理掉，而不是再给我这么一个提示，而且我测试的时候这两个也会涵盖进去」）。三处一起改：
   - **客户端自愈**：`memberAccountIds` 里留有已删除凭据的 id 时，静默把名单收敛为实际存在的成员并写回（`pruningRef` 防重入；只在不脏、不忙、可写时动手——正在编辑草稿时偷改会覆盖用户的选择）。原先那句「有 N 个已保存的账号当前没有可用的 PAT……**再保存一次即可移除它们**」把插件的内部记账问题推给了用户：他删完 PAT 还得回来再点一次保存，而他本来就不想要这些账号。文案键 `poolGhostMembers` 与 `ghostMemberIds` helper 一并删除。
@@ -2278,7 +4386,7 @@ pi-ai 从 1.3.0 回落到 1.1.0 是同一 `^1.1.0` 范围重新解析的结果�
   - 「重新读取账号」做的事（重读快照 + 刷新）现在由账号池的测试/添加等操作自动完成，而「重新读取**授权文件**」这个语义本身早已过时——凭据走 PAT，不再依赖授权文件。用户说得对，这个按钮不该存在。
   - 「移除 · <账号>」与账号池表格的「移除」是**两个不同操作**（前者删保险库里的 PAT 记录，后者只把账号移出池成员），摆在一起只会让人分不清删的是哪一个。保留池里的那个；真要清理凭据用 `dsh-connect-qoder logout`。
   - 连带清理：`rescanAccounts` / `removeVaultAccount` 两个函数、`confirmRemoveId` state、三个只被它们用到的导入（`QODER_ACCOUNTS_PATH` / `QODER_ACCOUNTS_REFRESH_PATH` / `withQoderRouteAction`）、以及 8 个随之失去引用的文案键。账号选择器（多账号时手动指定）保留——它仍是账号池不可用时唯一的指定入口。
-- **积分区不再把同一组数字说两遍**（用户实拍圈出要求清理）：顶部那行「92 Token 余额 · 最近积分包 12/31 过期」是**合计**，紧接着的「附加额度 · 92 / 100 (12/31 到期)」是同一组数字的**明细**（还带进度条）。合计行删除，只留明细；`usageToken` / `usageNearestExpiry` / `usageExpiringSoon` 三个随之失去引用的文案键一并清掉。「即将过期」的信息没有丢——账号池的每个账号行各自标 `pool-soon` / `pool-soon-plain`，那里的粒度更有用（哪个账号要过期）。顺带删掉 `renderCredits` 里一个算出来从没用过的 `pct` 变量。
+- **积分区不再把同一组数字说两遍**（用户实拍圈出要求清理）：顶部那行「88 Token 余额 · 最近积分包 01/01 过期」是**合计**，紧接着的「附加额度 · 88 / 100 (01/01 到期)」是同一组数字的**明细**（还带进度条）。合计行删除，只留明细；`usageToken` / `usageNearestExpiry` / `usageExpiringSoon` 三个随之失去引用的文案键一并清掉。「即将过期」的信息没有丢——账号池的每个账号行各自标 `pool-soon` / `pool-soon-plain`，那里的粒度更有用（哪个账号要过期）。顺带删掉 `renderCredits` 里一个算出来从没用过的 `pct` 变量。
 - **积分（用量）查询一直 401 —— 用错了凭据**（用户实拍「没有积分」，并指出令牌明明是新的）。`fetchUsage` 打 `{openapi}/sash/api/v2/me/usage` 时带的是 **COSY 签名 bearer**（和聊天/模型列表同一套），而该端点不认它。实测三种凭据（2026-10，CN，同一张有效令牌）：
 
   | 凭据 | 结果 |
@@ -2359,7 +4467,7 @@ pi-ai 从 1.3.0 回落到 1.1.0 是同一 `^1.1.0` 范围重新解析的结果�
   - 新增 4 条卡片级回归测试（`tests/card-render.spec.tsx`）：零凭据时账号池渲染 / 「添加 PAT」与导出导入入口都在 / 空池说「还没有账号」而非「成员限流」/ `status=error` 时不渲染空壳。**做过变异测试**：把 `renderPool` 改回读 `signIn`（即还原这个 bug），3 条立刻失败。
   - 审计报告 `docs/audit/AUDIT-REPORT.md` 的结论「国际版代码无缺失、只是从未配置」需要修正为：**代码曾经缺失一个客户端渲染门槛**，零凭据区域因此不可配置。本条即其修复。
 - **行内那个「移除」根本不是删除 —— 移出池与彻底删除此前是同一颗按钮**（用户实拍：「我国内版本，删除唯一的号，但是号并没有删除干净」）。
-  - **根因**：`POST /pool?action=remove` 这一支只做了 `updateMembership(...)`，也就是**把 id 从 `memberAccountIds` 里剔掉**——凭据（`~/.dsh/.qoder-accounts.<region>.json`）一行都没动。UI 上按钮却写着「移除」，和账号行里另一个已删掉的「移除 · <账号>」（那个是真删 vault 的）共用同一套文案，读起来就是删除。实测磁盘：点完之后 vault 里那条记录（`pat-5d76517ac7699f87`）原封不动，配置里 `accountId` 也还指着它；下一次「全选」又能勾回来。这就是「删不掉」的完整机制。
+  - **根因**：`POST /pool?action=remove` 这一支只做了 `updateMembership(...)`，也就是**把 id 从 `memberAccountIds` 里剔掉**——凭据（`~/.dsh/.qoder-accounts.<region>.json`）一行都没动。UI 上按钮却写着「移除」，和账号行里另一个已删掉的「移除 · <账号>」（那个是真删 vault 的）共用同一套文案，读起来就是删除。实测磁盘：点完之后 vault 里那条记录（`pat-0123456789abcdef`）原封不动，配置里 `accountId` 也还指着它；下一次「全选」又能勾回来。这就是「删不掉」的完整机制。
   - **修法**：按 workbuddy 的划分把两件事彻底分开 ——
     - **移出池 = 取消勾选并保存**。行内不再有任何「移出池」按钮：勾选框已经在表达「是不是成员」，再给一个只改同一件事的控件，两处迟早会不一致（这次的 bug 就是这么来的）。
     - **彻底删除 = 行内「删除」按钮 + 两步内联二次确认**。宿主侧删掉 vault 条目，并**连带收掉配置里指向它的两处残骸**：区域的 `accountId`（否则卡片会一直说「所选账号已不存在」）与 `memberAccountIds`（否则留下一条勾不上的幽灵 id）。

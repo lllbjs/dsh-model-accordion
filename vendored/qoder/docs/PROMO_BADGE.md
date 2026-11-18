@@ -68,8 +68,8 @@
    窗口外的那枚灰显（§3.3），位置与文案不变。
 6. **文案、悬停都只说上游的话。** 胶囊文字取 `badge.zh`（中文界面）/ `badge.en`；
    悬停取 `description`，再补上「时段 + 时区」与 `link_url` 原文。插件不翻译、不改写、
-   不从 `discount_factor` 反推「4 折」这类数字（那三个数字字段因此在解析时就被丢掉，
-   不随目录落盘）。
+   **不从 `discount_factor` 反推「4 折」这类文案**（`rule_id` 因此仍不保留）。
+   但折扣**数字本身**现在保留了——它不进文案，只给「活动实际倍率」用，见 §3.4。
 
 ### 3.1 为什么「有窗口时窗口说了算」
 
@@ -124,6 +124,36 @@
 `none` 里那两条不能进 `pending`：读不懂的窗口给不出「几点生效」（说一个猜的时间比不说
 更糟），没有窗口的常驻活动同理。
 
+### 3.4 活动期的「显示倍率」（issue #41）
+
+徽标之外，活动还有第二个用户可见的后果：**实际计费倍率变了**。上游 `promotion` 里
+`discount_factor`（折后系数，如 `0.4`）与 `before_promotion_price_factor`（折前价，如
+`0.5`）给出了这条规则的数字面。实测 `qmodel_38max` 在窗口内的实际价 `0.20x` =
+基准价 `0.5 × 0.4`——与 Qoder 官方菜单对得上。但插件此前只显示 `price_factor` 基准价，
+于是一个「限时免费」（`discount_factor: 0`）的模型，官方写 `x0.00`、插件写 `0.1x`，
+两个客户端的数字对不上，用户以为计费出错（issue #41）。
+
+修法是一条**只在 UI 显示**的旁路，与徽标共用同一份规则、同一套判定：
+
+- `QoderPromotion` 保留 `discountFactor` / `beforePromotionPriceFactor` 两个可选数字
+  （`rule_id` 仍丢，插件不给它语义；文案仍不反推数字——「4 折」那句话永远是上游的原话）。
+- `displayMultiplierOf(source, now)`：仅当此刻 `promoDisplayAt === 'live'` 且有可信
+  `discountFactor`（有限数、`0 ≤ x ≤ 1`）时，返回「当前基准价 × 折扣系数」（两位小数
+  归一）；否则原样返回基准价。它和徽标判定一样是**渲染时刻的纯函数**，不落盘——
+  理由与 §3.2 相同（窗口绑死的值写进 `lastCatalog` 会冻结到第二天早上）。
+- 三个展示面都接它：卡片模型行的 `(N.NNx)`、DSH 内置模型选择器的 `· xN.NN`
+  （`modelDisplayName` 增加可选 `now` 参数）、账号池「测试用模型」下拉。倍率与基准价
+  不同时，标签悬停补一句插件写的解释「活动价，基准价 x0.10」（`row.ratePromoHint`），
+  免得用户拿活动价和别处对账。
+- **计费路径一个字符没动**：`priceFactor` / `creditMultiplier` 仍写基准价并照旧落盘；
+  `poolModelOf` 把 `promotion` 放在 `creditMultiplier` 之外的独立字段，绝不把活动期的
+  `0` 折叠进「免费即 0」判据——否则一个「基准收费、活动免费」的模型会被账号池当成
+  免费模型反复探测，静默烧掉真积分。pi-ai 请求与目标模型 id 也一律按模型 key，不读
+  这个显示倍率。
+- **不拿 `before_promotion_price_factor` 当校验门**：限时免费这类活动里它可能与目录
+  当前 `price_factor` 对不上，用它做等值校验恰好会把该显示的 `x0.00` 压回基准价。
+  折算只取目录当前基准价；折前快照只作记录、供日后复核。
+
 ## 4. 与另两个插件的能力对照
 
 | 能力 | workbuddy PR #91 | Trae PR #44 | Qoder（本 PR） |
@@ -146,7 +176,7 @@ Qoder 是三者里唯一「文案自带 + 不需要换身份 + 不需要额外�
 
 ```
 $ node --experimental-transform-types scripts/probe-promo.mjs --shifts
-account=QODERCN_ACCOUNT_6C2D6327 region=cn uid=019ec9…
+account=QODERCN_ACCOUNT_EXAMPLE region=cn uid=<uid 前 6 位>
 GET /algo/api/v2/model/list?Encode=1 → HTTP 200 / 55477 bytes
 chat rows: 11
 parsed models: 11   carrying a rule: 2
@@ -185,7 +215,7 @@ parsed models: 11   carrying a rule: 2
 
 顺带确认：`quest-ultimate` / `experts-ultimate` 只出现在 `quest` / `experts` 分组里，
 而插件目录只读 `chat`，所以国际区实际能画的是 `chat` 分组里的三条：`ultimate`、
-`qmodel_38max`、`qmodel`（同上命令换成 `QODER_ACCOUNT_B2109944` 即可复核）。
+`qmodel_38max`、`qmodel`（同上命令换成 `QODER_ACCOUNT_EXAMPLE` 即可复核）。
 
 ## 6. 落地位置
 
@@ -196,15 +226,21 @@ parsed models: 11   carrying a rule: 2
 | `src/promo.ts` `clockMinute` / `parsePromoWindow` | `HH:MM` → 分钟数（终点接受 `24:00`） |
 | `src/promo.ts` `promoWithinWindow` | 按上游时区判时段（跨零点、起点含终点不含） |
 | `src/promo.ts` `promoLiveAt` | 渲染时刻的「此刻画不画」 |
+| `src/promo.ts` `displayMultiplierOf` | 渲染时刻的「活动实际倍率」（issue #41；只用于 UI，不落盘、不进计费） |
+| `src/client/promo-badge.ts` `rateHint` | 活动价与基准价不同时的「基准价 x0.10」悬停解释 |
 | `src/catalog.ts` `QoderModelInfo.promotion` | 目录条目带规则（`parseUpstreamModel` 里解析） |
+| `src/catalog.ts` `modelDisplayName` | DSH 内置选择器名 `· xN.NN`：显示倍率走 `displayMultiplierOf` |
 | `src/index.ts` `modelConfig.promotion` | `lastCatalog` 持久化 schema（`z.any<QoderPromotion>()`） |
 | `src/status-paths.ts` `QoderWebModel` / `QoderPersistedModel` | 投影给卡片的模型行类型 |
 | `src/web-status.ts` `webModelOf` | 投影时原样带出（对象展开，运行期无需改） |
 | `src/client/promo-badge.ts` `hostLanguage` / `promoBadgeLabel` / `promoBadgeTooltip` | 选中文/英文文案、拼悬停 |
 | `src/client/QoderCard.tsx` `renderModels` | 模型行渲染（名旁一枚胶囊） |
+| `src/model-badge.ts` `modelBadgeOf` | 选择器胶囊的**数据侧**：此刻该挂哪一枚（`live` 才挂）、文案表、16 grapheme 上限 |
+| `src/adapter.ts` `listModels` | 把胶囊挂进 `LlmModelInfo.badge`（展开写法，0.1.x 也能编译） |
 | `src/client/QoderModelLabel.tsx` `createQoderModelLabel` | 选择器里的同一枚胶囊（issue #12；工厂按 fiber 捕获槽位表，非本插件 provider 委托回账本下一位） |
-| `src/client/index.tsx` `registerModelLabel` | `conversation.input.model.label` 注册（`priority: -1` 抢在 workbuddy 的默认 0 之前，single 槽同优先级会抛） |
-| `src/client/styles.ts` `.dsm-qoder-model-promo` | 胶囊样式 |
+| `src/client/host-badge.tsx` `ForeignModelLabel` | 别家 provider 的行：名字 + 该模型自带的 `model.badge`（trigger 在前、菜单在后） |
+| `src/client/index.tsx` `registerModelLabel` | `conversation.input.model.label` 注册（`priority: -101`；single 槽同优先级会抛，升序只渲染最低者 ⇒ 实测赢家是 workbuddy 的 `-105`，本组件不渲染，胶囊靠 `listModels()` 的数据通道） |
+| `src/client/styles.ts` `.dsm-qoder-model-promo` / `.dsm-qoder-model-label-host-badge` | 本插件自己的胶囊 / 别家行上复现宿主 `Tag` 的几何 |
 | `scripts/probe-promo.mjs` | 真机只读探针（解析 + 判定 + 时钟平移） |
 
 ## 7. 已知限制
@@ -220,17 +256,27 @@ parsed models: 11   carrying a rule: 2
   将来只给「符合资格才 active」的常驻活动（没有窗口），那条路径仍然读 `active`，是对的。
 - **分组里看不到的活动**：`quest` / `experts` 分组的模型不进入插件目录，它们的徽标
   自然也不会出现。这是目录范围的既有事实，不是本功能的选择。
-- **到点变化最多慢一拍**：卡片靠 60 秒轮询（`POLL_INTERVAL_MS`）触发重渲染，判定也在
+- **到点变化最多慢一拍**：卡片靠自动刷新轮询（`pollMinutes` 配置，默认 5 分钟；
+  1.22.0 之前是写死的 60 秒）触发重渲染，判定也在
   那次渲染里重算，所以 22:00 开启、08:00 结束最迟各差一分钟。不另加定时器：为一个
   提示性胶囊多挂一个每秒的计时器不值得。
 - **选择器里的数据可能比卡片旧至多一分钟**：标签组件读 `detail=fast` 文档（不触发
-  上游重读，只答本地已有状态），行数据按区域共享缓存 60 秒；窗口边界的翻面靠
+  上游重读，只答本地已有状态），行数据按区域共享缓存（同一个 `pollMinutes` 节奏）；窗口边界的翻面靠
   共享分钟时器重读时钟，不依赖新数据到达。徽标本身仍是渲染时刻现算（与卡片同规）。
+- **选择器里的胶囊是目录数据，不是实时状态**：`LlmModelInfo.badge` 随模型目录一起刷新，
+  所以窗口关掉之后那枚胶囊会挂到下一次目录刷新为止（卡片与本插件自己的行不受影响，
+  它们按分钟重算）。要做到分钟级准确得在每次翻面时发 `llm/models-updated`，而宿主收到
+  它会对**每个模型**调一次 `resolveModelInfo()` —— 代价不成比例。文案上限是 16 个
+  grapheme、超了整枚不画（不截断），理由见 `src/model-badge.ts` 文件头。
 - **single 槽的跨插件耦合**：`conversation.input.model.label` 只渲染第一条注册。
-  本插件以 `priority: -1` 抢位后必须把非本插件的 provider **委托**回账本里的下一位
-  （workbuddy 的标签），否则对方的倍率后缀与忙闲图标会一起消失。若对方将来也开始
-  委托，理论上存在互委托环 —— 宿主的错误边界会把抛错的 entry 一次性弃权（下一帧
-  换幸存者渲染），不会死循环。
+  实测优先级 workbuddy `-105` / trae `-102` / 本插件 `-101`：**赢家是 workbuddy**，
+  本插件注册成功但从不渲染，所以「委托」只在它真的赢了那格时才有意义。
+  一旦赢下，就必须把非本插件的 provider **委托**回账本里的下一位
+  （workbuddy 的标签），否则对方的倍率后缀与忙闲图标会一起消失。**委托不出去时**
+  的退路是「名字 + 该模型自带的 `model.badge`」（`src/client/host-badge.tsx`），
+  不再是裸名字——0.2.2 宿主的 fallback 就是这个形状，只画名字等于把别家挂在目录里的
+  胶囊一起抹掉。若对方将来也开始委托，理论上存在互委托环 —— 宿主的错误边界会把
+  抛错的 entry 一次性弃权（下一帧换幸存者渲染），不会死循环。
 - **委托必须带上「对方自己命名空间的 `t`」**（issue #23 的教训，此处此前写错过）：
   这段曾断言「当前生态（workbuddy、1017 参考实现）都是终点型组件」，**这条断言是
   错的**。宿主内置的 `DeepSeekModelLabel`（`locale: deepseek-model-label-1017`）
