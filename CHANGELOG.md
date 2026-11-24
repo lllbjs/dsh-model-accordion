@@ -1,5 +1,48 @@
 # Changelog
 
+## 0.10.0 (unreleased)
+
+- **Rebuilt the hub's UI to match the three connector plugins' current
+  paradigm.** Modeled after `dsh-connect-workbuddy` / `-qoder` / `-trae`
+  (their mature `settings.section` + two-tier tabs + fast-first pattern):
+  - **Entry moved to `settings.section`** (`id: settings.model-accordion`,
+    order 40, with a matching `settings.section.icon`), so the hub is a real
+    row in the Settings navigation next to WorkBuddy / Trae / Qoder /
+    OpenCode Go. The legacy `plugins.item` / `*.config` registrations are kept
+    for older hosts.
+  - **Deep links no longer scrape the DOM.** "Open connector settings" now uses
+    the three connectors' own three-route pattern: the shell's
+    `sidebar.settings` store seat (`openSection(id)`) first, then driving the
+    real settings chrome by label, each step fail-soft. The correct section ids
+    are read from upstream constants (`dsh-connect-workbuddy`, `dsh-connect-trae`,
+    `dsh-connect-qoder`, `opencode-go`).
+  - **Two-tier information architecture.** Each connector page now has
+    `账号 / 模型 / 能力 / 诊断` sub-tabs rendered as `role=tabpanel` with
+    `hidden` (not unmounted), so search terms and drafts survive a switch.
+    Added read-only **能力** (reasoning/image/off/context counts) and **诊断**
+    (source version, region, status, account/model counts, updated-at) cards.
+  - **Check-in / benefit actions** on the accounts card, calling each host's
+    own `/checkin`, `/benefit/claim` or `/pool?action=checkin` route (strictly
+    prefix-checked against that connector's own `/plugins/...` namespace).
+  - **Composer credits readout** registered in the two shared LIST slots
+    (`conversation.input.right` order 4, `conversation.composer.dock` order 10)
+    with unique ids and a provider gate (`modelSelection.next ?? lastUsed`),
+    so it only paints for our providers (`opencode` / `delegate`) and never
+    collides with the three native readouts. `conversation.input.model.label`
+    is intentionally NOT registered: it is a single slot already won at -105,
+    and repainting every other provider's badge would silently break them.
+  - **Resilience**: a local `HubBoundary` error boundary (a failed card shows a
+    readable message instead of the host's empty div), and latest-wins probe
+    guards so a slow earlier response cannot overwrite a newer account's data.
+  - Vendored hosts re-synced to the latest published artifacts in the source
+    repos: WorkBuddy 5.31.2, Trae 4.18.7, Qoder 1.27.1 (verified byte-for-byte
+    against the registry tarballs).
+
+Verified in a real DSH session with Playwright: the "模型连接器中心" row appears
+in Settings; opening it shows 6 top-level tabs; the WorkBuddy page shows 4
+sub-tabs and 4 tabpanels (3 `hidden`, proving keep-alive); the 能力/诊断 cards
+render real data with the 5.31.2 source version; no render errors.
+
 ## 0.9.3 (unreleased)
 
 - **Re-synced the three vendored connector hosts to the current upstream

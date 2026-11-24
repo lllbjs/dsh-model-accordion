@@ -4583,10 +4583,45 @@ async function refreshTraeCredential(credential, signal, device) {
 function nonEmpty$1(value) {
 	return typeof value === "string" && value.trim() !== "" ? value.trim() : void 0;
 }
-function deviceCenterId(storage) {
-	const prefix = "iCubeAuthInfo://icube-dc:";
-	const ids = Object.keys(storage).filter((key) => key.startsWith(prefix)).map((key) => key.slice(25)).filter(Boolean);
-	return ids.length === 1 ? ids[0] : void 0;
+const ICUBE_DC_PREFIX = "iCubeAuthInfo://icube-dc:";
+/**
+* The one canonical `iCubeAuthInfo://icube-dc:<id>` entry for this install.
+*
+* A real install can carry MORE THAN ONE such key at once (issue #92): besides
+* the numeric did/rdid there is an `aha-`-prefixed ldid. The ldid is NOT the
+* value upstream judges — official logs name the numeric suffix as did/rdid
+* (`[ICDRS] did:<D>, ldid:aha-…, rdid:<D>`), and sending the aha value returns
+* `did_checked_in:false` (docs/USAGE_API_RESEARCH.md). The old code required
+* EXACTLY one key, so with both present it returned undefined and the caller
+* silently fell back to the telemetry UUID — an id upstream does not know,
+* which is how a correct account gets 9074 on check-in.
+*
+* Selection is by SHAPE only (all digits), never by a guessed digit count: the
+* numeric id has been observed as 16 digits, not just 15/19. The rule is
+* deliberately conservative — it changes behaviour ONLY for the case that was
+* actually broken (several entries at once):
+*   - exactly one NUMERIC entry → use it (the did/rdid; an aha ldid beside it is
+*     ignored, which is the issue #92 fix);
+*   - otherwise, exactly one entry of ANY shape → preserve the old behaviour,
+*     so a machine carrying only one aha entry keeps its id AND its keypair and
+*     token refresh is not downgraded to the legacy contract;
+*   - zero or several entries with no single numeric winner → undefined, and
+*     the caller's existing fallback applies unchanged.
+*/
+function canonicalDeviceCenterEntry(storage) {
+	const entries = Object.keys(storage).filter((key) => key.startsWith(ICUBE_DC_PREFIX)).map((key) => ({
+		key,
+		suffix: key.slice(25)
+	})).filter((entry) => entry.suffix !== "");
+	const numeric = entries.filter((entry) => /^\d+$/.test(entry.suffix));
+	if (numeric.length === 1) return {
+		key: numeric[0].key,
+		deviceId: numeric[0].suffix
+	};
+	if (entries.length === 1) return {
+		key: entries[0].key,
+		deviceId: entries[0].suffix
+	};
 }
 /**
 * Read the install's device keypair out of `storage.json`.
@@ -4596,10 +4631,10 @@ function deviceCenterId(storage) {
 * resolve an identity for the chat/usage paths — only a refresh then degrades.
 * A malformed entry is treated as absent rather than failing the read.
 */
-function deviceKeyPairOf(storage) {
-	const key = Object.keys(storage).find((name) => name.startsWith("iCubeAuthInfo://icube-dc:"));
-	if (key === void 0) return void 0;
-	const encoded = storage[key];
+function deviceKeyPairOf(storage, resolved) {
+	const entry = resolved ?? canonicalDeviceCenterEntry(storage);
+	if (entry === void 0) return void 0;
+	const encoded = storage[entry.key];
 	if (typeof encoded !== "string" || encoded.trim() === "") return void 0;
 	try {
 		const plaintext = parseTraeAuthValue(encoded);
@@ -4625,10 +4660,10 @@ async function readTraeIdentity(candidate, options = {}) {
 	const machineFile = nonEmpty$1(await readFile(join(appRoot, "machineid"), "utf8").catch(() => ""));
 	const telemetryMachine = nonEmpty$1(storage["telemetry.machineId"]);
 	const devDevice = nonEmpty$1(storage["telemetry.devDeviceId"]);
-	const dcDevice = deviceCenterId(storage);
+	const dcEntry = canonicalDeviceCenterEntry(storage);
 	const machineId = telemetryMachine ?? machineFile;
 	if (machineId === void 0) throw new Error(`Trae ${candidate.edition} has no stable machine identity`);
-	const deviceId = dcDevice ?? devDevice ?? createHash("sha256").update(machineId).digest("hex").slice(0, 32);
+	const deviceId = dcEntry?.deviceId ?? devDevice ?? createHash("sha256").update(machineId).digest("hex").slice(0, 32);
 	const buildVersion = nonEmpty$1(storage["iCubeLastVersion"]);
 	const appName = {
 		cn: "Trae CN",
@@ -4661,7 +4696,7 @@ async function readTraeIdentity(candidate, options = {}) {
 		}
 	})();
 	const deviceModel = nonEmpty$1(env["TRAE_DEVICE_MODEL"]);
-	const deviceKeyPair = deviceKeyPairOf(storage);
+	const deviceKeyPair = deviceKeyPairOf(storage, dcEntry);
 	return {
 		edition: candidate.edition,
 		machineId,
@@ -6478,6 +6513,70 @@ function decodeTraeEvent(event) {
 	};
 }
 //#endregion
+//#region src/tool-call-completeness.ts
+/**
+* Whether the argument text could still be the prefix of a whole JSON object.
+*
+* STRUCTURAL, not a parse. An argument string that ends inside an unterminated
+* string, or with an unclosed brace/bracket, cannot be complete — that is what
+* a cut-off stream leaves behind. Anything else is deliberately left to the
+* downstream parser, which reports malformed arguments far more precisely than
+* this bridge could; a "closed but invalid" argument is the model's own
+* mistake, not a truncation, and hiding it behind `length` would turn a clear
+* error into a silent retry.
+*
+* The scan tracks string state because arguments carry escaped quotes
+* (`{"code": "print(\"hi\")"}`) — a brace inside a string must not count.
+*/
+function argumentsLookTruncated(text) {
+	let depth = 0;
+	let inString = false;
+	let escaped = false;
+	for (const char of text) {
+		if (inString) {
+			if (escaped) {
+				escaped = false;
+				continue;
+			}
+			if (char === "\\") {
+				escaped = true;
+				continue;
+			}
+			if (char === "\"") inString = false;
+			continue;
+		}
+		if (char === "\"") {
+			inString = true;
+			continue;
+		}
+		if (char === "{" || char === "[") depth += 1;
+		else if (char === "}" || char === "]") depth -= 1;
+	}
+	return depth > 0 || inString;
+}
+/**
+* What is missing from one accumulated call, if anything.
+*
+* A call with no name is treated as cut off for the same reason as one with
+* unclosed arguments: the downstream cannot invoke a tool it cannot name, and
+* reporting `length` lets the model write the call again instead of failing
+* the turn.
+*/
+function toolCallDefect(draft) {
+	if (draft.name === "") return "name";
+	if (argumentsLookTruncated(draft.arguments)) return "arguments";
+}
+/**
+* The first defect among the accumulated calls, or undefined when they are all
+* whole.
+*/
+function toolCallsDefect(drafts) {
+	for (const draft of drafts) {
+		const defect = toolCallDefect(draft);
+		if (defect !== void 0) return defect;
+	}
+}
+//#endregion
 //#region src/solo-bridge.ts
 /**
 * What Trae's in-stream error codes mean. Measured 2026-10-01 on live
@@ -6667,6 +6766,86 @@ function normalizeToolCalls(value) {
 	}
 	return calls;
 }
+/**
+* Upstream finish reasons that already say "this turn did not end normally".
+*
+* `length` is the one that decides the outcome downstream: it is the ONLY
+* reason dsh-llm-pi-ai tolerates a half-written tool call for — it drops the
+* incomplete call instead of raising `MALFORMED_RESPONSE`. Overwriting it
+* with `tool_calls` turned a recoverable truncation into a dead turn (issue
+* #93).
+*
+* `content_filter` and `network_error` belong to the same set because pi-ai
+* treats them as failures too: upgrading either to `tool_calls` would run a
+* tool the upstream had already refused to finish.
+*/
+const HARD_FINISH_REASONS = /* @__PURE__ */ new Set([
+	"length",
+	"content_filter",
+	"network_error"
+]);
+/**
+* The `finish_reason` the bridge reports, and what it had to judge to do so.
+*
+* The upstream's own reason wins whenever it says the turn ended abnormally.
+* The bridge only ever *upgrades* a plain completion to `tool_calls`, and only
+* when the accumulated tool calls are whole — issue #93's whole defect was
+* upgrading them unconditionally.
+*/
+function decideFinishReason(upstreamReason, drafts) {
+	const reason = upstreamReason ?? "";
+	const defect = toolCallsDefect(drafts.values());
+	if (HARD_FINISH_REASONS.has(reason)) return {
+		reason,
+		defect
+	};
+	if (defect !== void 0) return {
+		reason: "length",
+		defect
+	};
+	if (drafts.size > 0) return {
+		reason: "tool_calls",
+		defect
+	};
+	return {
+		reason: reason === "" ? "stop" : reason,
+		defect
+	};
+}
+/**
+* The accumulated tool calls, described for a log line.
+*
+* The LENGTH of the arguments, never the arguments themselves: they are the
+* user's own code (issue #93 cut a ~10 KB inline script in half).
+*/
+function describeToolCallDrafts(drafts) {
+	return [...drafts.entries()].map(([index, draft]) => ({
+		index,
+		name: draft.name,
+		argumentsLength: draft.arguments.length
+	}));
+}
+/**
+* Report a turn that ended with a tool call still open.
+*
+* Issue #93 asked for this because the two causes are indistinguishable after
+* the fact: the upstream stopping on its output limit (`finish_reason:
+* "length"`) and the upstream dropping the connection (no `done` event at
+* all) both used to arrive as `tool_calls`. The detail carries the received
+* argument length so the two can be told apart afterwards.
+*/
+function reportTruncatedToolCall(decided, upstreamReason, drafts, model, log) {
+	if (drafts.size === 0 || decided.reason !== "length") return;
+	const cause = upstreamReason === void 0 ? "the stream ended without a done event" : `the upstream reported finish_reason "${upstreamReason}"`;
+	const consequence = decided.defect === void 0 ? "the turn ends on the output limit" : "the incomplete call is dropped instead of failing the turn";
+	log?.(`dsh-connect-trae: ${cause} while a tool call was still open; reporting length so ${consequence}`, {
+		model,
+		finishReason: decided.reason,
+		upstreamFinishReason: upstreamReason ?? null,
+		...decided.defect === void 0 ? {} : { defect: decided.defect },
+		calls: describeToolCallDrafts(drafts)
+	});
+}
 /** Convert Trae's named SSE events into OpenAI chat-completion SSE chunks. */
 function bridgeTraeSoloStream(response, model) {
 	const source = response.body;
@@ -6680,7 +6859,15 @@ function bridgeTraeSource(source, model, log) {
 	const decoder = new TextDecoder();
 	const encoder = new TextEncoder();
 	const sse = new SseDecoder();
-	let sawToolCalls = false;
+	/**
+	* Every tool call seen so far, accumulated across its deltas.
+	*
+	* Issue #93: the bridge used to keep a single `sawToolCalls` flag and report
+	* `tool_calls` for any stream that had contained one. What the flag could
+	* not say is whether the call was WHOLE — and an upstream that cuts a tool
+	* call in half must not look like one that finished it.
+	*/
+	const toolCallDrafts = /* @__PURE__ */ new Map();
 	let emittedFinishReason = false;
 	let upstreamEnded = false;
 	let upstreamError;
@@ -6725,7 +6912,17 @@ function bridgeTraeSource(source, model, log) {
 					if (decoded.reasoning !== void 0 && decoded.reasoning !== "") delta["reasoning_content"] = decoded.reasoning;
 					const toolCalls = normalizeToolCalls(decoded.toolCalls);
 					if (toolCalls.length > 0) {
-						sawToolCalls = true;
+						for (const call of toolCalls) {
+							const draft = toolCallDrafts.get(call.index) ?? {
+								name: "",
+								arguments: ""
+							};
+							const name = call.function?.name;
+							if (name !== void 0 && name !== "") draft.name = name;
+							const args = call.function?.arguments;
+							if (args !== void 0) draft.arguments += args;
+							toolCallDrafts.set(call.index, draft);
+						}
 						delta["tool_calls"] = toolCalls;
 					}
 					if (Object.keys(delta).length > 0) controller.enqueue(chunk(delta));
@@ -6738,7 +6935,9 @@ function bridgeTraeSource(source, model, log) {
 							controller.error(upstreamError);
 							return;
 						}
-						controller.enqueue(chunk({}, sawToolCalls ? "tool_calls" : decoded.finishReason || "stop"));
+						const decided = decideFinishReason(decoded.finishReason, toolCallDrafts);
+						reportTruncatedToolCall(decided, decoded.finishReason, toolCallDrafts, model, log);
+						controller.enqueue(chunk({}, decided.reason));
 					}
 				}
 			};
@@ -6755,7 +6954,9 @@ function bridgeTraeSource(source, model, log) {
 				}
 				if (!emittedFinishReason) {
 					emittedFinishReason = true;
-					controller.enqueue(chunk({}, sawToolCalls ? "tool_calls" : "stop"));
+					const decided = decideFinishReason(void 0, toolCallDrafts);
+					reportTruncatedToolCall(decided, void 0, toolCallDrafts, model, log);
+					controller.enqueue(chunk({}, decided.reason));
 				}
 				controller.enqueue(encoder.encode("data: [DONE]\n\n"));
 				controller.close();
@@ -9739,11 +9940,39 @@ async function traeWebUsage(deps, panel, options = {}) {
 			...explained ? {} : { message: safeMessage(error) }
 		};
 	}
+	const poolSection = await poolSectionOf(deps, panel, fast);
+	/**
+	* The account this document READS — re-read after the pool spoke.
+	*
+	* It used to come from the account LIST's `selected` flag, which names the
+	* saved BINDING, while the name, the expiry and the credits below all come
+	* from the credential the Host actually billed. Those are the same account
+	* only while no pool is running: with a pool on, the billed account is the
+	* pool's pick, and the document then carried an id for one account and a
+	* balance for the other (issue #95).
+	*
+	* So it is read from the store AGAIN, after the pool section has applied the
+	* selection: the store then answers with the account the credits below are
+	* read with, and the document describes ONE account — id, name, expiry and
+	* balance together.
+	*
+	* The id is the CREDENTIAL's own account id — the same derivation
+	* `store.accounts()` uses for the list, so the two agree by construction
+	* rather than by coincidence.
+	*
+	* The list keeps its own `selected` flag, which means something else and
+	* still means it: that is the binding the settings write, and the card's
+	* "save the selected account" button reads it.
+	*
+	* A failure here falls back to the credential resolved above: a document that
+	* names an account it read is worth more than no document at all.
+	*/
+	const billed = fast ? await store.current().catch(() => void 0) ?? credential : await store.resolve().catch(() => credential);
 	const account = {
-		accountId: accounts.find((item) => item.selected)?.id ?? "",
-		accountName: credential.accountName ?? credential.userId,
-		tokenExpiresAtMs: credential.expiresAtMs,
-		...credential.refreshExpiresAtMs === void 0 ? {} : { refreshExpiresAtMs: credential.refreshExpiresAtMs },
+		accountId: traeAccountId(billed),
+		accountName: billed.accountName ?? billed.userId,
+		tokenExpiresAtMs: billed.expiresAtMs,
+		...billed.refreshExpiresAtMs === void 0 ? {} : { refreshExpiresAtMs: billed.refreshExpiresAtMs },
 		region: regionOfPanel(panel),
 		enabled,
 		sidebarPanelEnabled,
@@ -9757,16 +9986,12 @@ async function traeWebUsage(deps, panel, options = {}) {
 		quarantined,
 		...deps.rawDiagnostic === void 0 ? {} : { rawChat: deps.rawDiagnostic(panel) }
 	};
-	if (fast) {
-		const poolSection = await poolSectionOf(deps, panel, true);
-		return {
-			status: "signed-in",
-			...account,
-			...poolSection,
-			...panel === "enterprise" ? { creditsUnavailable: "enterprise" } : {}
-		};
-	}
-	const poolSection = await poolSectionOf(deps, panel, false);
+	if (fast) return {
+		status: "signed-in",
+		...account,
+		...poolSection,
+		...panel === "enterprise" ? { creditsUnavailable: "enterprise" } : {}
+	};
 	const client = deps.client(panel);
 	if (regionOfPanel(panel) === "ai") try {
 		const payStatus = await client.payStatus();

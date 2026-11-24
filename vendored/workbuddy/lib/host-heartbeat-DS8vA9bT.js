@@ -3995,11 +3995,16 @@ const BODY_OVERSIZE_MARKER = "prompt is too long (request body exceeded the loca
 *
 * A local proxy/gateway in front of the provider may refuse a request whose
 * serialized body exceeds some byte ceiling it enforces. Measured shapes, from
-* a real report:
+* real reports:
 *
-*   bili_gate_oversize_refusal_unattributed_bytes
-*   (8,401,132 B > 8,388,608 B)
+*   "8,401,132 B > 8,388,608 B"                          (LOG line, not the body)
 *   "unattributed oversized model request refused locally with a 422"
+*   "its body is larger than the silent-direct byte ceiling"          (422 body)
+*
+* The number comparison above is a LOG line, not the text returned to the
+* host: a real 422 body may carry NO byte comparison at all (issue #278). That
+* is why the phrase-level checks below matter — measuring only against the log
+* line left the trigger passing its tests yet dead on the real chain.
 *
 * MATCHED BY MEANING, NOT BY NAME. That is the crux of the design decision
 * here: matching a plugin's identifier would be the "special-case another
@@ -4008,11 +4013,18 @@ const BODY_OVERSIZE_MARKER = "prompt is too long (request body exceeded the loca
 * module. A refusal that only says `oversize`/`too large` in BYTES is the class;
 * which component produced it is not this plugin's business, and a future
 * component with different wording that still says so is covered for free.
+* `byte ceiling` and `byte limit` are two English spellings of the same thing;
+* `silent-direct` + `refus` describes a request refused locally because it
+* cannot be sent straight through — no component name is involved in either.
 *
 * What is deliberately NOT matched: `too_many_tokens`, `context length
 * exceeded`, `11115` and friends. Those are TOKEN overflow, which the host
 * already recovers from on its own; treating them here would make two
-* authorities compete over the same failure.
+* authorities compete over the same failure. For the same reason a refusal
+* that has moved to TOKEN wording ("priced over the model's context window")
+* is left to `isContextOverflow` even if a local gateway emitted it — widening
+* this matcher into token territory would claim a failure that is not about
+* BYTES any more.
 */
 function isBodyOversizeRefusal(text) {
 	if (text === "") return false;
@@ -4022,8 +4034,9 @@ function isBodyOversizeRefusal(text) {
 	const oversize = lower.includes("oversize");
 	const localByte = lower.includes("byte limit");
 	const localRefusal = lower.includes("refused locally");
-	if (localByte) return true;
-	return oversize && localRefusal;
+	if (localByte || lower.includes("byte ceiling")) return true;
+	if (oversize && localRefusal) return true;
+	return lower.includes("silent-direct") && lower.includes("refus");
 }
 /**
 * Wording that identifies the CHANNEL half of `11128` (the other halves being
@@ -4377,6 +4390,14 @@ function chatBase(credential, cnBase) {
 function billingBase(credential, cnBase) {
 	if (regionOf(credential.domain) === "global") return globalBase(credential.domain);
 	return cnBase === void 0 || cnBase === "" ? CN_BILLING_BASE : cnBase;
+}
+/**
+* Console/growth host for a credential — the SAME host `billingBase` resolves
+* to (issue #286). Exported so the ACP layer can address the console API
+* without re-deriving the region from the domain itself.
+*/
+function growthHostOf(credential, cnBase) {
+	return billingBase(credential, cnBase);
 }
 function originReferer(credential) {
 	return regionOf(credential.domain) === "global" ? globalBase(credential.domain) : CN_BILLING_BASE;
@@ -5159,15 +5180,60 @@ const CHANNEL_GATE_PHRASES = [
 	["they mean this GUI.", "the interface described here is meant."]
 ];
 /**
+* Shape-locked rewrites for THIRD-PARTY coding CLIs' self-introduction lines
+* (issue #281).
+*
+* WHY A SECOND TABLE AT ALL. `CHANNEL_GATE_PHRASES` above is a literal table:
+* every `from` is matched with `out.includes(from)`, so each row freezes one
+* exact wording. Third-party CLIs write their OWN identity into `system` (grok,
+* codex and claude were all captured doing so), and the plugin cannot edit their
+* prompts — outbound rewriting is the only lever it has. A literal row added
+* for one captured sentence silently stops matching the moment the vendor
+* bumps a version (`4.6` → `5.0`), swaps a verb (`released` → `built`),
+* renames the product or changes a preposition. Worse, the failure is SILENT:
+* the scrub returns the text unchanged, the request goes out untouched, and
+* nothing logs — until a session is poisoned again. These regex rows lock the
+* SHAPE (identity clause + creator verb + known vendor) instead of the exact
+* words, so those routine changes stay covered.
+*
+* WHICH ROLES. This table is applied by the same function as the literal table,
+* which `prepareChatBody` calls on `system` and `assistant` parts only — the
+* roles the gate reads (`scansOpening`). Codex writes the line under
+* `developer`, which `prepareChatBody` renames to `system` before this runs, so
+* it is covered too.
+*
+* TWO ROWS, AND WHY BOTH. The first locks the known xAI product name (Grok) and
+* tolerates version numbers, optional articles and the creator verb being
+* omitted. The second ignores the PRODUCT entirely and recognises the creator
+* alone, so a vendor rename still lands. Both replace the whole sentence through
+* the trailing `[^.\n]*`: stopping at the vendor name produced broken text like
+* `You are an autonomous coding agent's Claude Agent SDK is the runtime.` in
+* the reporter's end-to-end runs. The replacement is idempotent — it no longer
+* contains "You are" followed by a creator clause — and both patterns are
+* anchored to a line start (`m` flag on the vendor row, word boundary on the
+* Grok row) so ordinary prose such as `The product X released by Y in 2023`
+* passes through byte-for-byte.
+*
+* `.` is only allowed INSIDE a version number (followed by a word character or
+* a digit) in the span patterns, so it can carry `4.6` / `2.1.327` but can never
+* jump a sentence boundary.
+*/
+const CHANNEL_GATE_PATTERNS = [[/\bYou are\s+(?:an?\s+)?(?:the\s+)?Grok\b(?:[^.\n]|\.(?=[\w])){0,60}?\b(?:(?:released|made|built|created|developed|trained|powered)\s+)?(?:by|from)\s+xAI\b[^.\n]*/gi, "You are an autonomous coding agent"], [/^[ \t]*You are\s+(?:[^.\n]|\.(?=\d)){0,120}?\b(?:released|made|built|created|developed|trained|powered)\s+(?:by|on|from)\s+(?:xAI|Anthropic|OpenAI|Google(?:\s+DeepMind)?|Meta|Mistral)\b[^.\n]*/gm, "You are an autonomous coding agent"]];
+/**
 * Rewrite the measured gate phrases in one text part.
 *
 * Exported for the tests and for callers that build a body themselves. It is
 * idempotent: every `to` string is different from its `from` string and no
 * rewrite recreates another `from` string, so a second pass is a no-op.
+*
+* The literal table runs first (stable, auditable DSH wording), then the shape
+* table catches third-party CLI identities. Both are idempotent and independent
+* of each other, so the order is not load-bearing.
 */
 function rewriteChannelFingerprintPhrases(text) {
 	let out = text;
 	for (const [from, to] of CHANNEL_GATE_PHRASES) if (out.includes(from)) out = out.replaceAll(from, to);
+	for (const [re, to] of CHANNEL_GATE_PATTERNS) out = out.replace(re, to);
 	return out;
 }
 /**
@@ -6613,6 +6679,41 @@ function parseEnterpriseInstant(value) {
 	return Number.isNaN(parsed) ? void 0 : parsed;
 }
 /**
+* An upstream failure that carries the upstream's OWN words.
+*
+* The summary an error message carries is truncated to 160 characters, which
+* is right for a log line and wrong for the one caller that needs the whole
+* sentence: the upstream states its recovery time in prose, and that sentence
+* must reach the card intact (see {@link WorkBuddyCatalogDegradation}).
+*
+* So the full body travels beside the summary rather than inside it.
+*/
+var WorkBuddyUpstreamError = class extends Error {
+	/** HTTP status the upstream answered with. */
+	status;
+	/** The upstream's own words, untruncated. */
+	body;
+	constructor(status, body, summary) {
+		super(summary);
+		this.name = "WorkBuddyUpstreamError";
+		this.status = status;
+		this.body = body;
+	}
+};
+/**
+* The upstream's own words for a failed read, or the error's message when the
+* failure was not an upstream answer (a transport error, a roster that
+* resolved to nothing).
+*
+* The fallback reader needs the raw body for the recovery sentence; the log
+* line needs the summary. Both come from here, so the two can never disagree
+* about which failure this was.
+*/
+function upstreamBodyOf(error) {
+	if (error instanceof WorkBuddyUpstreamError) return error.body;
+	return error instanceof Error ? error.message : String(error);
+}
+/**
 * Fail an envelope whose business code is non-zero, classified like HTTP errors.
 *
 * A JSON body on a 401/403 is still a credential refusal: the edge answered in
@@ -6633,7 +6734,7 @@ function parseEnterpriseInstant(value) {
 function envelopeError(status, envelope) {
 	if (status === 401 || status === 403) return new WorkBuddyCredentialRejectedError(status);
 	const kind = classifyUpstreamError(status, `{"code":${envelope.code},"msg":${JSON.stringify(envelope.msg)}}`);
-	return /* @__PURE__ */ new Error(`workbuddy upstream ${kind} (http ${status}): ${envelope.msg.slice(0, 160)}`);
+	return new WorkBuddyUpstreamError(status, envelope.msg, `workbuddy upstream ${kind} (http ${status}): ${envelope.msg.slice(0, 160)}`);
 }
 /**
 * Parse the upstream's `credits` string into a multiplier.
@@ -7191,6 +7292,14 @@ var WorkBuddyUpstreamClient = class {
 	* document still publishes stays in the roster, so reading the directory
 	* never withdraws a model the user is running (issue #32's failure mode,
 	* one step upstream of it).
+	*
+	* THE ANSWER IS A {@link WorkBuddyCatalogRead}, not a bare roster, because a
+	* FALLBACK read is a partial answer and the caller has to be able to tell
+	* (issue #288). The international region reads two documents that publish
+	* different rosters, so "the CLI read was refused and the app document
+	* answered" is a downgrade the user must be told about — and a roster that
+	* silently lost the CLI-only rows would otherwise look like the user's own
+	* selection had shrunk.
 	*/
 	async fetchModels(credential, signal, keepModelIds = []) {
 		const timeout = signal ?? AbortSignal.timeout(JSON_TIMEOUT_MS);
@@ -7232,22 +7341,51 @@ var WorkBuddyUpstreamClient = class {
 			* a complete answer and is returned as-is — reported through
 			* `onFallback` rather than swallowed, because the desktop-only rows then
 			* disappear from the picker and that is worth a log line.
+			*
+			* ⚠️ A FALLBACK IS A DOWNGRADE, AND IT SAYS SO (issue #288). The two
+			* documents publish different rosters, so the answer built from the
+			* surviving one is missing every row the refused one published — the
+			* CLI-only rows (`fast-model`, `balanced-model`, `primary-model`,
+			* `deepseek-v4.1-flash`, `hy4-preview`, …) are exactly what the app
+			* document does not carry. That roster was then filtered by the user's
+			* own selection, so a rate limit could empty the model picker down to
+			* one or two rows, with the profile still holding the full directory and
+			* nothing on screen to explain the difference.
+			*
+			* So the answer now carries WHICH document was refused and what the
+			* upstream said, and the caller keeps the saved directory's rows beside
+			* the surviving ones. The log line stays; it is just no longer the ONLY
+			* place the fact exists.
 			*/
 			let cliRoster;
 			try {
 				cliRoster = await readChannel(CATALOG_CLI_UA);
 			} catch (error) {
 				this.onFallback?.(`global CLI catalog ${GLOBAL_CONFIG_PATH} failed; using the app document only: ` + (error instanceof Error ? error.message : String(error)));
-				return await readChannel(APP_CHANNEL_UA);
+				return {
+					models: await readChannel(APP_CHANNEL_UA),
+					degraded: {
+						missing: "cli",
+						used: "app",
+						body: upstreamBodyOf(error)
+					}
+				};
 			}
 			let appRoster;
 			try {
 				appRoster = await readChannel(APP_CHANNEL_UA);
 			} catch (error) {
 				this.onFallback?.(`global app catalog ${GLOBAL_CONFIG_PATH} failed; using the CLI document only: ` + (error instanceof Error ? error.message : String(error)));
-				return cliRoster;
+				return {
+					models: cliRoster,
+					degraded: {
+						missing: "app",
+						used: "cli",
+						body: upstreamBodyOf(error)
+					}
+				};
 			}
-			return mergeModelRosters(cliRoster, appRoster);
+			return { models: mergeModelRosters(cliRoster, appRoster) };
 		}
 		const readCatalog = async (path) => {
 			const response = await fetch(`${chatBase(credential, this.cnBaseOf())}${path}`, {
@@ -7266,10 +7404,17 @@ var WorkBuddyUpstreamClient = class {
 			return withPromos(selectCliModels(data["models"], data["agents"], keepModelIds), data);
 		};
 		try {
-			return await readCatalog(GLOBAL_CONFIG_PATH);
+			return { models: await readCatalog(GLOBAL_CONFIG_PATH) };
 		} catch (error) {
 			this.onFallback?.(`CN model catalog ${GLOBAL_CONFIG_PATH} failed; falling back to ${MODELS_CATALOG_PATH}: ` + (error instanceof Error ? error.message : String(error)));
-			return await readCatalog(MODELS_CATALOG_PATH);
+			return {
+				models: await readCatalog(MODELS_CATALOG_PATH),
+				degraded: {
+					missing: "app",
+					used: "legacy",
+					body: upstreamBodyOf(error)
+				}
+			};
 		}
 	}
 	/**
@@ -7662,6 +7807,104 @@ var WorkBuddyUpstreamClient = class {
 			credit: numberField("credit"),
 			streakDays: numberField("streak_days"),
 			isStreakDay: data["is_streak_day"] === true
+		};
+	}
+	/**
+	* GET one growth-center path, trying `/v2` then the bare form.
+	*
+	* The attachment disagrees with itself on whether growth paths carry `/v2`
+	* (see the endpoint note above). Rather than pin one spelling and be wrong on
+	* half the deployments, a 404 on the first form retries the second. Only a
+	* clean `code: 0` envelope is accepted; a business error is returned as-is.
+	* Returns `undefined` when NEITHER shape answered successfully.
+	*/
+	async readGrowthData(credential, barePath) {
+		const base = billingBase(credential, this.cnBaseOf());
+		for (const path of [`/v2${barePath}`, barePath]) {
+			let response;
+			try {
+				response = await fetch(`${base}${path}`, {
+					method: "GET",
+					headers: billingHeaders(credential, await this.wireIdentity(credential)),
+					signal: AbortSignal.timeout(JSON_TIMEOUT_MS)
+				});
+			} catch {
+				continue;
+			}
+			if (!response.ok) {
+				if (response.status === 404) continue;
+				return;
+			}
+			let envelope;
+			try {
+				envelope = await readEnvelope(response);
+			} catch {
+				return;
+			}
+			if (envelope.code !== 0) return void 0;
+			return typeof envelope.data === "object" && envelope.data !== null ? envelope.data : {};
+		}
+	}
+	/** Today's heatmap cell, or undefined when the gateway gave no usable answer. */
+	async fetchGrowthToday(credential) {
+		const data = await this.readGrowthData(credential, "/activity/growth/heatmap");
+		if (data === void 0) return void 0;
+		const today = typeof data["today"] === "object" && data["today"] !== null ? data["today"] : void 0;
+		if (today === void 0) return void 0;
+		const numberField = (key) => typeof today[key] === "number" ? today[key] : 0;
+		return {
+			date: typeof today["date"] === "string" ? today["date"] : "",
+			isActive: today["is_active"] === true,
+			score: numberField("score"),
+			...typeof today["status_text"] === "string" && today["status_text"] !== "" ? { statusText: today["status_text"] } : {}
+		};
+	}
+	/** Streak + redemption snapshot, or undefined when unreadable. */
+	async fetchGrowthStreak(credential) {
+		const data = await this.readGrowthData(credential, "/activity/growth/streak");
+		if (data === void 0) return void 0;
+		const streak = typeof data["streak"] === "object" && data["streak"] !== null ? data["streak"] : {};
+		const redemption = typeof data["redemption_status"] === "object" && data["redemption_status"] !== null ? data["redemption_status"] : {};
+		const cards = typeof data["makeup_cards"] === "object" && data["makeup_cards"] !== null ? data["makeup_cards"] : {};
+		const num = (obj, key) => typeof obj[key] === "number" ? obj[key] : 0;
+		const availableTiers = [];
+		for (const tier of [
+			"7d",
+			"14d",
+			"28d"
+		]) if (redemption[`tier_${tier}_status`] === "available") availableTiers.push(tier);
+		return {
+			days: num(streak, "days"),
+			monthTotalDays: num(streak, "month_total_days"),
+			monthConsumedDays: num(streak, "month_consumed_days"),
+			...typeof streak["next_tier"] === "string" && streak["next_tier"] !== "" ? { nextTier: streak["next_tier"] } : {},
+			nextTierRemaining: num(streak, "next_tier_remaining"),
+			availableTiers,
+			makeupCardBalance: num(cards, "balance")
+		};
+	}
+	/**
+	* Redeem one streak tier. The CALLER must only pass a tier the gateway marked
+	* `available`; this method does not re-check, so the decision stays in the
+	* batch runner where it can be reported and tested. The browser/host route
+	* guards this mutation with POST + loopback like every other write.
+	*/
+	async redeemGrowthTier(credential, tier) {
+		const response = await fetch(`${billingBase(credential, this.cnBaseOf())}/activity/growth/redeem`, {
+			method: "POST",
+			headers: billingHeaders(credential, await this.wireIdentity(credential)),
+			body: JSON.stringify({ tier }),
+			signal: AbortSignal.timeout(JSON_TIMEOUT_MS)
+		});
+		const envelope = await readEnvelope(response);
+		if (!response.ok || envelope.code !== 0) throw envelopeError(response.status, envelope);
+		const data = typeof envelope.data === "object" && envelope.data !== null ? envelope.data : {};
+		const num = (key) => typeof data[key] === "number" ? data[key] : 0;
+		return {
+			tier,
+			credit: num("credit"),
+			...typeof data["energy"] === "number" ? { energy: data["energy"] } : {},
+			...data["already_claimed"] === true ? { alreadyClaimed: true } : {}
 		};
 	}
 	/**
@@ -9378,6 +9621,7 @@ var WorkBuddyCredentialStore = class {
 			return refreshed;
 		} catch (error) {
 			if (credential.expiresAtMs > Date.now() + 3e4) return credential;
+			if (isCredentialRejectedError(error)) throw error;
 			throw new Error(`workbuddy: token refresh failed and the access token is expired (${String(error)}); open the WorkBuddy desktop app once to sign in again`);
 		}
 	}
@@ -9859,6 +10103,26 @@ var WorkBuddyCatalog = class {
 	*/
 	enabled = true;
 	/**
+	* Why the current roster is a PARTIAL answer, when it is one.
+	*
+	* ISSUE #288. The international region reads two product documents that
+	* publish different rosters, so a refused read is answered from the other
+	* one and the answer is missing rows the upstream does publish. That roster
+	* used to be presented as if it were the whole truth — filtered by the
+	* user's own selection, so a rate limit could leave the model picker with
+	* one row and no explanation.
+	*
+	* The flag is what lets the card say "the directory is degraded, this part is
+	* the saved snapshot" instead of leaving the user to guess. It is process
+	* state, like the load level: a fact about this minute, never persisted.
+	*
+	* CLEARED by a fresh upstream read that was NOT degraded, and KEPT by a
+	* derivation (`origin: 'derived'`), because a roster derived from a degraded
+	* read is still degraded — re-deriving it on a settings change must not
+	* quietly promote a partial answer into a complete one.
+	*/
+	degraded;
+	/**
 	* @param region Seeds the static fallback for this region; each region's
 	* provider must never serve the other region's roster before its first
 	* live refresh lands.
@@ -9949,13 +10213,31 @@ var WorkBuddyCatalog = class {
 	* landed — and the list it passes then is the static fallback. Letting that
 	* count as live is what re-opened issue #32 (see {@link hasLiveRoster}).
 	*
+	* `degraded` says the upstream answer was a PARTIAL one (issue #288) — a
+	* refused product document, answered from the other one. It is accepted
+	* ONLY on an `upstream` write: a derivation inherits the degradation it was
+	* derived from, so it cannot clear it and cannot invent one.
+	*
 	* The default is `'upstream'` so every pre-existing call site keeps meaning
 	* what it meant; only the re-derivation path opts into `'derived'`.
 	*/
-	set(models, origin = "upstream") {
+	set(models, origin = "upstream", degraded) {
 		if (models.length === 0) throw new Error("workbuddy model catalog cannot be empty");
-		if (origin === "upstream") this.live = true;
+		if (origin === "upstream") {
+			this.live = true;
+			this.degraded = degraded;
+		}
 		this.models = models.map((model) => ({ ...model }));
+	}
+	/**
+	* Why the current roster is partial, when it is.
+	*
+	* Absent means "the roster is the upstream's whole offer" — which is the
+	* answer to "can I tell the user the list is complete?", not a claim that
+	* the upstream was reachable at this very moment.
+	*/
+	degradation() {
+		return this.degraded;
 	}
 };
 /** 文件名，带前导点，与 `.workbuddy-device.json` 同一约定。 */
@@ -11325,7 +11607,7 @@ function describeRosterSeenPayload(raw) {
 //#endregion
 //#region src/version.ts
 /** The npm package version this build was produced from. */
-const WORKBUDDY_CONNECT_VERSION = "5.24.15";
+const WORKBUDDY_CONNECT_VERSION = "5.31.2";
 //#endregion
 //#region src/host-heartbeat.ts
 /**
@@ -11383,11 +11665,76 @@ function workbuddyHostHeartbeatPath() {
 * module did not, and that inconsistency is what the test pins.
 *
 * On POSIX the option is ignored.
+*
+* ## The forced C locale
+*
+* `ps -o lstart=` formats the start time in the caller's locale. On macOS,
+* zh_CN can emit 「一 11月/23 …」 and ko_KR can emit 「2026년 11월 23일 …」.
+* `Date.parse` returns NaN for these forms, so {@link processStartTimeMs}
+* returns `undefined`.
+*
+* `undefined` is NOT a quiet degradation here; it switches a check OFF. Two
+* places consume it, and both fail silently:
+*
+*   1. {@link isHeartbeatProcessAlive} takes its `if (startedAt === undefined)
+*      return true` branch, which disables PID-REUSE DETECTION — the exact
+*      hazard issue #174's `hostStartedAt` field was added to close;
+*   2. {@link writeHostHeartbeat} omits `hostStartedAt`, so every later
+*      staleness check falls back to the 12-hour legacy tolerance around
+*      `registeredAt`, i.e. the pre-#174 behaviour.
+*
+* So on those machines `status` and `doctor` can call a long-dead host alive.
+* The tests pin the spawn options so this protection is covered on CI
+* runners whose default locale already produces parseable output.
+*
+* ## Why the options are built per call
+*
+* `process.env` is read when the spawn happens, not when this module loads. The
+* CLI bridge mutates the environment (`src/cli-bridge/`), and a snapshot taken
+* at import time would pin whichever values happened to exist during boot.
 */
 const PROCESS_PROBE_OPTIONS = {
 	encoding: "utf8",
 	windowsHide: true
 };
+/**
+* How long a start-time probe may take before it is abandoned.
+*
+* NOT a constant that can be tuned downward casually. Windows answers through
+* `powershell`, whose COLD START is slow enough that `vitest.config.ts` raises
+* the whole heartbeat suite's `testTimeout` to 30 s with the note "Windows
+* runners cold-start PowerShell very slowly". A timeout shorter than that would
+* make the probe answer `undefined` on a busy Windows machine — and `undefined`
+* is not a neutral value here, it DISABLES PID-reuse detection (see
+* {@link PROCESS_PROBE_OPTIONS}). The generous timeout gives a cold
+* PowerShell time to report the start time.
+*
+* The bound matters because the probe runs synchronously on the host thread.
+* The registry probe in `src/at-rest.ts` uses a 10 s timeout because "a
+* hung `reg` must not wedge the synchronous discovery path forever" — the same
+* argument had simply not been carried over here. A wedged `ps` (a security
+* product intercepting it, a pathological load) would otherwise block the boot
+* path that registers the providers indefinitely.
+*/
+const PROCESS_PROBE_TIMEOUT_MS = 3e4;
+/**
+* The spawn options a probe actually runs with.
+*
+* A function rather than a constant for two reasons: the environment must be
+* sampled at CALL time (see above), and the options are what the regression
+* tests assert, so building them in one place keeps the Windows branch and the
+* POSIX branch from drifting apart.
+*/
+function processProbeOptions() {
+	return {
+		...PROCESS_PROBE_OPTIONS,
+		timeout: PROCESS_PROBE_TIMEOUT_MS,
+		env: {
+			...process.env,
+			LC_ALL: "C"
+		}
+	};
+}
 /**
 * The command one start-time probe runs, per platform.
 *
@@ -11431,7 +11778,7 @@ function processStartProbe(pid, platform = process.platform) {
 function processStartTimeMs(pid) {
 	try {
 		const probe = processStartProbe(pid);
-		const output = execFileSync(probe.file, probe.args, PROCESS_PROBE_OPTIONS);
+		const output = execFileSync(probe.file, probe.args, processProbeOptions());
 		const parsed = Date.parse(output.trim());
 		return Number.isFinite(parsed) ? parsed : void 0;
 	} catch {
@@ -11559,4 +11906,4 @@ async function clearHostHeartbeat(owner) {
 	if (current === owner.contents) await rm(owner.path, { force: true });
 }
 //#endregion
-export { CREDENTIAL_REJECTED_CODE as $, imageSizeLimitsOf as $t, withoutRouters as A, openEncryptedField as An, promoBadgeTone as At, defaultDesktopAuthPath as B, VIDEO_TAG_TEXT_TO_VIDEO as Bt, setDeviceMode as C, fetchAtRestKeyPayload as Cn, perturbChannelFingerprints as Ct, applyContextBudgets as D, isWorkbuddyBundle as Dn, rewriteSessionTitleModel as Dt, WorkBuddyCatalog as E, isEncryptedFieldWrapper as En, requestEvidenceOf as Et, WorkBuddyCredentialStore as F, withFileLock as Fn, offDefaultFor as Ft, parseWorkBuddyAuth as G, IMAGE_SIZE_LIMITS_WIDE as Gt, isEncryptedCredentialError as H, parseSupportedSecondsRange as Ht, WorkBuddyEncryptedCredentialError as I, writeFileAtomic as In, offRefused as It, workbuddyOwnAuthPath as J, MAX_INPUT_IMAGE_BYTES as Jt, preferredAccountName as K, IMAGE_TAG_IMAGE_TO_IMAGE as Kt, authFileName as L, recordRefusal as Lt, WORKBUDDY_AUTH_FILENAME as M, workbuddyAppExecutableCandidates as Mn, REFUSES_OFF_MODEL_IDS as Mt, WORKBUDDY_AUTH_FILE_ENV as N, hostPeersInfo as Nn, defaultOffModelIds as Nt, deriveCatalog as O, macosBundleExecutable as On, toolSchemaRejectAdvice as Ot, WORKBUDDY_VAULT_DIRNAME as P, resolveDshHome as Pn, lastRefusalFor as Pt, CONTEXT_OVERFLOW_MARKER as Q, imageModelChoices as Qt, defaultDesktopAuthCandidates as R, withEffectiveOff as Rt, saveDeviceSdkSettings as S, deriveAtRestKeyId as Sn, parseUpstreamModel as St, FALLBACK_WORKBUDDY_MODELS_GLOBAL as T, findWorkbuddyAppExecutableWithSource as Tn, regionOf as Tt, isVaultAccountId as U, pickVideoModel as Ut, hasEncryptedCredentialFields as V, WorkBuddyVideoError as Vt, legacyWorkbuddyOwnAuthPath as W, resolveVideoParams as Wt, APP_VERSION as X, imageDataUrl as Xt, workbuddyVaultDir as Y, WorkBuddyImageError as Yt, BODY_OVERSIZE_MARKER as Z, imageMimeForPath as Zt, createDeviceProfileLookup as _, inspectCredentialDirectory as _n, knownRegionOf as _t, readHostHeartbeat as a, parseQueueAnswer as an, classifyUpstreamError as at, readDeviceSettings as b, clearAtRestKeyCache as bn, parseCreditMultiplier as bt, WORKBUDDY_CONNECT_VERSION as c, NATIVE_MODALITY_BY_MODEL_ID as cn, deriveStableConversationId as ct, rosterSeenPath as d, WORKBUDDY_DEVICE_TOKEN_FILE_ENV as dn, isBodyOversizeRefusal as dt, isBareBase64Image as en, DEFAULT_WIRE_PROFILE as et, WORKBUDDY_CN_BASE_ENV as f, readDeviceTokenFile as fn, isContextTooLongBody as ft, createTuringSdk as g, isDeviceId as gn, isToolSchemaRejectBody as gt, createDeviceSdkPort as h, deriveDeviceId as hn, isFirstMessageGateBody as ht, processStartTimeMs as i, sniffImageMime as in, channelGateMemberOf as it, ENCRYPTED_CREDENTIAL_CODE as j, readAtRestKey as jn, selectPromoBadge as jt, fallbackModelsFor as k, macosNestedAppBundles as kn, attachBusyLevels as kt, createFileRosterSeenStore as l, imageDefaultFor as ln, describeRequestHeaderNames as lt, piAiRuntimeInfo as m, readDeviceSalt as mn, isCredentialRejectedError as mt, clearHostHeartbeat as n, parseImageDataUrl as nn, WorkBuddyCredentialRejectedError as nt, workbuddyHostHeartbeatPath as o, queueNoticeText as on, conversationIdFromSessionId as ot, resolveCnGateway as p, ensureDeviceSalt as pn, isConversationIdGateBody as pt, workbuddyAccountId as q, IMAGE_TAG_TEXT_TO_IMAGE as qt, isHeartbeatProcessAlive as r, pickMediaModel as rn, WorkBuddyUpstreamClient as rt, writeHostHeartbeat as s, pruneTempDir as sn, declaredTools as st, WORKBUDDY_HOST_HEARTBEAT_FILENAME as t, isWatermarkFreeImageModel as tn, WORKBUDDY_FALLBACK_SYSTEM_PROMPT as tt, describeRosterSeenPayload as u, nativeModalityOf as un, forceNeutralHead as ut, describeDerivedDevices as v, protectCredentialDirectory as vn, modelIdOfBody as vt, FALLBACK_WORKBUDDY_MODELS as w, findWorkbuddyAppExecutable as wn, prepareChatBody as wt, saveDeviceProfile as x, deriveAtRestKey as xn, parseReasoning as xt, isDeviceMode as y, WORKBUDDY_APP_EXECUTABLE_ENV as yn, openingEvidenceOfBody as yt, defaultDesktopAuthDirs as z, VIDEO_TAG_IMAGE_TO_VIDEO as zt };
+export { CREDENTIAL_REJECTED_CODE as $, imageModelChoices as $t, withoutRouters as A, macosBundleExecutable as An, attachBusyLevels as At, defaultDesktopAuthPath as B, VIDEO_TAG_IMAGE_TO_VIDEO as Bt, setDeviceMode as C, deriveAtRestKey as Cn, parseUpstreamModel as Ct, applyContextBudgets as D, findWorkbuddyAppExecutableWithSource as Dn, requestEvidenceOf as Dt, WorkBuddyCatalog as E, findWorkbuddyAppExecutable as En, regionOf as Et, WorkBuddyCredentialStore as F, hostPeersInfo as Fn, lastRefusalFor as Ft, parseWorkBuddyAuth as G, resolveVideoParams as Gt, isEncryptedCredentialError as H, WorkBuddyVideoError as Ht, WorkBuddyEncryptedCredentialError as I, resolveDshHome as In, offDefaultFor as It, workbuddyOwnAuthPath as J, IMAGE_TAG_TEXT_TO_IMAGE as Jt, preferredAccountName as K, IMAGE_SIZE_LIMITS_WIDE as Kt, authFileName as L, withFileLock as Ln, offRefused as Lt, WORKBUDDY_AUTH_FILENAME as M, openEncryptedField as Mn, selectPromoBadge as Mt, WORKBUDDY_AUTH_FILE_ENV as N, readAtRestKey as Nn, REFUSES_OFF_MODEL_IDS as Nt, deriveCatalog as O, isEncryptedFieldWrapper as On, rewriteSessionTitleModel as Ot, WORKBUDDY_VAULT_DIRNAME as P, workbuddyAppExecutableCandidates as Pn, defaultOffModelIds as Pt, CONTEXT_OVERFLOW_MARKER as Q, imageMimeForPath as Qt, defaultDesktopAuthCandidates as R, writeFileAtomic as Rn, recordRefusal as Rt, saveDeviceSdkSettings as S, clearAtRestKeyCache as Sn, parseReasoning as St, FALLBACK_WORKBUDDY_MODELS_GLOBAL as T, fetchAtRestKeyPayload as Tn, prepareChatBody as Tt, isVaultAccountId as U, parseSupportedSecondsRange as Ut, hasEncryptedCredentialFields as V, VIDEO_TAG_TEXT_TO_VIDEO as Vt, legacyWorkbuddyOwnAuthPath as W, pickVideoModel as Wt, APP_VERSION as X, WorkBuddyImageError as Xt, workbuddyVaultDir as Y, MAX_INPUT_IMAGE_BYTES as Yt, BODY_OVERSIZE_MARKER as Z, imageDataUrl as Zt, createDeviceProfileLookup as _, deriveDeviceId as _n, isToolSchemaRejectBody as _t, readHostHeartbeat as a, sniffImageMime as an, classifyUpstreamError as at, readDeviceSettings as b, protectCredentialDirectory as bn, openingEvidenceOfBody as bt, WORKBUDDY_CONNECT_VERSION as c, pruneTempDir as cn, deriveStableConversationId as ct, rosterSeenPath as d, isRouterModelId as dn, growthHostOf as dt, imageSizeLimitsOf as en, DEFAULT_WIRE_PROFILE as et, WORKBUDDY_CN_BASE_ENV as f, nativeModalityOf as fn, isBodyOversizeRefusal as ft, createTuringSdk as g, readDeviceSalt as gn, isFirstMessageGateBody as gt, createDeviceSdkPort as h, ensureDeviceSalt as hn, isCredentialRejectedError as ht, processStartTimeMs as i, pickMediaModel as in, channelGateMemberOf as it, ENCRYPTED_CREDENTIAL_CODE as j, macosNestedAppBundles as jn, promoBadgeTone as jt, fallbackModelsFor as k, isWorkbuddyBundle as kn, toolSchemaRejectAdvice as kt, createFileRosterSeenStore as l, NATIVE_MODALITY_BY_MODEL_ID as ln, describeRequestHeaderNames as lt, piAiRuntimeInfo as m, readDeviceTokenFile as mn, isConversationIdGateBody as mt, clearHostHeartbeat as n, isWatermarkFreeImageModel as nn, WorkBuddyCredentialRejectedError as nt, workbuddyHostHeartbeatPath as o, parseQueueAnswer as on, conversationIdFromSessionId as ot, resolveCnGateway as p, WORKBUDDY_DEVICE_TOKEN_FILE_ENV as pn, isContextTooLongBody as pt, workbuddyAccountId as q, IMAGE_TAG_IMAGE_TO_IMAGE as qt, isHeartbeatProcessAlive as r, parseImageDataUrl as rn, WorkBuddyUpstreamClient as rt, writeHostHeartbeat as s, queueNoticeText as sn, declaredTools as st, WORKBUDDY_HOST_HEARTBEAT_FILENAME as t, isBareBase64Image as tn, WORKBUDDY_FALLBACK_SYSTEM_PROMPT as tt, describeRosterSeenPayload as u, imageDefaultFor as un, forceNeutralHead as ut, describeDerivedDevices as v, isDeviceId as vn, knownRegionOf as vt, FALLBACK_WORKBUDDY_MODELS as w, deriveAtRestKeyId as wn, perturbChannelFingerprints as wt, saveDeviceProfile as x, WORKBUDDY_APP_EXECUTABLE_ENV as xn, parseCreditMultiplier as xt, isDeviceMode as y, inspectCredentialDirectory as yn, modelIdOfBody as yt, defaultDesktopAuthDirs as z, withEffectiveOff as zt };

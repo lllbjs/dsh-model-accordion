@@ -1446,6 +1446,31 @@ interface WorkBuddyCheckinClaim {
   streakDays: number;
   isStreakDay: boolean;
 }
+/** Today's heatmap cell: whether the account was active and its score. */
+interface WorkBuddyGrowthToday {
+  date: string;
+  isActive: boolean;
+  score: number;
+  statusText?: string;
+}
+/** Streak + redemption snapshot, reduced to what the card and runner need. */
+interface WorkBuddyGrowthStreak {
+  days: number;
+  monthTotalDays: number;
+  monthConsumedDays: number;
+  nextTier?: string;
+  nextTierRemaining: number;
+  /** Tier ids (`7d`/`14d`/`28d`) the gateway says are claimable NOW. */
+  availableTiers: readonly string[];
+  makeupCardBalance: number;
+}
+/** Result of redeeming one tier. */
+interface WorkBuddyGrowthRedeemResult {
+  tier: string;
+  credit: number;
+  energy?: number;
+  alreadyClaimed?: boolean;
+}
 /**
  * One promotional benefit the account may or may not still be entitled to.
  *
@@ -1887,6 +1912,66 @@ declare function parseReasoning(value: unknown): WorkBuddyReasoning | undefined;
 /** Parse one catalog entry; entries without usable token limits are dropped. */
 declare function parseUpstreamModel(value: unknown): WorkBuddyUpstreamModel | undefined;
 /**
+ * Which document a model directory was read from.
+ *
+ * THE THREE SOURCES, and why a reader needs to name them.
+ *
+ * - `app`: the `/v3/config` product document read as the APP's identity. Both
+ *   regions read it; the CN region reads nothing else.
+ * - `cli`: the SAME document read as the CLI channel's identity. The
+ *   international region reads both, because neither document is a superset of
+ *   the other (see {@link mergeModelRosters}).
+ * - `legacy`: the CN region's legacy catalog path, the fallback for a gateway
+ *   that stops serving the modern document.
+ *
+ * A reader that fell back from one to another is answering with a PARTIAL
+ * directory, and the user has to be told which part is missing — see
+ * {@link WorkBuddyCatalogDegradation}.
+ */
+type WorkBuddyCatalogSource = 'app' | 'cli' | 'legacy';
+/**
+ * A model directory that came from a FALLBACK document.
+ *
+ * ISSUE #288. The international region reads `/v3/config` twice, as the CLI
+ * channel and as the app channel, and the two documents publish DIFFERENT
+ * rosters: the CLI one carries `fast-model` / `balanced-model` /
+ * `primary-model` / `deepseek-v4.1-flash` / `hy4-preview` / `gpt-5.5` /
+ * `gpt-5.4` / `glm-5.2`, the app one carries `max-model` / `hy4free` /
+ * `hy4std` (measured on a real account 2026-11-06).
+ *
+ * So when one read fails — a rate limit (`soft_rate` / `quota_exceeded`), a
+ * transport error — the fallback to the OTHER document is a downgrade, not a
+ * convenience: every row the refused document published is missing from the
+ * answer. The fallback used to be reported only in the log, and the roster it
+ * produced was then filtered by the user's selection — so a rate limit could
+ * collapse the model picker down to the handful of rows the surviving document
+ * happened to carry, with nothing on screen saying why.
+ *
+ * `body` is the upstream's OWN words (untruncated), because the upstream states
+ * its recovery time in prose — 「将在 2026-09-30 02:30:30 UTC+8 重置」 — and that
+ * sentence is the one thing worth showing the user.
+ */
+interface WorkBuddyCatalogDegradation {
+  /** The document that was NOT read. */
+  readonly missing: WorkBuddyCatalogSource;
+  /** The document the answer came from instead. */
+  readonly used: WorkBuddyCatalogSource;
+  /** The upstream's own words, untruncated. */
+  readonly body: string;
+}
+/**
+ * One model-directory read: the roster, and whether it is the whole truth.
+ *
+ * `degraded` absent means the read was COMPLETE — every document the region
+ * reads answered, so the roster is the upstream's current offer. Present means
+ * one document was refused and the answer came from the other, so the roster is
+ * missing rows the upstream does publish.
+ */
+interface WorkBuddyCatalogRead {
+  readonly models: readonly WorkBuddyUpstreamModel[];
+  readonly degraded?: WorkBuddyCatalogDegradation;
+}
+/**
  * Upstream HTTP client. One instance serves the whole plugin; requests take
  * the credential explicitly so token refreshes apply on the next call.
  */
@@ -2018,8 +2103,16 @@ declare class WorkBuddyUpstreamClient {
    * document still publishes stays in the roster, so reading the directory
    * never withdraws a model the user is running (issue #32's failure mode,
    * one step upstream of it).
+   *
+   * THE ANSWER IS A {@link WorkBuddyCatalogRead}, not a bare roster, because a
+   * FALLBACK read is a partial answer and the caller has to be able to tell
+   * (issue #288). The international region reads two documents that publish
+   * different rosters, so "the CLI read was refused and the app document
+   * answered" is a downgrade the user must be told about — and a roster that
+   * silently lost the CLI-only rows would otherwise look like the user's own
+   * selection had shrunk.
    */
-  fetchModels(credential: WorkBuddyCredential, signal?: AbortSignal, keepModelIds?: readonly string[]): Promise<readonly WorkBuddyUpstreamModel[]>;
+  fetchModels(credential: WorkBuddyCredential, signal?: AbortSignal, keepModelIds?: readonly string[]): Promise<WorkBuddyCatalogRead>;
   /**
    * Read how busy each model is right now, from the upstream's own probe.
    *
@@ -2175,6 +2268,27 @@ declare class WorkBuddyUpstreamClient {
   /** Claim today's check-in reward. The browser route guards this mutation. */
   claimDailyCheckin(credential: WorkBuddyCredential): Promise<WorkBuddyCheckinClaim>;
   /**
+   * GET one growth-center path, trying `/v2` then the bare form.
+   *
+   * The attachment disagrees with itself on whether growth paths carry `/v2`
+   * (see the endpoint note above). Rather than pin one spelling and be wrong on
+   * half the deployments, a 404 on the first form retries the second. Only a
+   * clean `code: 0` envelope is accepted; a business error is returned as-is.
+   * Returns `undefined` when NEITHER shape answered successfully.
+   */
+  private readGrowthData;
+  /** Today's heatmap cell, or undefined when the gateway gave no usable answer. */
+  fetchGrowthToday(credential: WorkBuddyCredential): Promise<WorkBuddyGrowthToday | undefined>;
+  /** Streak + redemption snapshot, or undefined when unreadable. */
+  fetchGrowthStreak(credential: WorkBuddyCredential): Promise<WorkBuddyGrowthStreak | undefined>;
+  /**
+   * Redeem one streak tier. The CALLER must only pass a tier the gateway marked
+   * `available`; this method does not re-check, so the decision stays in the
+   * batch runner where it can be reported and tested. The browser/host route
+   * guards this mutation with POST + loopback like every other write.
+   */
+  redeemGrowthTier(credential: WorkBuddyCredential, tier: string): Promise<WorkBuddyGrowthRedeemResult>;
+  /**
    * The ENTERPRISE credit table (issue #124).
    *
    * `/v2/billing/meter/get-user-resource` answers an enterprise member with
@@ -2316,6 +2430,26 @@ declare class WorkBuddyCatalog {
    */
   private enabled;
   /**
+   * Why the current roster is a PARTIAL answer, when it is one.
+   *
+   * ISSUE #288. The international region reads two product documents that
+   * publish different rosters, so a refused read is answered from the other
+   * one and the answer is missing rows the upstream does publish. That roster
+   * used to be presented as if it were the whole truth — filtered by the
+   * user's own selection, so a rate limit could leave the model picker with
+   * one row and no explanation.
+   *
+   * The flag is what lets the card say "the directory is degraded, this part is
+   * the saved snapshot" instead of leaving the user to guess. It is process
+   * state, like the load level: a fact about this minute, never persisted.
+   *
+   * CLEARED by a fresh upstream read that was NOT degraded, and KEPT by a
+   * derivation (`origin: 'derived'`), because a roster derived from a degraded
+   * read is still degraded — re-deriving it on a settings change must not
+   * quietly promote a partial answer into a complete one.
+   */
+  private degraded;
+  /**
    * @param region Seeds the static fallback for this region; each region's
    * provider must never serve the other region's roster before its first
    * live refresh lands.
@@ -2388,10 +2522,23 @@ declare class WorkBuddyCatalog {
    * landed — and the list it passes then is the static fallback. Letting that
    * count as live is what re-opened issue #32 (see {@link hasLiveRoster}).
    *
+   * `degraded` says the upstream answer was a PARTIAL one (issue #288) — a
+   * refused product document, answered from the other one. It is accepted
+   * ONLY on an `upstream` write: a derivation inherits the degradation it was
+   * derived from, so it cannot clear it and cannot invent one.
+   *
    * The default is `'upstream'` so every pre-existing call site keeps meaning
    * what it meant; only the re-derivation path opts into `'derived'`.
    */
-  set(models: readonly WorkBuddyModelInfo[], origin?: 'upstream' | 'derived'): void;
+  set(models: readonly WorkBuddyModelInfo[], origin?: 'upstream' | 'derived', degraded?: WorkBuddyCatalogDegradation): void;
+  /**
+   * Why the current roster is partial, when it is.
+   *
+   * Absent means "the roster is the upstream's whole offer" — which is the
+   * answer to "can I tell the user the list is complete?", not a claim that
+   * the upstream was reachable at this very moment.
+   */
+  degradation(): WorkBuddyCatalogDegradation | undefined;
 }
 //#endregion
 //#region src/cli-bridge/mount.d.ts
@@ -4239,6 +4386,43 @@ interface WorkBuddyWebSearchPath {
  * The card uses this to read and write the matching per-region model slot.
  */
 type WorkBuddyWebRegion = 'cn' | 'global';
+/**
+ * This region's model directory is a PARTIAL answer (issue #288).
+ *
+ * The international region reads two product documents that publish different
+ * rosters, and the CN region falls back to a legacy document when the modern
+ * one stops answering. Either way a refused read is answered from the other
+ * document — and the answer is missing rows the upstream does publish.
+ *
+ * The card needs this to tell TWO apart that look identical on screen:
+ *
+ *   - "the directory only has one model" (the user's own selection), and
+ *   - "the directory could not be read, so this is what survived" (a rate
+ *     limit, a transport error).
+ *
+ * Without it the second case was silent, and the user could not tell that the
+ * list they were looking at was a fallback rather than the upstream's offer.
+ */
+interface WorkBuddyWebCatalogDegradation {
+  /** The document that was NOT read. */
+  missing: 'app' | 'cli' | 'legacy';
+  /** The document the answer came from instead. */
+  used: 'app' | 'cli' | 'legacy';
+  /**
+   * The upstream's own words about the failure, redacted and truncated.
+   *
+   * The upstream states its recovery time in prose, so this sentence is worth
+   * showing verbatim — it is the only place the user learns when the limit
+   * lifts.
+   */
+  reason: string;
+  /**
+   * The recovery time the upstream stated, in epoch ms.
+   *
+   * ABSENT means "the upstream named no time" — never "now" and never a guess.
+   */
+  resetAtMs?: number;
+}
 /** The JSON document the plugin card renders. */
 type WorkBuddyWebUsage =
 /**
@@ -4400,6 +4584,17 @@ type WorkBuddyWebUsage =
   message?: string;
   /** The persisted account id matches no local account. */
   selectionLost?: boolean;
+  /**
+   * The upstream refused the credential that `resolve()` tried to refresh
+   * (issue #285). Distinct from a genuinely signed-out machine: local accounts
+   * ARE present (`accounts` is populated and the export dialog can see them),
+   * but the selected token was rejected. Without this marker the card fell
+   * into the generic signed-out branch, hid every account, and told the user
+   * "未登录" in both the settings card and the model picker.
+   */
+  credentialRejected?: boolean;
+  /** Present only alongside {@link credentialRejected}. */
+  recovery?: WorkBuddyWebRecovery;
   /**
    * The vault directory exists but could not be READ (issue #199).
    *
@@ -4573,6 +4768,15 @@ type WorkBuddyWebUsage =
   models: readonly WorkBuddyWebModel[];
   enabledModelIds: readonly string[];
   imageModelIds: readonly string[];
+  /**
+   * This region's model directory is a PARTIAL answer (issue #288).
+   *
+   * ABSENT means "the directory is the upstream's whole offer" — the two
+   * states are different facts and the card says different things about
+   * them, so the field is absent rather than false when there is nothing to
+   * report.
+   */
+  catalogDegraded?: WorkBuddyWebCatalogDegradation;
   /**
    * Model ids whose `off` thinking level is offered (issue #34): the saved
    * selection, seeded from the built-in rule the first time it is read.
@@ -4877,6 +5081,16 @@ interface WorkBuddyWebPoolAccount {
    */
   checkedInToday?: boolean;
   /**
+   * Whether this account's streak tiers were redeemed/settled today (issue #286).
+   * ABSENT means the growth job has not covered this account today.
+   */
+  growthRedeemedToday?: boolean;
+  /**
+   * Whether this account was lit "active today" by the job (issue #286).
+   * ABSENT means the growth job has not covered this account today.
+   */
+  growthActiveToday?: boolean;
+  /**
    * Promotional benefits this account can STILL claim (issue #79).
    *
    * Never carries a claimed or lapsed campaign: the issue's rule is that those
@@ -4925,6 +5139,20 @@ interface WorkBuddyWebAutoCheckinToday {
   /** Why the last attempt failed, when it did. */
   lastError?: string;
 }
+/**
+ * Today's progress for one growth background job (issue #286).
+ *
+ * Deliberately NOT the check-in shape: growth has no retry/backoff semantics.
+ * An account attempted today is settled whether it redeemed, was already done,
+ * or was unreachable, so there is no `pending`/`lastError` to show — just a
+ * stable "已兑换 / 已点亮 X / Y" count the user asked for.
+ */
+interface WorkBuddyWebGrowthToday {
+  /** Accounts settled today (attempted, redeemed, or already done). */
+  done: number;
+  /** Accounts in scope today — the real pool member count. */
+  total: number;
+}
 interface WorkBuddyWebPool {
   enabled: boolean;
   /**
@@ -4943,6 +5171,10 @@ interface WorkBuddyWebPool {
    * runner happens to be doing with the previous value.
    */
   autoCheckin?: boolean;
+  /** Auto-redeem claimable growth-tiers (issue #286). Absent means OFF. */
+  growthRedeem?: boolean;
+  /** Auto-light "active today" via ACP (issue #286). Absent means OFF. */
+  growthActivity?: boolean;
   /**
    * What the automatic check-in has done today, when it is switched on.
    *
@@ -4953,6 +5185,10 @@ interface WorkBuddyWebPool {
    * settled, and asking it to guess is how the count would drift from the truth.
    */
   autoCheckinToday?: WorkBuddyWebAutoCheckinToday;
+  /** Today's streak-redeem progress, when that switch is on and the job ran. */
+  growthRedeemToday?: WorkBuddyWebGrowthToday;
+  /** Today's active-today progress, when that switch is on and the job ran. */
+  growthActivityToday?: WorkBuddyWebGrowthToday;
   /** The model a test would use right now; absent when none can be resolved. */
   targetModelId?: string;
   /**
@@ -5113,7 +5349,7 @@ interface WorkBuddyStatusRouteOptions {
    */
   defaultThinkingEfforts?(region: WorkBuddyRegion): Readonly<Record<string, string | undefined>>;
   /** Re-read the live catalog of one region from the upstream. */
-  discoverModels?(region: WorkBuddyRegion, signal?: AbortSignal): Promise<readonly WorkBuddyModelInfo[]>;
+  discoverModels?(region: WorkBuddyRegion, signal?: AbortSignal): Promise<WorkBuddyCatalogRead>;
   /**
    * Record what a refresh just read, so the directory — and therefore every
    * price on it — stops being a snapshot of an older day (issue #214).
@@ -5138,7 +5374,16 @@ interface WorkBuddyStatusRouteOptions {
    * paints its draft from the ANSWER, so a 503 leaves the draft untouched and
    * the user sees a real error instead of a stale list that looks refreshed.
    */
-  persistModels?(region: WorkBuddyRegion, models: readonly WorkBuddyModelInfo[]): Promise<void>;
+  persistModels?(region: WorkBuddyRegion, read: WorkBuddyCatalogRead): Promise<void>;
+  /**
+   * Whether the requested region's model directory is a PARTIAL answer
+   * (issue #288) — one product document was refused and the other one
+   * answered, so the list is missing rows the upstream does publish.
+   *
+   * Optional: absent means the Host does not track the fact, and the card
+   * shows no notice rather than inventing one.
+   */
+  catalogDegradation?(region: WorkBuddyRegion): WorkBuddyCatalogDegradation | undefined;
   /**
    * Which ids of the requested region's roster THIS machine first saw inside the
    * new-model window (the "· N 新模型" segment), plus a note when the on-disk
@@ -5565,6 +5810,10 @@ interface WorkBuddyPoolDeps {
      * profile until someone ticks it.
      */
     autoCheckin?: boolean;
+    /** Auto-redeem claimable streak tiers (issue #286, opt-in, both regions). */
+    growthRedeem?: boolean;
+    /** Auto-light "active today" via ACP (issue #286, opt-in, both regions). */
+    growthActivity?: boolean;
   };
   /** One region's CHECKED accounts, plus their credits and last measurements. */
   members(region: WorkBuddyRegion): Promise<readonly WorkBuddyPoolMember[]>;
@@ -5636,12 +5885,18 @@ interface WorkBuddyPoolDeps {
    * Today's check-in state, from the cells already measured this process.
    *
    * The first-paint counterpart of {@link checkedInToday}: reads the Host's
-   * measurement cache and nothing else, so a first paint never waits on one
-   * upstream request per account. An account it has not measured is simply
+   * local done-today memory and nothing else, so a first paint never waits on
+   * one upstream request per account. An account it has not measured is simply
    * absent, which the card renders as unknown — the same meaning as a failed
    * per-account read in the full document.
    */
-  cachedCheckedInToday?(region: WorkBuddyRegion): Readonly<Record<string, boolean>>;
+  cachedCheckedInToday?(region: WorkBuddyRegion): Promise<Readonly<Record<string, boolean>>> | Readonly<Record<string, boolean>>;
+  /**
+   * Per-account growth completion for today (issue #286), from the runner's own
+   * day state — no upstream read. `true` only for accounts the job settled today;
+   * absent for accounts it has not covered. Drives the per-row 已兑换/已点亮 stamp.
+   */
+  growthDoneAccountIds?(region: WorkBuddyRegion, cap: 'growth-redeem' | 'growth-activity'): Promise<Readonly<Record<string, boolean>>> | Readonly<Record<string, boolean>>;
   /**
    * Claimable promotional benefits per account id (issue #79).
    *
@@ -5703,6 +5958,13 @@ interface WorkBuddyPoolDeps {
    */
   checkin?(region: WorkBuddyRegion): Promise<readonly WorkBuddyPoolCheckinRow[]>;
   /**
+   * Manually run one growth job for every pooled account (issue #286). These are
+   * the on-demand equivalents of the two opt-in background switches. Absent
+   * means the action answers 503. The row shape is shared with the check-in
+   * batch (`done`/`skipped`/`failed` plus a message).
+   */
+  growthRun?(region: WorkBuddyRegion, action: 'growth-redeem' | 'growth-activity'): Promise<readonly WorkBuddyPoolCheckinRow[]>;
+  /**
    * What the automatic check-in has settled today, when it is switched on
    * (issue #191).
    *
@@ -5716,6 +5978,10 @@ interface WorkBuddyPoolDeps {
    * happened.
    */
   autoCheckinToday?(region: WorkBuddyRegion): WorkBuddyWebAutoCheckinToday | undefined;
+  /** Today's streak-redeem progress (issue #286), from the runner's own state. */
+  growthRedeemToday?(region: WorkBuddyRegion): WorkBuddyWebGrowthToday | undefined;
+  /** Today's active-today progress (issue #286), from the runner's own state. */
+  growthActivityToday?(region: WorkBuddyRegion): WorkBuddyWebGrowthToday | undefined;
   /**
    * Test every account of one region against the resolved target model.
    *
@@ -6059,6 +6325,23 @@ interface WorkBuddyPoolPreferences {
    * and the runner refuses to start there.
    */
   autoCheckin?: boolean;
+  /**
+   * Whether the plugin redeems claimable streak tiers automatically (issue #286).
+   *
+   * OFF by default, like `autoCheckin`: a redeem is a real WRITE on the account.
+   * Unlike check-in it is available in BOTH regions — the growth-streak endpoint
+   * answers `code 0` in each. Only tiers the gateway marks `available` are ever
+   * redeemed, so a repeat run writes nothing.
+   */
+  growthRedeem?: boolean;
+  /**
+   * Whether the plugin lights up "active today" through a console ACP session
+   * (issue #286). OFF by default: one short model turn is sent PER account per
+   * day, which spends a little credit. Idempotent — an already-active account
+   * gets no session. Available in BOTH regions; it is the only growth reward the
+   * international gateway still offers.
+   */
+  growthActivity?: boolean;
 }
 /** Plugin configuration. */
 interface Config {

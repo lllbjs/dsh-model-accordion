@@ -2399,6 +2399,7 @@ const QUOTA_CODES = /* @__PURE__ */ new Set([
 	"119",
 	"122",
 	"144",
+	"147",
 	"402",
 	"6004"
 ]);
@@ -2892,7 +2893,7 @@ var QoderAccountStore = class {
 //#endregion
 //#region src/version.ts
 /** The npm package version this build was produced from. */
-const QODER_CONNECT_VERSION = "1.26.4";
+const QODER_CONNECT_VERSION = "1.27.1";
 //#endregion
 //#region src/account-pool-store.ts
 /**

@@ -1,5 +1,502 @@
 # Changelog
 
+## 5.31.2 (2026-11-23)
+
+> 兼容版：修复中文/韩文 macOS 上宿主 PID 复用检测被静默关掉（PR #290）。
+
+> ⚠️ 本版在 5.31.1 发布之后新增，须单独发布。
+
+- **PR #290**：中文（`zh_CN`）或韩文（`ko_KR`）locale 的 macOS 上，`ps -o lstart=` 按调用者
+  locale 输出启动时间，形如「一 11月/23 …」「2026년 11월 23일 …」，`Date.parse` 一律返回
+  `NaN`，`processStartTimeMs()` 因此给出 `undefined`。
+- **这不是安静的降级，而是把一道检查关掉了**：`isHeartbeatProcessAlive` 拿到 `undefined` 就走
+  「无法判断当存活」分支，等于废掉 issue #174 加的 PID 复用检测；`writeHostHeartbeat` 也会
+  省略 `hostStartedAt`，之后的陈旧判断退回 12 小时容差（#174 之前的行为）。结果 `status` /
+  `doctor` 可能把早已退出的宿主报成仍在运行。
+- **修法**（一份改动三件事）：
+  - 每次探测**按调用**继承当时进程环境并强制 `LC_ALL=C`（`LC_ALL` 是最高优先级的 POSIX
+    区域变量，单独设它就够覆盖继承的 `LC_TIME`/`LANG`；先展开 `process.env` 保住 `PATH`，
+    否则连 `ps` 都找不到）。按调用而非模块加载时采样，是因为 CLI bridge 会改 `process.env`，
+    加载时的快照会把启动那一刻的值钉死。
+  - 同步探测加 30 秒超时——这是全仓唯一的无超时同步 spawn，隔壁 `at-rest.ts` 的注册表探测
+    早有 10 秒超时并写明「卡住的 reg 不能永远堵住同步路径」。超时放到 30 秒是因为 Windows
+    走 PowerShell，冷启动慢，testTimeout 本身就是 30 秒；太紧同样会让探测答 `undefined`、
+    关掉 PID 复用检测。
+  - `tests/card-panels.spec.tsx` 纳入客户端 TypeScript 检查（此前被主配置排除）。
+- 测试：新增 3 条回归（强制 C locale、按调用采样环境、超时下限足够冷启动 PowerShell）。
+  三处变异验证均变红（去掉 `LC_ALL` / 改用模块加载时快照 / 去掉 timeout）。
+  `pnpm run check` 全过（3807 条测试）。Host 侧改动，需重启 DSH 加载。
+
+## 5.31.1 (2026-11-23)
+
+> 兼容版：修复 DSH 0.2.3 起贴图失败（`maxImageBytes must be a positive integer` / `INVALID_ATTACHMENT_REF`）。
+
+> ⚠️ 本版在 5.31.0 发布之后新增，须单独发布。
+
+- **issue #289**：DSH 0.2.3 + `dsh-llm-pi-ai@0.2.3` 起，粘贴任意图片发送都会失败，
+  纯文字正常，`INVALID_ATTACHMENT_REF`。
+- **根因（已按 0.2.3 实际源码核实）**：从 0.2.3 起 resolved profile 新增必填字段
+  `requestImageBudgetCount`，且把 per-image 上限字段从 `requestImageMaxBytes` 改名成
+  `maxImageBytes`（配置侧仍叫 `requestImageMaxBytes`，`resolveProfiles()` 做映射）。本路由
+  手工拼 resolved profile、不走宿主的 `resolveProfiles()`，两处默认值都不会替它填：
+  - 缺 `requestImageBudgetCount` → `resolveImageRequestBudget()` 里
+    `maxRequestImageBytes / undefined / 4` 得 `NaN`，附件层拒收；
+  - 只写旧字段名 → 0.2.3 读不到 per-image 上限（退回自己的默认），本路由钉的 1 MiB 失效。
+- **修法一份 profile 兼容两代宿主**：`REQUEST_IMAGE_BUDGETS` 同时写 `requestImageMaxBytes`
+  （0.2.2 及以前）与 `maxImageBytes`（0.2.3 起），并补 `requestImageBudgetCount: 14`。
+  14 是刻意选的：`floor(20971520 / 14 / 4) * 3 = 1_123_473 > 1 MiB`，于是显式上限仍是
+  1 MiB；换成宿主默认 20 会让「均摊份额」降到 786432，悄悄把上限压小（15 更是差 1 字节）。
+  新增字段在 0.2.2 上只是resolved profile 上多出的键，按名读取时惰性忽略，两代宿主同一份对象。
+- 测试：新增 `tests/issue289-image-budget.spec.ts`（5 条），从真实 adapter 取 resolved profile，
+  逐字复刻 0.2.3 的预算公式断言得到正的 1 MiB 而非 `NaN`，并钉住两个字段名与 0.2.2 字段仍在。
+  四处变异验证均变红（去掉 divisor / 去掉新上限名 / 把 divisor 改成 20 / 去掉旧上限名）。
+  `pnpm run check` 全过。Host 侧改动，需重启 DSH 加载。
+
+## 5.31.0 (2026-11-22)
+
+> 修复版：上游限流时，模型目录不再静默缩成一个模型，并且会明说「目录降级」。
+
+> ⚠️ 本版在 5.30.0 发布之后新增，须单独发布。
+
+- **issue #288**：上游返回 429（`soft_rate` / `quota_exceeded`，报文里带
+  「将在 2026-11-23 09:22:26 UTC+8 重置」）后，模型选择器只剩 1 个模型，而 profile 里的
+  `lastCatalog` 仍有 7 个，界面上没有任何提示。
+- **根因（与报告者的分析不同，已按 5.30.0 源码核实）**：国际区读同一份 `/v3/config`
+  两次（CLI 通道 + app 通道），因为两份文档互不包含——CLI 通道才有 `fast-model` /
+  `balanced-model` / `primary-model` / `deepseek-v4.1-flash` / `hy4-preview`，app 通道
+  才有 `max-model` / `hy4free` / `hy4std`。**一份被拒时改读另一份是一次降级**：
+  回答里缺了被拒文档发布的全部行；而 `selectCliModels` 的 keep 契约只在**同一份文档内**
+  成立，用户已勾选的 CLI-only id 会被一起丢掉。目录随后又按用户的勾选过滤，于是限流
+  能把选择器压到只剩一行。
+  （报告者引用的「saved directory if it is non-empty, else the live roster」是
+  `catalog-sync.ts` 文档块里描述 **#114/#115 修复掉的旧行为**，不是 5.30.0 的现状。）
+- **降级要被说出来**：`fetchModels` 现在返回 `{models, degraded}`，降级时带上
+  「哪份文档没读到 / 改用了哪份 / 上游原话」。回落不再只存在于一行日志里。
+- **降级不得缩窄目录**：`rosterOfRead()`（`catalog-sync.ts`）在降级时把**已保存目录**
+  并回运行时目录（`mergeRoster`），启动种子、宿主模型发现回包、卡片刷新三条路径统一
+  走它——限流不再把用户正在用的模型从选择器里抹掉。**完整读取仍只答上游目录**
+  （上游当下提供什么就是什么），这条界线是刻意的。
+- **卡片刷新不再裁剪勾选**：降级刷新时按交集重映射勾选的那一步被跳过，本次没读到的
+  行从上一份列表带过来并在提示里点名（用列表里显示的名字，不用 id）。随后保存也不会
+  把缩水的目录写回 `lastCatalog`。
+- **界面提示**：模型区顶部出现琥珀色提示条（不是红色——没有故障，只是目录不全），
+  写明哪条通道失败、上游原话、以及上游给出的恢复时间（上游没给就不显示，绝不编）。
+- 新增 `WorkBuddyUpstreamError`（携带上游未截断的报文原文）与 `upstreamBodyOf()`；
+  恢复时间用既有的 `parseUpstreamResetAt` 解析（中英两种措辞都认），上游报文在送往
+  浏览器前照例过 `redactUpstreamText` 脱敏。
+- 测试：新增 `tests/issue288-catalog-degradation.spec.ts`（13 条：降级上报 / 降级不缩窄 /
+  完整读取仍缩窄 / 目录记住降级 / 恢复时间解析与脱敏）与
+  `tests/card-catalog-degraded.spec.tsx`（3 条：真渲染卡片，断言降级刷新后勾选不被裁剪、
+  缺掉的行仍在列表里、提示条出现）。四处变异验证均变红（降级不并入已保存目录 /
+  回落不上报降级 / 派生清掉降级 / 丢掉恢复时间）。`pnpm run check` 全过（3799 条测试）。
+  Host 侧改动，需重启 DSH 加载。
+
+## 5.30.0 (2026-11-21)
+
+> 功能版：当天已完成的签到/兑换/点亮改为落盘的本地记录，不再每次轮询重读上游。
+
+> ⚠️ 本版在 5.29.1 发布之后新增，须单独发布。
+
+- 用户指出：当天已签到/已兑换/已点亮应记在本地，没记录才去刷新。此前签到用 10 分钟
+  TTL 缓存、过期就对**每个账号**重读一次（含早签到的），白费上游请求。
+- 新增 `daily-done-store.ts`：按 (能力, 区) 落盘 `$DSH_HOME`，记当天已完成的账号 id，
+  以**本地日**为界自动失效。读到一次"已完成"（不管插件做的还是用户在官方客户端做的）
+  就写记录，之后当天不再读，重启也保留；只有没记录时才读一次。
+- 签到：`checkedInToday` 与首屏 `cachedCheckedInToday` 改读该记录；签到批处理成功行写入
+  记录（替代旧的删缓存）。成长两项的每账号戳记也统一从该记录读，并与既有成长落盘状态合并，
+  兼容老存档。
+- 5 条新单测（记录/不重读/三能力隔离/首屏映射/落盘无 token）+ 变异验证（让 isDoneToday
+  恒假即红）。修一处测试隔离问题：内存镜像的键带上 `$DSH_HOME`，避免换 home 的测试互相污染。
+  `pnpm run check` 全过（3778 条测试）。Host 侧改动，需重启 DSH 加载。
+
+## 5.29.1 (2026-11-21)
+
+> 样式版：三个状态戳从文字改成图标 + hover tooltip。用户要求「用图标表达、不要文字」。
+
+- 积分列旁的三个状态戳改为内联 svg 图标，不再显示文字：✔ 已签到 / 🎁 已兑换 /
+  ⚡ 已点亮。每个图标是一个 18px 的淡绿小徽章，`title` tooltip 复用现有文案
+  （鼠标悬停显示含义），并带 `role=img` + `aria-label` 供读屏使用。
+- 测试改为断言「戳组内无可见文字 + 每个都是 svg + tooltip/aria-label 依次对应三个
+  状态」。`pnpm run check` 全过（3773 条测试）。纯 client 样式，热重载即可生效。
+
+## 5.29.0 (2026-11-21)
+
+> 布局版：三个当日状态戳统一放到积分列旁，字号缩小。用户截图指明的新样式。
+
+- 「已签到」「已兑换」「已点亮」三个状态戳从账号行挪进积分单元格，作为一个紧凑组
+  （`dsm-workbuddy-pool-daystamps`）显示，11px、成功绿、窄卡片自动换行，不再占据账号
+  行第二行，也不再各自散落。签到列 cell 保留（grid 模板仍需它），但成功态不再在那里
+  重复显示，只留「未签到/未知/企业」这类未完成提示。
+- 测试改为断言「一个紧凑组在积分 cell 内 + 三个戳都在组内」；对去掉该组做变异验证
+  （即红）。补齐 class 样式以过 client-host-contract 检查。`pnpm run check` 全过
+  （3773 条测试）。纯 client 布局/样式，热重载即可生效；账号行状态数据（5.28.1）
+  仍需重启 DSH 加载。
+
+## 5.28.2 (2026-11-21)
+
+> 文案补丁：手动按钮明确写出作用于「勾选的账号」。
+
+- 手动按钮由「立即兑换 / 立即点亮活跃」改为「兑换勾选的账号 / 点亮勾选的账号」，
+  与旁边的「签到勾选的账号」「测试勾选的账号」一致——它们都只作用于勾选的账号，
+  文案不该让人以为会跑别的范围。英文同步为 `Redeem/Activate selected accounts`。
+- 测试钉住中英文案含「勾选 / selected」。`pnpm run check` 全过（3773 条测试）。
+  纯 client 文案，热重载即可生效；账号行状态戳（5.28.1）仍需重启 DSH 加载。
+
+## 5.28.1 (2026-11-21)
+
+> 补丁版：状态展示从「X/Y 汇总」改成「每账号状态戳」。用户截图指明的样式。
+
+- 去掉成长开关下方「已兑换 8/17」「已点亮 8/9」这类汇总进度行——用户不要分数。
+- 改成在每个账号行内、紧挨「已签到」的位置显示稳定状态戳：当天被成长任务处理过的
+  账号显示「已兑换」/「已点亮」，未处理的账号不显示（不显示红字「未完成」）。与签到
+  的「已签到」完全同款。
+- Host 侧 `growthDoneAccountIds` 从当日 runner 状态导出每账号完成映射（无额外上游读），
+  状态文档的账号行新增 `growthRedeemedToday` / `growthActiveToday` 两个布尔字段。
+- 汇总状态行的文案键保留但不再渲染。测试改为断言「每行状态戳存在 + 无汇总分数 + 开关下
+  无状态栏」，并对去掉状态戳做变异验证（即红）。`pnpm run check` 全过（3773 条测试）。
+  Host + client 两侧改动，需重启 DSH 加载。
+
+## 5.28.0 (2026-11-21)
+
+> 功能版（语义调整）：成长任务改成像签到那样维持稳定的「已兑换 / 已点亮」状态，
+> 不再有「待重试 N」「上次失败」——用户明确反馈处理过的账号不该反复尝试、刷错误。
+
+- **稳定日状态**：成长任务不再复用签到的重试/退避状态机。新增 `growth-run.ts` 的
+  `foldGrowthAttempt` / `growthPendingTargets` / `growthTodaySummary`：当天处理过的账号
+  一律记为已处理（无论兑换成功、本已活跃、还是上游读失败），下一拍不再碰；状态里不再
+  带 `failures` / `lastError` / 退避。定时与手动两条路径都改走这套。
+- **分母修正**：`foldGrowthAttempt` 的 total 始终是真实成员数，不接受累加，彻底消掉
+  「8/17」这种膨胀进度；手动重跑不会再把已完成账号重复计入。
+- **状态行**：由复用签到的「已处理 X/Y + 待重试 + 上次失败」改成单一的
+  「已兑换 X/Y」/「已点亮 X/Y」（全部完成时「已兑换 全部 N」），中英文案同步。
+  UI 不再渲染 pending / error 行。状态文档类型 `WorkBuddyWebGrowthToday` 相应收窄为
+  只有 done/total。
+- 4 条新单测（当天不再重试 / 无错误字段 / 分母不膨胀 / 跨日归零）+ 变异验证（让失败
+  账号保持待处理，测试即红、恢复后绿）。`pnpm run check` 全过（3774 条测试）。
+  新代码为 Host 侧，需重启 DSH 加载；已落盘的旧坏状态会在新版本下一次 tick 被覆盖。
+
+## 5.27.1 (2026-11-21)
+
+> 补丁版，修重启后从真实状态发现的进度记账 bug。用户重启验证后反馈「8/9 一直卡着」。
+
+- **修复 lastError 显示成账号 id**：定时与手动两条路径把成长结果喂给 `foldAttempt` 时都
+  丢了 `row.message`，而 `foldAttempt` 对失败行会以 `accountId` 兜底——于是卡片把一串
+  24 位十六进制账号 id 当成「上次失败原因」显示。真实原因其实是 `growth streak was not
+  readable`（某账号读不到成长端点）。抽出 `growthRowsForFold` 纯函数，两条路径共用并保留
+  message；加测试：喂进真实 message 后 `foldAttempt.lastError` 必须是原因而非 id，并做
+  变异验证（去掉 message 传递即红）。
+- **修复手动运行把分母算大**：手动路径给 `foldAttempt` 传的是全部账号，却又叠加了已完成
+  账号数（`all.length + doneAccountIds.length`），导致 `scopeSize` 从 9 膨胀到 17、进度
+  显示 8/17 且 `pending` 永不为 0 反复重试。手动路径改为只传 `all.length`。
+- 这两处只影响状态记账与显示，不改任何上游写操作。`pnpm run check` 全过（3770 条测试）。
+  注意：已落盘的坏状态（scopeSize=17、lastError=hash）会在新版本下一次 tick 时被正确值覆盖。
+
+## 5.27.0 (2026-11-20)
+
+> 功能版：成长中心两项收益新增「立即执行」手动按钮。用户反馈只有自动开关、缺手动入口。
+
+- **手动入口**：账号池批量栏新增「立即兑换」「立即点亮活跃」两个按钮，两个区都显示，
+  点击即刻为勾选账号跑一次对应任务，不必等后台定时。与「签到全部」「测试全部」同处一条
+  批量栏、同样受 loopback + POST 保护、同样空池拒绝。
+- 手动动作**不受 opt-in 开关与退避时钟约束**：开关只管后台定时器，点击是用户当场明确要求，
+  两条路径互不干涉。复用同一个 `runGrowthBatch`，与定时器跑的是同一份逻辑，不产生分叉。
+- 每次运行的结果写回当日状态（进度行同步反映），逐账号结果进活动日志（已兑换 X 积分 /
+  今日已活跃 / 已处理跳过 / 失败原因），中英文案齐全。
+- 路由新增 `growth-redeem` / `growth-activity` 两个 action；Host 新增 `growthRun` 依赖。
+- 测试：路由两动作 + 缺依赖 503 + 渲染按钮；对「摘掉路由分支」做变异验证（测试即红、
+  恢复后绿）。`pnpm run check` 全过（3768 条测试）。
+
+## 5.26.2 (2026-11-20)
+
+> 补丁版，补上成长开关缺失的运行状态反馈。用户反馈「勾选了但 UI 没什么变化」。
+
+- **根因**：5.26.0 给成长中心两个开关时，只加了开关与文案，却漏掉了签到开关那样的
+  运行状态反馈链（`autoCheckinToday` → 状态文档 → UI 状态行）。结果勾选、保存后除了
+  开关变亮，屏幕上没有任何「插件在干活」的迹象，看起来像没生效。
+- **补齐**：runner 按 (能力, 区) 发布 `growthRedeemToday` / `growthActivityToday`
+  当日进度（复用 `todaySummary` 的 done/total/pending/lastError 形状）；状态文档新增
+  两个可选字段、Host deps 回读 runner 内存状态；UI 在开关下方渲染进度行（已处理 X/Y、
+  全部已处理、待重试、上次失败），与签到状态行同形。
+- **即时反馈**：刚保存开关、runner 还没跑过首拍时，显示「已开启——即将首次运行，进度
+  会显示在这里」，避免勾选后要等一个 60s 轮询才看到东西。
+- 中英文案各 5 条。三个渲染场景（进度行 / 全部已处理 / 已开启待首拍）都加测试，并对
+  「去掉进度行渲染点」做变异验证（测试即红、恢复后绿）。`pnpm run check` 全过。
+
+## 5.26.1 (2026-11-20)
+
+> 补丁版，修 5.26.0 引入的配置区渲染崩溃，模型服务与积分不受影响。
+
+- **修复**：成长中心两个新开关的 `onChange` 在 `editDraft` 的延迟更新器**内部**读
+  `event.currentTarget.checked`，而 React 在事件处理器返回后就把 `currentTarget` 置空，
+  点击时抛 `Cannot read properties of null (reading 'checked')`，导致整个配置区渲染失败。
+  改为像签到开关那样在处理器里同步捕获 `const next = event.currentTarget.checked` 再交给
+  更新器。新增回归测试「点击两个成长开关更新草稿而不抛错」，并做变异验证：改回旧写法
+  测试即红、恢复后绿。
+
+## 5.26.0 (2026-11-20)
+
+> 版本号是 **minor**：新增「成长中心」两类后台收益——连签档位自动兑换、今日活跃自动点亮。
+> 来自 issue #286（报告者附了本机实测文档与参考 Python 实现）。不改任何既有模型/路由/计费/
+> 身份规则；两项能力都是**默认关闭**的 opt-in 开关，关闭时对现有行为逐字节不变。
+
+### 新增：成长中心两项收益，两区通用（issue #286）
+
+插件此前只有 CN 的每日签到；成长中心剩下三块收益都没有。本版按与维护者讨论的取舍，**只做
+其中两项**，砍掉 Buddy 领养 + 派猫旅行（最复杂、依赖今日活跃、且只有 CN 有收益）。社区资料
+里 `growth`/`heatmap`/`acp`/`buddy/travel` 等端点在插件中原本命中数全为 0。
+
+- **连签档位自动兑换**：`growthRedeem`，默认关，CN/global 两区都可用。`upstream.ts` 新增
+  `fetchGrowthStreak` / `redeemGrowthTier`，复用 `billingBase`/`billingHeaders`——区域由
+  `credential.domain` 决定，方法体一处实现服务两区。只兑换网关标记 `available` 的档位，
+  `locked` 跳过，所以重复运行不写任何东西。**关键前提**：国际版连签是否真有可兑档位尚未在
+  真机验证（报告者的签到 `active=false` 与连签回 `streak.days` 两处描述对不上），开关默认关
+  使得这一点不影响现网。成长路径前缀 `/v2` 与裸路径的读法在附件里自相矛盾，`readGrowthData`
+  对 GET 先试 `/v2`、404 再退回裸路径，两种上游现实都能工作。
+- **今日活跃自动点亮**：`growthActivity`，默认关，CN/global 两区都可用。这是国际版唯一确定
+  能拿到的成长收益，且只有走控制台 ACP 会话才点亮——`/v2/chat/completions` 正常计费但不计
+  活跃。新增 `growth-acp.ts` 实现四步会话（建会话 → 补取 session → SSE 取 `acp-connection-id`
+  → JSON-RPC `initialize` + `session/prompt` → 尽力 DELETE 收尾），SSE 解析、端点归一化、
+  幂等前置读、4×1.5s 轮询确认都做成纯函数 + 注入 `fetch`/`sleep`，无 Host 可单测。文案明说
+  **每账号每天发一条对话、消耗少量积分**；今日已活跃的账号一条都不发。模型按该区目录现取，
+  不写死参考实现里的 id。
+- **多账号与通用性**：两项复用 `checkinAllAccounts` 的批处理形状——`credentialFor(id)` 逐账号
+  取凭据而不改选中账号，串行 + 间隔 + 单行隔离失败。新 `growth-run.ts` 只多一层「只兑
+  available / 幂等活跃」的能力边界，区域无关。
+- **状态与调度**：新 `growth-state-store.ts` 按「能力 + 区」分别落盘（`.workbuddy-growth-redeem.*`
+  / `.workbuddy-growth-activity.*`），与签到的 `doneAccountIds` 三者互不覆盖；沿用 `auto-checkin.ts`
+  的 `foldAttempt`/`isDue`/`nextDelayMs`/本地午夜翻日/常驻 idle 心跳。插件无创建 DSH 定时任务的
+  API，故采用进程内定时器（重启不补拍），不实现资料建议的 00:05/12:05 墙钟两拍。
+- **UI**：`AccountPool` 能力栏新增两个开关，与签到开关同形、同「保存才生效」规则，文案中英同步。
+  两个开关都是 `default(false)`，且旧存档缺这两个键时读为关、保存不会被回写覆盖。
+
+**边界与未验证**：本版未在任何真实账号上发过写请求——插件仓库无凭据，不在本机 $DSH_HOME 读
+真实 token 代用户操作。ACP 协议按报告者实测文档实现并逐条单测，但真机连通性需报告者/用户在
+勾选开关后自行确认。`growthHostOf` 复用已有的 CN/global 基址解析，成长域新端点是否对所有
+部署都通，同上。
+
+守护测试：`upstream-growth`（含「只兑 available」前缀回退）、`growth-acp`（幂等/四步/SSE/
+无连接头失败）、`growth-run`（多账号隔离/锁档位不写）、`growth-state-store`（能力隔离/区合并/
+无 token）、`client-account-selection`（开关往返与缺省保留）。三条核心防护都做变异验证：摘掉
+守卫对应测试变红，恢复后全绿。`pnpm run check` 全过。
+
+## 5.25.3 (2026-11-20)
+
+> 版本号是 **patch**：只修一条错误分类路径——过期 token 在刷新时被上游拒绝（401/403）之后，
+> 卡片不再把自己伪装成「未登录」并藏起账号。不改模型 id、路由、计费规则或任何开关；登录与
+> 模型选择的行为只在「凭据被拒绝」这一条分支上改变。来自 issue #285。
+
+### 修复：国内版 token 刷新被拒绝后伪装成未登录、账号全消失（issue #285）
+
+报告的现象：国内版 tab 前的灯不亮、设置卡片里一行账号都没有、模型选择器选 `workbuddy cn`
+显示「未登录」，但「导出账号」对话框明确列出四个已登录账号，国际版一切正常。
+
+根因在两处错误分类的叠加：
+
+1. `auth.ts` 的 `refreshNow()` 在 token 已过期、且刷新端点回 401/403 时抛出的是
+   `WorkBuddyCredentialRejectedError`（带 `WORKBUDDY_CREDENTIAL_REJECTED` 标记）；但这段逻辑
+   把它包成一条普通 `Error`（「token refresh failed and the access token is expired…」），
+   标记在包装时丢失。
+2. `web-status.ts` 组装卡片文档时，`store.resolve()` 的这条拒绝落进通用 catch，整个区域被
+   判成 `signed-out`。卡片据此隐藏账号表、只画「未登录」；composer 胶囊同理。而导出走的是
+   `store.accounts()`，不受 `resolve()` 失败影响——所以两个界面给出了相反的答案。
+
+改法（对两处各修正一处，正是根因所在）：
+
+- `refreshNow()` 在刷新失败为 `WorkBuddyCredentialRejectedError` 时**原样重抛**，让标记跨过模块
+  边界；其它刷新失败仍保留原来的「已过期 + 去桌面端重新登录」文案。
+- `workBuddyWebStatus()` 的 catch 分支用同一个 `isCredentialRejectedError()` 识别这条拒绝，
+  给 `signed-out` 文档带上 `credentialRejected` 与 `recovery`（和「积分读取被拒」走同一套
+  `resolveCredentialRecovery`），账号列表照常下发；不再把「凭据被拒」误报成「没有登录」。
+- 卡片（`WorkBuddyCard`）与 composer 胶囊（`ComposerCredits`）据此渲染已有账号与切换/重新登录
+  建议，而不是一句「未登录」：`signedOutNotice` 新增拒绝分支，卡片把拒绝建议块提到 signed-in /
+  signed-out 两支共用，composer 在拒绝时画账号表并在表头给出恢复提示。`status-paths.ts` 的
+  `signed-out` 文档补上两个可选字段，`locales.ts` 中英各补对应文案。
+
+这套改法保持一条不变量：`status: 'signed-out'` 仍表示「当前没有可用凭据」，但**凭据被拒**与
+**真正没有账号**必须可区分——前者有账号列表、有恢复出路，后者才该说「去登录一次」。
+
+守护测试：`tests/auth.spec.ts` 钉住「刷新被拒时标记存活」；`tests/web-status.spec.ts` 钉住「刷新
+被拒时账号不隐藏、带恢复信息」；`tests/searched-paths.spec.ts` 钉住「headline 不再说重新登录」。
+三条各做变异验证：摘掉对应修复 → 对应测试红，恢复后全绿。`pnpm run check` 全过
+（typecheck + build + 隐私扫描 + 3733 条测试）。
+
+## 5.25.2 (2026-11-19)
+
+> 版本号是 **patch**：只改依赖声明这一层——把 `@deepseek-ai/dsh-client-ui-primitives`、
+> `@deepseek-ai/dsh-client-ui-renderer`、`@deepseek-ai/dsh-client-ui-settings` 三个 peer 标成
+> optional。不改一行运行时源码，不改模型 id、路由、凭据、计费规则或任何开关；桌面端用户可见行为
+> 逐字节不变。来自 issue #283。
+
+### 修复：三个客户端 UI peer 让插件在 DSH Go 上装不上（issue #283）
+
+DSH Go 在下载任何东西之前先解析插件的 peer 图：一个既不是宿主包（`hostPackages`）、又没在
+`peerDependenciesMeta` 里标成 optional 的 peer，会直接以
+`unsupported non-host peer <name>` 中止安装——依赖图解析阶段就失败，未下载、未写 profile。
+这三个 `dsh-client-ui-*` 是宿主的**Web 端**包：由宿主 Web 运行时（`window.__ModuleLoader__`）
+注入，不进 `node_modules`，注册表 scope 也不是 `installation`，因此在 DSH Go 上不在宿主包表里。
+本轮先卡在 `dsh-client-ui-primitives`（`react` 已在 5.24.15 标 optional，见 #277）。
+
+改法：把三个 peer 标成 optional，与 `react`、`@earendil-works/pi-ai` 同形。**没有删掉 peer 声明**——
+删掉会连带丢掉类型契约，也会破坏 `tests/dsh-line.spec.ts` 强制的那条
+「devDependencies 与 peerDependencies 逐条相等」。
+
+之所以敢标 optional：这三个包在 `src/client/**` 里**只以 `import type` 出现**，只贡献类型、
+不产生运行时依赖，缺了也不会让插件跑不起来。守护测试（`tests/issue283-optional-client-ui-peers.spec.ts`）
+不只钉住那三个 `optional: true`，还钉住「它们仍然只是类型引用」——将来谁把其中之一改成值导入，
+`optional` 就会变成一句假话，测试立刻变红。变异验证：摘掉一条 optional → 红；把类型导入改成值导入
+→ 红；恢复后全绿。
+
+`dsh.client.inject` 未改动：那是宿主侧的注入清单，与 peer 是两件事。
+
+## 5.25.1 (2026-11-19)
+
+> 版本号是 **patch**：只改渠道指纹清洗这一层——给字面表补一层「形态表」。不改模型 id、
+> 路由、凭据、计费规则或任何开关；发往上游的聊天请求体只在命中第三方 CLI 自报家门句时才改写
+> （此前这些请求会 400），其余请求逐字节不变。来自 issue #281。
+
+### 修复：渠道改写表覆盖不到第三方 CLI 的「自报家门」句（issue #281）
+
+`CHANNEL_GATE_PHRASES` 是字面表，每一行 `from` 用 `includes` 精确匹配，锁死一种措辞。
+第三方编码 CLI（grok / codex / claude 均已实测）把**自己的**身份写进 `system`，插件改不了
+它们的提示，只能在出站前改写；而字面行只要厂商换版本号（`4.6`→`5.0`）、换动词
+（`released`→`built`）、换产品名或换介词就静默漏掉——清洗函数原样返回、请求照发、日志无异常，
+直到一条 `assistant` 历史消息把整个会话永久毒化（400 / 11128）。
+
+改法：在字面表之后加一层 `CHANNEL_GATE_PATTERNS` 形态表，锁「身份句 + 创造动词 + 已知厂商」
+的形态而非逐字措辞。两行：一行认带版本号的 Grok + xAI，一行不认产品名只认厂商（换品牌仍兜住）。
+三个实装细节都写进注释并钉进测试：① 版本号里的点必须放行，否则 `Claude 2.1.327` 会在
+`2.1` 处被当句末而整句漏掉；② 必须吃到句末，否则产出 `agent's Claude Agent SDK ...` 残句；
+③ 替换串不带句点，因为尾部 `[^.\n]*` 已经吃掉了原句点，再加一个会打印 `..`。
+形态行锚在行首，普通正文里提到厂商（`The product X released by Y in 2023`）逐字节不动。
+
+守护测试（`tests/issue281-channel-gate-shape-patterns.spec.ts`）：命中矩阵 13 条、放过矩阵 7 条、
+残句断言、幂等、以及 `prepareChatBody` 在 system/assistant 上生效而 user/tool 不动。
+变异验证：摘掉形态循环 → 4 条红，恢复后全绿；既有 #163/#167/#189/#98 等 118 条渠道测试全过。
+
+### 未采纳：国际版同名模型行加 id 后缀（issue #280）
+
+#280 报告国际目录里 `deepseek-v4.1-flash`（免费）与 `deepseek-v4.1-flash-sg`（付费）上游显示名
+完全相同，选择器只剩 `x0.00` / `x0.03` 后缀能区分。曾实装一版「同名两行补 `(模型id)` 后缀」，
+但在真实选择器里读作 `Deepseek-V4.1-Flash (deepseek-v4.1-flash) · x0.00`，长到被截断成
+`… H..`，反而更难读。按维护者裁定**撤回**：同名行维持「原名 + 积分倍率」的既有显示，
+不加任何 id 后缀。相关代码与测试已整体移除，本版不含 #280 的显示改动。
+
+留待后续的方向（未做，如实登记）：要真正区分这两行，需要上游给出不同显示名，或宿主提供
+不占宽度的副标题位；两者都不在本插件可控范围内。
+
+## 5.25.0 (2026-11-19)
+
+> 版本号是 **minor**：开发依赖栈从 DSH `0.2.2-rc.3` 整块换到 `0.2.2-rc.5`，并把跨 rc.4 / rc.5
+> 的两份升级指南逐面复核登记；不改一行运行时源码，不改任何用户可见行为。逐面复核见
+> [`docs/DSH-0.2.2-RC5-FOLLOWUP.md`](docs/DSH-0.2.2-RC5-FOLLOWUP.md)。
+
+### 变更：依赖基线整块跟到 0.2.2-rc.5
+
+桌面宿主已升到 `0.2.2-rc.5`。`pnpm-workspace.yaml` 的 `overrides` 把 25 条 `dsh-*`
+由 `0.2.2-rc.3` 整块换成 `0.2.2-rc.5`，lockfile 重生成后 rc.3 残留 0 条、25 条 override
+全部可解析。`cordis 4.1.0`、`schemastery 3.19.0`、`pi-ai 1.3.0` 三个钉不动——rc.5 的
+`dsh-llm-pi-ai` 仍声明 `@earendil-works/pi-ai ^1.3.0`，已核对。
+
+`package.json` 的 peer / devDeps 范围**不改**：`>=0.1.7-rc.1 <0.3.0-0` 已放行 rc.5，
+上界 `<0.3.0-0` 仍明确挡住 0.3.0 线。`tests/dsh-line.spec.ts` 的闸门实算通过。
+
+### 复核：两份升级指南都不需要本插件适配
+
+从 rc.3 到 rc.5 跨两份指南：`v0.2.2-rc.3` 的 `deepseek-refusal-code`
+（`MALFORMED_RESPONSE` → `CONTENT_REFUSED`）与 `v0.2.2-rc.4` 的
+`web-search-deepseek-model-default`（DeepSeek 路由上的搜索改走 Messages 搜索）。
+
+两者都与本插件正交：
+
+- `CONTENT_REFUSED` 由宿主的 `dsh-llm-deepseek` 在**DeepSeek 官方路由**上产生；
+  本插件注册的是 `workbuddy` / `workbuddy-global`，且对 `turn/end` 失败按插件自己写进
+  message 的字面量分类（见 `src/channel-continue.ts` 的 `isChannelRejectFailure`），
+  不按宿主重分类出的 `LlmFailure.code` 分类——一个内容拒答本就不该触发「自动续发继续」。
+- 搜索默认只在 `deepseek-official` / `deepseek-account` 路由上改变；本插件的模型挂在
+  WorkBuddy 路由下，仍走 `deepseek-search-api`，源码里也无任何 `searchProvider` 引用。
+
+逐包比对：源码直接 import 的 5 个 `dsh-*` 包，`lib/` 在 rc.3 与 rc.5 之间**逐字节相同**；
+typecheck 0 error 也印证了这一点（动的只有版本号）。没有改动源码。
+
+### 收尾：结清 rc.3 复核 §5.1 的偶发超时
+
+[`docs/DSH-0.2.2-RC3-FOLLOWUP.md`](docs/DSH-0.2.2-RC3-FOLLOWUP.md) §5.1 记录的
+`tests/pool-e2e.spec.ts` 满并行偶发超时（10s 预算被 CPU 争抢饿到）按该文档给出的方案处理：
+`waitFor` 预算 10s → 30s，与 `vitest.config.ts` 的 `testTimeout` 对齐。这是上限而非固定等待，
+健康 tick 仍约 25ms 返回、真正坏掉的轮询依旧失败。本轮完整 `pnpm run check` 全绿、
+未再超时；但只跑了一次，没有把它写成「已根治」，若 CI 仍偶发则按 rc.3 §5.1 的另一方案
+挪到独立文件。
+
+### 验收
+
+`pnpm run check`（typecheck → build → check:pii → test）退出码 0：
+215 文件 / 3725 通过 / 2 按平台跳过，`tsc` 两个项目 0 error，`check-pii` 扫描 472 文件（31 随包发布）clean。
+
+## 5.24.17 (2026-11-19)
+
+> 版本号是 **patch**：只改一处 UI 挂载点——让账号导入导出工具区在「正在加载账号」和账号文档
+> 读取失败两种状态下也渲染；不改后端、不改导入逻辑、不改任何开关语义。来自 issue #279。
+
+### 修复：账号导入不该被账号状态挡住——加载中与读取失败时也能导入
+
+issue #279 报告：无本机 WorkBuddy 登录时看不到账号导入导出，无法把账号迁移到 Docker / Linux
+部署。核查后发现导入后端与账号状态**本来无关**——`/transfer?action=import` 只是把文件里的凭据
+写进本地 vault，不需要已解码的登录；signed-out（已确认未登录）分支也早就渲染了导入按钮。
+
+真正的问题在首屏的 **loading 状态**：账号文档尚未返回时，整个账号工具区（含导入按钮）都不渲染；
+账号文档读取失败（error 状态）时同样不渲染。报告者的截图正好停在「正在加载账号…」，于是表面
+上成了「没账号就导不了」。这条链把「能不能导入」绑到了「账号读取有没有回答」——而对一台全新机器
+来说，导入恰恰是获得第一个账号的**唯一**途径。
+
+改法：把已有的 `accountTools`（OAuth 扫码 + 导入导出）在 loading 与 error 两个分支各渲染一份。
+四种账号状态（加载中 / 未登录 / 已登录 / 读取失败）互斥，同一时刻仍只有一份工具区，不会出现两个
+文件 input 抢 ref。signed-in 仍走 `AccountPool` 插槽、signed-out 仍走原分支，位置与顺序不变。
+
+**不采纳的部分（issue #279 第 1 条）**：模型列表「刷新时用上游当前列表覆盖 + 保留上游已下架但
+仍在用的模型」是 issue #32 的有意设计——避免刷新打断正在使用的会话；「清空重写」会推翻这条保护。
+目录本身已按国内版 / 国际版分别保存在本地，手动刷新一次即可跟上当前列表。
+
+守护测试（`tests/issue77-card-first-paint.spec.tsx`）：loading 状态断言导入按钮可见且工具区恰好
+一份；新增 error 状态用例断言同样可见。双向变异验证：摘掉 loading 那份红 1 条、摘掉 error 那份
+红 1 条，恢复后相关 8 条全绿。
+
+## 5.24.16 (2026-11-19)
+
+> 版本号是 **patch**：只在 `isBodyOversizeRefusal`（长会话 422 救援的第一层入口判定）里补两种
+> 语义措辞，不改折叠目标、不改池子选号、不改任何开关语义或出站头；无破坏性改动。来自 issue #278。
+
+### 修复：长会话 422 仍进不了救援——入口判定漏认 bili 当前实际的拒绝措辞
+
+承接 #258。#258 把「请求体字节超限」接进了历史折叠链：第一层认出字节超限后在回复里插入
+`prompt is too long (request body exceeded the local byte limit)`，第二层 `rescueCauseOf` 据此
+按 `body-bytes`（当前测量 × 0.9）折叠。方向是对的，但 #278 在 5.24.15 上实测发现**第一层
+一次都没命中**，于是第二层永远不执行，长会话仍稳定 422、永久卡死。
+
+两处漏认：
+
+1. **#258 的测试喂的是日志行，不是响应体。** `8,401,132 B > 8,388,608 B` 这串只出现在
+   bili 的 `logHostEvent` 日志里，宿主拿到的 422 body 里根本没有字节比较。报告者照着日志写
+   了正例，测试全绿，真实链路上一次都匹配不上。「修好的目标从没被够到」。
+2. **匹配器要的短语和实际报文差一点。** 它认 `byte limit` + `refused locally`；bili 0.1.216
+   实际写的是 `byte ceiling` + `refused this request locally`——两个词都差一截，双否。
+
+改法：不写死任何组件标识符（`docs/DESIGN.md` §零 第 4 条——写死别人的标识符属于「随代码走」，
+对方改名或消失后代码还留着），只补两条语义判断：`byte ceiling` 与 `byte limit` 是同一件事的
+两种英文说法；`silent-direct` + `refus` 描述的是「这条请求因为不能直连发送而被本地拒绝」，
+与谁生成的无关。同步把函数注释里「每条真实拒绝都带字节比较」的过时说法改成事实：数值比较在
+日志里、不在响应体里。
+
+**边界（如实说明）**：0.1.216 已把这族报文的 token 口径变体（"priced over the model's
+context window"）刻意留在匹配之外——它没有 `byte`、也没有 `silent-direct`，继续交给
+`isContextOverflow` 处理，避免两个权威竞争同一个失败。这部分属于 bili 侧（其 PR #6546
+尚未合入 0.1.216），本插件不越界。折叠后重发的 body 是否确实低于 8 MiB 仍未验证——8 MiB 是
+bili 的内部常量，不在本仓库手里；能证明的只有入口判定会命中、会进救援、目标一定低于当前测量。
+
+守护测试（`tests/issue258-body-oversize-rescue.spec.ts`）：三条真实 422 body 正例（含把整条
+报文送进 `rescueCauseOf` 的第二层验证）、四条反例（token 口径 / proxy 挂掉 / 429 / 普通
+400），双向变异验证——摘掉 `byte ceiling` 红 1 条，摘掉 `silent-direct + refus` 红 1 条，
+把判定放宽成任意 `refus` 红 1 条（反例咬住），全部恢复后 20 条全绿。
+
 ## 5.24.15 (2026-11-18)
 
 > 版本号是 **patch**：两处改动——`package.json` 的一处 peer 元数据声明（#277），以及把

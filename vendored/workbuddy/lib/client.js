@@ -7,6 +7,362 @@ window.__ModuleLoader__.load({
 		let react = require("react");
 		let react_jsx_runtime = require("react/jsx-runtime");
 		let react_dom = require("react-dom");
+		//#region src/native-modality.ts
+		/**
+		* Reviewed vendor classifications, keyed by EXACT model id (never a prefix).
+		* Ids absent from this record are `unknown` — see {@link nativeModalityOf}.
+		*/
+		const NATIVE_MODALITY_BY_MODEL_ID = {
+			"deepseek-v4-pro": "text",
+			"glm-5.1": "text",
+			"glm-5.2": "text",
+			"glm-5.3": "text",
+			"hy3": "text",
+			"deepseek-v4.1-flash": "multimodal",
+			"glm-5.3-flash": "multimodal",
+			"glm-5v-turbo": "multimodal",
+			"kimi-k2.6": "multimodal",
+			"kimi-k2.7": "multimodal",
+			"kimi-k3-1": "multimodal",
+			"minimax-m3": "multimodal",
+			"hy4free": "multimodal",
+			"hy4std": "multimodal",
+			"minimax-m3.1-flash": "multimodal",
+			"space-bunny": "multimodal"
+		};
+		/**
+		* Ids the upstream lists in the model roster that are ROUTERS, not models.
+		*
+		* Two of them are known, one per region, and they are the SAME concept under
+		* two ids:
+		*
+		* - `auto` (CN gateway) — the gateway resolves it to whichever model it
+		*   considers the best fit (measured: CN `auto` → `hy4-preview`), and its own
+		*   description says so outright: 「平衡效果与速度。自动为每个任务匹配最优模型，
+		*   积分倍率随之浮动」 ("picks the best model per task; the credit multiplier
+		*   floats accordingly").
+		* - `default-model` (international gateway) — identical role (name "Auto",
+		*   `isDefault: true`, the region's default pick), also the ONLY entry in that
+		*   roster that declares no `credits` at all.
+		*
+		* The evidence for treating both as routers is the shared, self-describing
+		* shape, not the name: measured 2026-10-22 against both live gateways, these
+		* two entries are the ONLY ones whose `credits` field is absent/empty (CN 19
+		* of 20 priced, global 27 of 28), and the ones carrying `isDefault: true`.
+		* A row the plugin cannot price is a row whose cost it cannot state, and the
+		* router duplicates a real row already in the same roster.
+		*
+		* Kept as an explicit table rather than a heuristic: a router is an upstream
+		* concept with no declared flag, and guessing from the name would eventually
+		* hide a real model. Add an id here only after the same kind of evidence.
+		*/
+		const ROUTER_MODEL_IDS = /* @__PURE__ */ new Set(["auto", "default-model"]);
+		/** Whether this id is an upstream router rather than a model. */
+		function isRouterModelId(modelId) {
+			return ROUTER_MODEL_IDS.has(modelId);
+		}
+		/**
+		* Native modality of one model id. Exact match only: a new model never
+		* inherits a classification from its family, its display name, or the
+		* platform's image flag.
+		*/
+		function nativeModalityOf(modelId) {
+			if (isRouterModelId(modelId)) return "router";
+			return NATIVE_MODALITY_BY_MODEL_ID[modelId] ?? "unknown";
+		}
+		/**
+		* Whether a model refresh should PRE-CHECK this model's image box.
+		*
+		* Only a documented `multimodal` is pre-checked. `text` is documented as
+		* unable to read images, and `unknown` is deliberately left unchecked rather
+		* than guessed — the whole reason this table exists is that the platform flag
+		* guessed wrong. A platform `supportsImages: false` still vetoes, so a
+		* documented-multimodal id can never be pre-checked against the platform's
+		* explicit "no".
+		*
+		* The user can always tick a box by hand; this decides a DEFAULT only, and the
+		* effective runtime flag remains the saved `imageModelIds`.
+		*/
+		function imageDefaultFor(info) {
+			if (info.supportsImages === false) return false;
+			return NATIVE_MODALITY_BY_MODEL_ID[info.id] === "multimodal";
+		}
+		//#endregion
+		//#region src/image-gen.ts
+		/**
+		* 无水印模型：`hunyuan-image-v3.0`（issue #241）。
+		*
+		* 2026-11-12 实测：同一个提示词、同一个账号，`hunyuan-image-alpha` 的产物右下角
+		* 固定带「AI生成 WORKBUDD>」水印，而 `hunyuan-image-v3.0` **完全没有**——它不是
+		* 参数开关，是产物落盘路径的差别：带水印的产物落在 COS 的 `aigc-processed/`
+		* 前缀下，v3.0 的不落。所以「关水印」这件事在上游只有一个等价做法：换模型。
+		*
+		* 代价如实体现在两处：单价 6 → 11.1 积分/张，尺寸上限降到
+		* {@link IMAGE_SIZE_LIMITS_V3}。因此它是**用户选的**，不是默认——
+		* 见 `preferredImageModels`。
+		*/
+		const IMAGE_MODEL_NO_WATERMARK = "hunyuan-image-v3.0";
+		//#endregion
+		//#region src/promo.ts
+		/**
+		* `'HH:mm'` → minutes since midnight, or undefined for anything else.
+		*
+		* `24:00` is accepted and means exactly 1440 — the END of a day. The upstream
+		* writes "all day" as `0:00`–`23:59` today, which leaves a one-minute hole
+		* between 23:59 and midnight where a standing campaign reads as not running.
+		* Accepting `24:00` lets such a window be expressed (and lets a future upstream
+		* fix it) without that hole; as a START it is rejected, because a day that
+		* begins at 24:00 is the next day and that is a different statement.
+		*
+		* Any other malformed value is left to the caller to drop — a wrong window
+		* would hide a live promotion, and guessing is not this parser's job.
+		*
+		* THE TYPE GUARD IS LOAD-BEARING, NOT DEFENSIVE DECORATION (issue #139). The
+		* upstream feeds a string, and `parseDaily`'s own `text()` would already have
+		* dropped a number — but the SAVED `lastCatalog` is a second, independent
+		* entrance to this function, and nothing on that path type-checks. A promotion
+		* object rides through `toPersistedWorkBuddyModel` untouched (the settings
+		* schema keeps unknown keys), survives `resolveRoster`, and reaches the
+		* renderer's `selectPromoBadge`. A numeric `start` there used to throw
+		* `value.trim is not a function` DURING RENDER, which the host's slot error
+		* boundary turned into a blank configuration section — the page looked as if
+		* the plugin had never installed.
+		*
+		* Refusing a non-string is the same answer the parser already gives every
+		* other unreadable shape: drop the window rather than guess. Interpreting a
+		* number as "minutes since midnight" was considered and rejected — `1380`
+		* happens to mean 23:00, but no upstream has ever published that shape, and
+		* inventing hours for a promotion the upstream never described is exactly the
+		* overstatement this module exists to prevent.
+		*/
+		function minutesOfClock(value) {
+			if (typeof value !== "string") return void 0;
+			const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
+			if (match === null) return void 0;
+			const hours = Number(match[1]);
+			const minutes = Number(match[2]);
+			if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return void 0;
+			if (minutes > 59) return void 0;
+			if (hours > 24) return void 0;
+			if (hours === 24) return minutes === 0 ? 1440 : void 0;
+			return hours * 60 + minutes;
+		}
+		/**
+		* Minutes since local midnight in `timeZone` at `nowMs`.
+		*
+		* `Intl` does the zone maths, because the upstream's windows are written in
+		* the zone IT names (Asia/Shanghai for the CN feed) and the user's own clock
+		* is not necessarily in that zone. An unusable zone falls back to UTC rather
+		* than throwing: a badge that cannot be placed is a missing badge, not a
+		* broken card.
+		*/
+		function zonedMinutes(nowMs, timeZone) {
+			const zone = timeZone ?? "UTC";
+			try {
+				const parts = new Intl.DateTimeFormat("en-US", {
+					timeZone: zone,
+					hour: "2-digit",
+					minute: "2-digit",
+					hourCycle: "h23"
+				}).formatToParts(new Date(nowMs));
+				const hour = Number(parts.find((part) => part.type === "hour")?.value ?? "0");
+				const minute = Number(parts.find((part) => part.type === "minute")?.value ?? "0");
+				if (!Number.isFinite(hour) || !Number.isFinite(minute)) return 0;
+				return hour * 60 + minute;
+			} catch {
+				return 0;
+			}
+		}
+		/** Whether `nowMinutes` falls inside one of the daily windows. */
+		function withinDailyWindows(windows, nowMinutes) {
+			return windows.some((window) => {
+				const start = minutesOfClock(window.start);
+				const end = minutesOfClock(window.end);
+				if (start === void 0 || end === void 0) return false;
+				if (start === end) return true;
+				if (end > start) return nowMinutes >= start && nowMinutes < end;
+				return nowMinutes >= start || nowMinutes < end;
+			});
+		}
+		/**
+		* Whether the promotion's ABSOLUTE window holds now.
+		*
+		* The absolute window (`validFrom` / `validUntil`) is the promotion's own
+		* lifetime. It gates the badge on its own: a promotion whose lifetime has
+		* ended must not keep advertising itself, whatever its daily hours say.
+		*/
+		function promoWithinAbsoluteWindow(promo, nowMs) {
+			const schedule = promo.schedule;
+			if (schedule === void 0) return true;
+			if (schedule.validFrom !== void 0 && nowMs < schedule.validFrom) return false;
+			if (schedule.validUntil !== void 0 && nowMs >= schedule.validUntil) return false;
+			return true;
+		}
+		/**
+		* Whether the promotion's DAILY window holds now.
+		*
+		* The daily window is the discount's own hours — it is what makes a
+		* promotion a "night discount" — and a promotion without one is running
+		* whenever its absolute window holds.
+		*
+		* A schedule whose `daily` was published but could not be evaluated
+		* ({@link WorkBuddyPromoSchedule.dailyUnusable}) is NOT running: the upstream
+		* did say the campaign has hours, we just cannot read them, and assuming
+		* "always" is the one guess that overstates the offer.
+		*/
+		function promoWithinDailyWindow(promo, nowMs) {
+			const schedule = promo.schedule;
+			if (schedule === void 0) return true;
+			if (schedule.dailyUnusable === true) return false;
+			if (schedule.daily === void 0 || schedule.daily.length === 0) return true;
+			return withinDailyWindows(schedule.daily, zonedMinutes(nowMs, schedule.timezone));
+		}
+		/**
+		* Whether the promotion is running right now: its absolute window AND its
+		* daily hours both hold.
+		*/
+		function promoActiveAt(promo, nowMs) {
+			return promoWithinAbsoluteWindow(promo, nowMs) && promoWithinDailyWindow(promo, nowMs);
+		}
+		/**
+		* Whether the promotion carries ANY temporal statement of its own.
+		*
+		* A tier badge ("Pro Only") has no `schedule` at all: it describes the model
+		* unconditionally, so `promoActiveAt` is trivially true for it. That is
+		* correct on its own, but it made such a badge eligible for step 1, where it
+		* could shadow a lower-priority campaign whose window really is open.
+		* "Running" should mean "this entry says it runs now", and an entry with no
+		* schedule never does — it only ever "stands". Entries WITH a schedule (a
+		* lifetime, hours, or both) are the ones that can be running.
+		*/
+		function hasSchedule(promo) {
+			return promo.schedule !== void 0;
+		}
+		/**
+		* The badge to draw for a model right now, or undefined when there is none.
+		*
+		* The order of the two answers is the whole point:
+		*
+		* 1. A promotion RUNNING NOW wins — highest `priority` first. "Running" means
+		*    its absolute window AND its daily hours both hold.
+		* 2. Otherwise a STANDING badge (one the upstream did not mark `activeOnly`)
+		*    describes the model for as long as the promotion itself lasts. It is
+		*    offered only inside the promotion's absolute window, so an expired
+		*    promotion stops advertising itself even though its badge was standing.
+		*
+		* TWO RULES KEEP STEP 2 FROM STATING SOMETHING THE UPSTREAM DID NOT:
+		*
+		* a. An entry that publishes daily hours may stand outside them (that is what
+		*    "the hours govern the discount, not the badge" means), but an entry whose
+		*    hours could not be parsed cannot stand at all — see `dailyUnusable`.
+		* b. A standing entry with NO schedule at all must not outrank a promotion
+		*    that is genuinely running. `promoActiveAt` returns true for a
+		*    schedule-less tier, which is correct on its own, but it made a
+		*    high-priority tier shadow a lower-priority campaign whose window really
+		*    is open. Step 1 is therefore restricted to entries that carry a
+		*    `schedule`; the schedule-less badges compete only in step 2, where they
+		*    belong.
+		*
+		* The upstream's own `priority` orders entries. Ties are broken toward the
+		* promotion: a price badge ("Free now") is more actionable than an access-tier
+		* badge ("Pro Only"), and the upstream numbers them equally.
+		*
+		* Only ONE badge is drawn per model: a model row is one line wide, and two
+		* badges would push the model name and the image/think checkboxes out of it.
+		*/
+		/**
+		* The multiplier to DRAW for a model right now: the promotion's discounted
+		* price when a discount is running, otherwise the catalog's own figure.
+		*
+		* WHY THIS IS SEPARATE FROM THE BADGE. The badge answers "is this model on
+		* offer"; this answers "at what price". They usually agree, but not always —
+		* and when they disagreed the user saw a "night discount" badge next to the
+		* full price (issue #120). The discount lives in the SAME entry that carries
+		* the badge, so the two can be answered from one document and one clock.
+		*
+		* TWO RULES, both about not overstating an offer:
+		*
+		*   1. Only a promotion that is RUNNING at `nowMs` discounts the price. A
+		*      standing badge (the daytime half of a night-discount pair) is drawn
+		*      outside the discount hours, and it must NOT discount them — that is
+		*      exactly the bug this function exists to prevent. The badge admits
+		*      standing entries through `selectPromoBadge`; the price does not.
+		*   2. `displayMode` must say `'replace'`, and the value must parse. An entry
+		*      with a badge but no readable discount changes nothing, so the catalog's
+		*      figure stands.
+		*
+		* The result is `undefined` when the catalog figure should be used unchanged —
+		* the caller then keeps whatever it already draws. Returning the base value
+		* from here would make a caller that has no base figure (a model whose
+		* `credits` was absent) invent one.
+		*/
+		function selectPromoMultiplier(promos, nowMs) {
+			if (promos === void 0 || promos.length === 0) return void 0;
+			const sorted = [...promos].sort((a, b) => b.priority - a.priority || (a.source === b.source ? 0 : a.source === "promotion" ? -1 : 1));
+			for (const promo of sorted) {
+				const discount = promo.discount;
+				if (discount === void 0 || discount.multiplier === void 0) continue;
+				if (discount.displayMode !== "replace" && discount.displayMode !== "strikethrough") continue;
+				if (!promoActiveAt(promo, nowMs)) continue;
+				return discount.multiplier;
+			}
+		}
+		function selectPromoBadge(promos, nowMs) {
+			if (promos === void 0 || promos.length === 0) return void 0;
+			const sorted = [...promos].sort((a, b) => b.priority - a.priority || (a.source === b.source ? 0 : a.source === "promotion" ? -1 : 1));
+			const running = sorted.find((promo) => hasSchedule(promo) && promoActiveAt(promo, nowMs));
+			if (running !== void 0) return running;
+			return sorted.find((promo) => promo.badge.display !== "activeOnly" && promoWithinAbsoluteWindow(promo, nowMs) && promo.schedule?.dailyUnusable !== true);
+		}
+		/**
+		* The chip's colour, when the upstream published a usable one.
+		*
+		* Only a hex colour is accepted: the value reaches an inline style, and the
+		* upstream's feed publishes hex (`#009273`, `#FF0000`). Anything else is
+		* refused rather than passed through, and the card falls back to its own
+		* brand colour.
+		*/
+		function promoBadgeColor(promo) {
+			const color = promo.badge.color;
+			if (color === void 0) return void 0;
+			return /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(color) ? color : void 0;
+		}
+		"WorkBuddy/5.8.3 WorkBuddy/5.8.3 CLI/2.161.0".match(/WorkBuddy\/([^\s]+)/u)?.[1];
+		new RegExp(`^(?:<acp\\b[^>]*>m\\d{1,8}<\\/acp>[ \\t]*\\r?\\n?)*(?:Time sampled while preparing turn \\d+, step \\d+:|Current runtime context\\.|<system-reminder>|\\[Compressed conversation section\\]|This is an efficiency nudge)`, "u");
+		//#endregion
+		//#region src/probe.ts
+		/**
+		* The probe sizes the card offers, in tokens.
+		*
+		* A closed set, each step a meaningful position relative to the measured 20k~30k
+		* threshold: below it (10k/20k) proves an account can serve SHORT requests and
+		* is the cheap choice; at it (30k) is the size that finally covers the whole
+		* measured window; above it (50k/100k) is for conversations that routinely run
+		* long, where a smaller probe would report "usable" for an account that refuses
+		* the very next message.
+		*
+		* Exported so the schema's description, the card's dropdown, and the coercion
+		* below cannot drift apart into three different menus.
+		*/
+		const PROBE_INPUT_TOKEN_CHOICES = [
+			1e4,
+			2e4,
+			3e4,
+			5e4,
+			1e5
+		];
+		/**
+		* The `<timestamp> UTC±N` core of the upstream's reset sentence.
+		*
+		* Shared by both spellings below so the two can never drift into accepting
+		* different timestamps: the offset handling and the calendar round-trip check in
+		* {@link parseUpstreamResetAt} are what make a parsed value trustworthy, and two
+		* copies of this shape would be two chances to loosen one of them.
+		*/
+		const RESET_STAMP = String.raw`(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})\s*UTC\s*([+-])(\d{1,2})(?::?(\d{2}))?`;
+		new RegExp(`将在?\\s*${RESET_STAMP}[\\s\\S]*?重置`, "u");
+		new RegExp(`(?:reset|resets|refresh|refreshes)\\s+(?:at|on)\\s+${RESET_STAMP}`, "iu");
+		//#endregion
 		//#region src/status-paths.ts
 		/** Plugin-owned usage endpoint consumed by its browser half. */
 		const WORKBUDDY_USAGE_PATH = "/plugins/dsh-connect-workbuddy/usage";
@@ -1613,8 +1969,13 @@ window.__ModuleLoader__.load({
 				memberAccountIds: preferences.memberAccountIds,
 				orderAccountIds: preferences.orderAccountIds
 			};
+			const currentPool = scope.getSnapshot().value?.regions?.[region]?.pool;
+			if (preferences.growthRedeem === void 0 && typeof currentPool?.["growthRedeem"] === "boolean") slot["growthRedeem"] = currentPool["growthRedeem"];
+			if (preferences.growthActivity === void 0 && typeof currentPool?.["growthActivity"] === "boolean") slot["growthActivity"] = currentPool["growthActivity"];
 			if (preferences.probeInputTokens !== void 0) slot["probeInputTokens"] = preferences.probeInputTokens;
 			if (preferences.autoCheckin !== void 0) slot["autoCheckin"] = preferences.autoCheckin;
+			if (preferences.growthRedeem !== void 0) slot["growthRedeem"] = preferences.growthRedeem;
+			if (preferences.growthActivity !== void 0) slot["growthActivity"] = preferences.growthActivity;
 			const next = nextRegionPool(scope.getSnapshot().value, region, slot)[region];
 			await writeField(scope, "regions", region, next, (readBack) => {
 				const pool = readBack?.pool;
@@ -1629,6 +1990,8 @@ window.__ModuleLoader__.load({
 				const storedOrder = pool["orderAccountIds"];
 				if (!Array.isArray(storedOrder) || storedOrder.length !== preferences.orderAccountIds.length) return false;
 				if (!storedOrder.every((id, index) => id === preferences.orderAccountIds[index])) return false;
+				if (preferences.growthRedeem !== void 0 && pool["growthRedeem"] !== preferences.growthRedeem) return false;
+				if (preferences.growthActivity !== void 0 && pool["growthActivity"] !== preferences.growthActivity) return false;
 				return true;
 			});
 		}
@@ -1753,21 +2116,6 @@ window.__ModuleLoader__.load({
 				overridden: true
 			};
 		}
-		//#endregion
-		//#region src/image-gen.ts
-		/**
-		* 无水印模型：`hunyuan-image-v3.0`（issue #241）。
-		*
-		* 2026-11-12 实测：同一个提示词、同一个账号，`hunyuan-image-alpha` 的产物右下角
-		* 固定带「AI生成 WORKBUDD>」水印，而 `hunyuan-image-v3.0` **完全没有**——它不是
-		* 参数开关，是产物落盘路径的差别：带水印的产物落在 COS 的 `aigc-processed/`
-		* 前缀下，v3.0 的不落。所以「关水印」这件事在上游只有一个等价做法：换模型。
-		*
-		* 代价如实体现在两处：单价 6 → 11.1 积分/张，尺寸上限降到
-		* {@link IMAGE_SIZE_LIMITS_V3}。因此它是**用户选的**，不是默认——
-		* 见 `preferredImageModels`。
-		*/
-		const IMAGE_MODEL_NO_WATERMARK = "hunyuan-image-v3.0";
 		//#endregion
 		//#region src/client/panel-switch.ts
 		/**
@@ -3012,347 +3360,6 @@ window.__ModuleLoader__.load({
 			return t("row.poolProbeDaysAgo", { count: Math.round(age / DAY_MS) });
 		}
 		//#endregion
-		//#region src/native-modality.ts
-		/**
-		* Reviewed vendor classifications, keyed by EXACT model id (never a prefix).
-		* Ids absent from this record are `unknown` — see {@link nativeModalityOf}.
-		*/
-		const NATIVE_MODALITY_BY_MODEL_ID = {
-			"deepseek-v4-pro": "text",
-			"glm-5.1": "text",
-			"glm-5.2": "text",
-			"glm-5.3": "text",
-			"hy3": "text",
-			"deepseek-v4.1-flash": "multimodal",
-			"glm-5.3-flash": "multimodal",
-			"glm-5v-turbo": "multimodal",
-			"kimi-k2.6": "multimodal",
-			"kimi-k2.7": "multimodal",
-			"kimi-k3-1": "multimodal",
-			"minimax-m3": "multimodal",
-			"hy4free": "multimodal",
-			"hy4std": "multimodal",
-			"minimax-m3.1-flash": "multimodal",
-			"space-bunny": "multimodal"
-		};
-		/**
-		* Ids the upstream lists in the model roster that are ROUTERS, not models.
-		*
-		* Two of them are known, one per region, and they are the SAME concept under
-		* two ids:
-		*
-		* - `auto` (CN gateway) — the gateway resolves it to whichever model it
-		*   considers the best fit (measured: CN `auto` → `hy4-preview`), and its own
-		*   description says so outright: 「平衡效果与速度。自动为每个任务匹配最优模型，
-		*   积分倍率随之浮动」 ("picks the best model per task; the credit multiplier
-		*   floats accordingly").
-		* - `default-model` (international gateway) — identical role (name "Auto",
-		*   `isDefault: true`, the region's default pick), also the ONLY entry in that
-		*   roster that declares no `credits` at all.
-		*
-		* The evidence for treating both as routers is the shared, self-describing
-		* shape, not the name: measured 2026-10-22 against both live gateways, these
-		* two entries are the ONLY ones whose `credits` field is absent/empty (CN 19
-		* of 20 priced, global 27 of 28), and the ones carrying `isDefault: true`.
-		* A row the plugin cannot price is a row whose cost it cannot state, and the
-		* router duplicates a real row already in the same roster.
-		*
-		* Kept as an explicit table rather than a heuristic: a router is an upstream
-		* concept with no declared flag, and guessing from the name would eventually
-		* hide a real model. Add an id here only after the same kind of evidence.
-		*/
-		const ROUTER_MODEL_IDS = /* @__PURE__ */ new Set(["auto", "default-model"]);
-		/** Whether this id is an upstream router rather than a model. */
-		function isRouterModelId(modelId) {
-			return ROUTER_MODEL_IDS.has(modelId);
-		}
-		/**
-		* Native modality of one model id. Exact match only: a new model never
-		* inherits a classification from its family, its display name, or the
-		* platform's image flag.
-		*/
-		function nativeModalityOf(modelId) {
-			if (isRouterModelId(modelId)) return "router";
-			return NATIVE_MODALITY_BY_MODEL_ID[modelId] ?? "unknown";
-		}
-		/**
-		* Whether a model refresh should PRE-CHECK this model's image box.
-		*
-		* Only a documented `multimodal` is pre-checked. `text` is documented as
-		* unable to read images, and `unknown` is deliberately left unchecked rather
-		* than guessed — the whole reason this table exists is that the platform flag
-		* guessed wrong. A platform `supportsImages: false` still vetoes, so a
-		* documented-multimodal id can never be pre-checked against the platform's
-		* explicit "no".
-		*
-		* The user can always tick a box by hand; this decides a DEFAULT only, and the
-		* effective runtime flag remains the saved `imageModelIds`.
-		*/
-		function imageDefaultFor(info) {
-			if (info.supportsImages === false) return false;
-			return NATIVE_MODALITY_BY_MODEL_ID[info.id] === "multimodal";
-		}
-		//#endregion
-		//#region src/promo.ts
-		/**
-		* `'HH:mm'` → minutes since midnight, or undefined for anything else.
-		*
-		* `24:00` is accepted and means exactly 1440 — the END of a day. The upstream
-		* writes "all day" as `0:00`–`23:59` today, which leaves a one-minute hole
-		* between 23:59 and midnight where a standing campaign reads as not running.
-		* Accepting `24:00` lets such a window be expressed (and lets a future upstream
-		* fix it) without that hole; as a START it is rejected, because a day that
-		* begins at 24:00 is the next day and that is a different statement.
-		*
-		* Any other malformed value is left to the caller to drop — a wrong window
-		* would hide a live promotion, and guessing is not this parser's job.
-		*
-		* THE TYPE GUARD IS LOAD-BEARING, NOT DEFENSIVE DECORATION (issue #139). The
-		* upstream feeds a string, and `parseDaily`'s own `text()` would already have
-		* dropped a number — but the SAVED `lastCatalog` is a second, independent
-		* entrance to this function, and nothing on that path type-checks. A promotion
-		* object rides through `toPersistedWorkBuddyModel` untouched (the settings
-		* schema keeps unknown keys), survives `resolveRoster`, and reaches the
-		* renderer's `selectPromoBadge`. A numeric `start` there used to throw
-		* `value.trim is not a function` DURING RENDER, which the host's slot error
-		* boundary turned into a blank configuration section — the page looked as if
-		* the plugin had never installed.
-		*
-		* Refusing a non-string is the same answer the parser already gives every
-		* other unreadable shape: drop the window rather than guess. Interpreting a
-		* number as "minutes since midnight" was considered and rejected — `1380`
-		* happens to mean 23:00, but no upstream has ever published that shape, and
-		* inventing hours for a promotion the upstream never described is exactly the
-		* overstatement this module exists to prevent.
-		*/
-		function minutesOfClock(value) {
-			if (typeof value !== "string") return void 0;
-			const match = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
-			if (match === null) return void 0;
-			const hours = Number(match[1]);
-			const minutes = Number(match[2]);
-			if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return void 0;
-			if (minutes > 59) return void 0;
-			if (hours > 24) return void 0;
-			if (hours === 24) return minutes === 0 ? 1440 : void 0;
-			return hours * 60 + minutes;
-		}
-		/**
-		* Minutes since local midnight in `timeZone` at `nowMs`.
-		*
-		* `Intl` does the zone maths, because the upstream's windows are written in
-		* the zone IT names (Asia/Shanghai for the CN feed) and the user's own clock
-		* is not necessarily in that zone. An unusable zone falls back to UTC rather
-		* than throwing: a badge that cannot be placed is a missing badge, not a
-		* broken card.
-		*/
-		function zonedMinutes(nowMs, timeZone) {
-			const zone = timeZone ?? "UTC";
-			try {
-				const parts = new Intl.DateTimeFormat("en-US", {
-					timeZone: zone,
-					hour: "2-digit",
-					minute: "2-digit",
-					hourCycle: "h23"
-				}).formatToParts(new Date(nowMs));
-				const hour = Number(parts.find((part) => part.type === "hour")?.value ?? "0");
-				const minute = Number(parts.find((part) => part.type === "minute")?.value ?? "0");
-				if (!Number.isFinite(hour) || !Number.isFinite(minute)) return 0;
-				return hour * 60 + minute;
-			} catch {
-				return 0;
-			}
-		}
-		/** Whether `nowMinutes` falls inside one of the daily windows. */
-		function withinDailyWindows(windows, nowMinutes) {
-			return windows.some((window) => {
-				const start = minutesOfClock(window.start);
-				const end = minutesOfClock(window.end);
-				if (start === void 0 || end === void 0) return false;
-				if (start === end) return true;
-				if (end > start) return nowMinutes >= start && nowMinutes < end;
-				return nowMinutes >= start || nowMinutes < end;
-			});
-		}
-		/**
-		* Whether the promotion's ABSOLUTE window holds now.
-		*
-		* The absolute window (`validFrom` / `validUntil`) is the promotion's own
-		* lifetime. It gates the badge on its own: a promotion whose lifetime has
-		* ended must not keep advertising itself, whatever its daily hours say.
-		*/
-		function promoWithinAbsoluteWindow(promo, nowMs) {
-			const schedule = promo.schedule;
-			if (schedule === void 0) return true;
-			if (schedule.validFrom !== void 0 && nowMs < schedule.validFrom) return false;
-			if (schedule.validUntil !== void 0 && nowMs >= schedule.validUntil) return false;
-			return true;
-		}
-		/**
-		* Whether the promotion's DAILY window holds now.
-		*
-		* The daily window is the discount's own hours — it is what makes a
-		* promotion a "night discount" — and a promotion without one is running
-		* whenever its absolute window holds.
-		*
-		* A schedule whose `daily` was published but could not be evaluated
-		* ({@link WorkBuddyPromoSchedule.dailyUnusable}) is NOT running: the upstream
-		* did say the campaign has hours, we just cannot read them, and assuming
-		* "always" is the one guess that overstates the offer.
-		*/
-		function promoWithinDailyWindow(promo, nowMs) {
-			const schedule = promo.schedule;
-			if (schedule === void 0) return true;
-			if (schedule.dailyUnusable === true) return false;
-			if (schedule.daily === void 0 || schedule.daily.length === 0) return true;
-			return withinDailyWindows(schedule.daily, zonedMinutes(nowMs, schedule.timezone));
-		}
-		/**
-		* Whether the promotion is running right now: its absolute window AND its
-		* daily hours both hold.
-		*/
-		function promoActiveAt(promo, nowMs) {
-			return promoWithinAbsoluteWindow(promo, nowMs) && promoWithinDailyWindow(promo, nowMs);
-		}
-		/**
-		* Whether the promotion carries ANY temporal statement of its own.
-		*
-		* A tier badge ("Pro Only") has no `schedule` at all: it describes the model
-		* unconditionally, so `promoActiveAt` is trivially true for it. That is
-		* correct on its own, but it made such a badge eligible for step 1, where it
-		* could shadow a lower-priority campaign whose window really is open.
-		* "Running" should mean "this entry says it runs now", and an entry with no
-		* schedule never does — it only ever "stands". Entries WITH a schedule (a
-		* lifetime, hours, or both) are the ones that can be running.
-		*/
-		function hasSchedule(promo) {
-			return promo.schedule !== void 0;
-		}
-		/**
-		* The badge to draw for a model right now, or undefined when there is none.
-		*
-		* The order of the two answers is the whole point:
-		*
-		* 1. A promotion RUNNING NOW wins — highest `priority` first. "Running" means
-		*    its absolute window AND its daily hours both hold.
-		* 2. Otherwise a STANDING badge (one the upstream did not mark `activeOnly`)
-		*    describes the model for as long as the promotion itself lasts. It is
-		*    offered only inside the promotion's absolute window, so an expired
-		*    promotion stops advertising itself even though its badge was standing.
-		*
-		* TWO RULES KEEP STEP 2 FROM STATING SOMETHING THE UPSTREAM DID NOT:
-		*
-		* a. An entry that publishes daily hours may stand outside them (that is what
-		*    "the hours govern the discount, not the badge" means), but an entry whose
-		*    hours could not be parsed cannot stand at all — see `dailyUnusable`.
-		* b. A standing entry with NO schedule at all must not outrank a promotion
-		*    that is genuinely running. `promoActiveAt` returns true for a
-		*    schedule-less tier, which is correct on its own, but it made a
-		*    high-priority tier shadow a lower-priority campaign whose window really
-		*    is open. Step 1 is therefore restricted to entries that carry a
-		*    `schedule`; the schedule-less badges compete only in step 2, where they
-		*    belong.
-		*
-		* The upstream's own `priority` orders entries. Ties are broken toward the
-		* promotion: a price badge ("Free now") is more actionable than an access-tier
-		* badge ("Pro Only"), and the upstream numbers them equally.
-		*
-		* Only ONE badge is drawn per model: a model row is one line wide, and two
-		* badges would push the model name and the image/think checkboxes out of it.
-		*/
-		/**
-		* The multiplier to DRAW for a model right now: the promotion's discounted
-		* price when a discount is running, otherwise the catalog's own figure.
-		*
-		* WHY THIS IS SEPARATE FROM THE BADGE. The badge answers "is this model on
-		* offer"; this answers "at what price". They usually agree, but not always —
-		* and when they disagreed the user saw a "night discount" badge next to the
-		* full price (issue #120). The discount lives in the SAME entry that carries
-		* the badge, so the two can be answered from one document and one clock.
-		*
-		* TWO RULES, both about not overstating an offer:
-		*
-		*   1. Only a promotion that is RUNNING at `nowMs` discounts the price. A
-		*      standing badge (the daytime half of a night-discount pair) is drawn
-		*      outside the discount hours, and it must NOT discount them — that is
-		*      exactly the bug this function exists to prevent. The badge admits
-		*      standing entries through `selectPromoBadge`; the price does not.
-		*   2. `displayMode` must say `'replace'`, and the value must parse. An entry
-		*      with a badge but no readable discount changes nothing, so the catalog's
-		*      figure stands.
-		*
-		* The result is `undefined` when the catalog figure should be used unchanged —
-		* the caller then keeps whatever it already draws. Returning the base value
-		* from here would make a caller that has no base figure (a model whose
-		* `credits` was absent) invent one.
-		*/
-		function selectPromoMultiplier(promos, nowMs) {
-			if (promos === void 0 || promos.length === 0) return void 0;
-			const sorted = [...promos].sort((a, b) => b.priority - a.priority || (a.source === b.source ? 0 : a.source === "promotion" ? -1 : 1));
-			for (const promo of sorted) {
-				const discount = promo.discount;
-				if (discount === void 0 || discount.multiplier === void 0) continue;
-				if (discount.displayMode !== "replace" && discount.displayMode !== "strikethrough") continue;
-				if (!promoActiveAt(promo, nowMs)) continue;
-				return discount.multiplier;
-			}
-		}
-		function selectPromoBadge(promos, nowMs) {
-			if (promos === void 0 || promos.length === 0) return void 0;
-			const sorted = [...promos].sort((a, b) => b.priority - a.priority || (a.source === b.source ? 0 : a.source === "promotion" ? -1 : 1));
-			const running = sorted.find((promo) => hasSchedule(promo) && promoActiveAt(promo, nowMs));
-			if (running !== void 0) return running;
-			return sorted.find((promo) => promo.badge.display !== "activeOnly" && promoWithinAbsoluteWindow(promo, nowMs) && promo.schedule?.dailyUnusable !== true);
-		}
-		/**
-		* The chip's colour, when the upstream published a usable one.
-		*
-		* Only a hex colour is accepted: the value reaches an inline style, and the
-		* upstream's feed publishes hex (`#009273`, `#FF0000`). Anything else is
-		* refused rather than passed through, and the card falls back to its own
-		* brand colour.
-		*/
-		function promoBadgeColor(promo) {
-			const color = promo.badge.color;
-			if (color === void 0) return void 0;
-			return /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(color) ? color : void 0;
-		}
-		"WorkBuddy/5.8.3 WorkBuddy/5.8.3 CLI/2.161.0".match(/WorkBuddy\/([^\s]+)/u)?.[1];
-		new RegExp(`^(?:<acp\\b[^>]*>m\\d{1,8}<\\/acp>[ \\t]*\\r?\\n?)*(?:Time sampled while preparing turn \\d+, step \\d+:|Current runtime context\\.|<system-reminder>|\\[Compressed conversation section\\]|This is an efficiency nudge)`, "u");
-		//#endregion
-		//#region src/probe.ts
-		/**
-		* The probe sizes the card offers, in tokens.
-		*
-		* A closed set, each step a meaningful position relative to the measured 20k~30k
-		* threshold: below it (10k/20k) proves an account can serve SHORT requests and
-		* is the cheap choice; at it (30k) is the size that finally covers the whole
-		* measured window; above it (50k/100k) is for conversations that routinely run
-		* long, where a smaller probe would report "usable" for an account that refuses
-		* the very next message.
-		*
-		* Exported so the schema's description, the card's dropdown, and the coercion
-		* below cannot drift apart into three different menus.
-		*/
-		const PROBE_INPUT_TOKEN_CHOICES = [
-			1e4,
-			2e4,
-			3e4,
-			5e4,
-			1e5
-		];
-		/**
-		* The `<timestamp> UTC±N` core of the upstream's reset sentence.
-		*
-		* Shared by both spellings below so the two can never drift into accepting
-		* different timestamps: the offset handling and the calendar round-trip check in
-		* {@link parseUpstreamResetAt} are what make a parsed value trustworthy, and two
-		* copies of this shape would be two chances to loosen one of them.
-		*/
-		const RESET_STAMP = String.raw`(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})\s*UTC\s*([+-])(\d{1,2})(?::?(\d{2}))?`;
-		new RegExp(`将在?\\s*${RESET_STAMP}[\\s\\S]*?重置`, "u");
-		new RegExp(`(?:reset|resets|refresh|refreshes)\\s+(?:at|on)\\s+${RESET_STAMP}`, "iu");
-		//#endregion
 		//#region src/client/pool-state.ts
 		/**
 		* Pure decision helpers for the account pool's card section.
@@ -3612,6 +3619,35 @@ window.__ModuleLoader__.load({
 		function formatNumber$1(value) {
 			return formatCredits(value);
 		}
+		/**
+		* One small line-icon for a day-state stamp (issue #286): check = checked in,
+		* gift = tier redeemed, bolt = active today. Drawn inline with `currentColor`
+		* so the green CSS token carries through; `aria-hidden` because the wrapping
+		* span already carries role=img + aria-label + title tooltip.
+		*/
+		function dayStateIcon(kind) {
+			const shared = {
+				width: 12,
+				height: 12,
+				viewBox: "0 0 16 16",
+				fill: "none",
+				stroke: "currentColor",
+				strokeWidth: 1.6,
+				strokeLinecap: "round",
+				strokeLinejoin: "round",
+				"aria-hidden": true,
+				focusable: "false"
+			};
+			if (kind === "check") return (0, react.createElement)("svg", shared, (0, react.createElement)("path", { d: "M3 8.5l3.2 3.2L13 5" }));
+			if (kind === "gift") return (0, react.createElement)("svg", shared, (0, react.createElement)("rect", {
+				x: 2.5,
+				y: 6.5,
+				width: 11,
+				height: 7,
+				rx: 1
+			}), (0, react.createElement)("path", { d: "M2 6.5h12M8 6.5V13.5" }), (0, react.createElement)("path", { d: "M8 6.5C6 6.5 5 6 5 4.8c0-.9.9-1.5 1.8-1.2C8 4 8 6.5 8 6.5zM8 6.5c2 0 3-.5 3-1.7 0-.9-.9-1.5-1.8-1.2C8 4 8 6.5 8 6.5z" }));
+			return (0, react.createElement)("svg", shared, (0, react.createElement)("path", { d: "M9 2L4 9h3.2L6.5 14 12 7H8.8L9 2z" }));
+		}
 		function formatClock$1(value) {
 			return new Intl.DateTimeFormat(void 0, {
 				hour: "2-digit",
@@ -3674,7 +3710,9 @@ window.__ModuleLoader__.load({
 				probeInputTokens: pool?.probeInputTokens ?? 0,
 				memberAccountIds: pool?.memberAccountIds ?? [],
 				orderAccountIds: pool?.orderAccountIds ?? [],
-				autoCheckin: pool?.autoCheckin === true
+				autoCheckin: pool?.autoCheckin === true,
+				growthRedeem: pool?.growthRedeem === true,
+				growthActivity: pool?.growthActivity === true
 			};
 			const active = draftRegion === region && draft !== null ? draft : saved;
 			/**
@@ -3695,7 +3733,7 @@ window.__ModuleLoader__.load({
 			* the pending edit.
 			*/
 			const poolRunning = saved.enabled;
-			const dirty = draftRegion === region && draft !== null && (draft.enabled !== saved.enabled || draft.targetModelId !== saved.targetModelId || draft.probeInputTokens !== saved.probeInputTokens || !sameIds(draft.memberAccountIds, saved.memberAccountIds) || !sameOrder(draft.orderAccountIds, saved.orderAccountIds) || draft.autoCheckin !== saved.autoCheckin);
+			const dirty = draftRegion === region && draft !== null && (draft.enabled !== saved.enabled || draft.targetModelId !== saved.targetModelId || draft.probeInputTokens !== saved.probeInputTokens || !sameIds(draft.memberAccountIds, saved.memberAccountIds) || !sameOrder(draft.orderAccountIds, saved.orderAccountIds) || draft.autoCheckin !== saved.autoCheckin || draft.growthRedeem !== saved.growthRedeem || draft.growthActivity !== saved.growthActivity);
 			/**
 			* The automatic check-in's progress line, or nothing.
 			*
@@ -3953,7 +3991,7 @@ window.__ModuleLoader__.load({
 					savedEffective: pool?.effectiveMemberAccountIds,
 					savedMembers: pool?.memberAccountIds ?? []
 				});
-				appendLog(action === "checkin" ? t("row.poolLogCheckinStart", { count: memberCount }) : t("row.poolLogTestStart", {
+				appendLog(action === "checkin" ? t("row.poolLogCheckinStart", { count: memberCount }) : action === "growth-redeem" ? t("row.poolLogGrowthRedeemStart", { count: memberCount }) : action === "growth-activity" ? t("row.poolLogGrowthActivityStart", { count: memberCount }) : t("row.poolLogTestStart", {
 					count: memberCount,
 					model: pool?.targetModelId ?? ""
 				}), "info");
@@ -4018,7 +4056,22 @@ window.__ModuleLoader__.load({
 							bodyUnreadable: body === void 0
 						}));
 						if (!mounted.current) return;
-						if (action === "checkin") {
+						if (action === "growth-redeem" || action === "growth-activity") {
+							for (const row of body?.rows ?? []) {
+								const name = row.accountName === "" || row.accountName === void 0 ? t("row.accountUnnamed") : row.accountName;
+								if (row.status === "claimed") appendLog(t(action === "growth-redeem" ? "row.poolLogGrowthRedeemDone" : "row.poolLogGrowthActivityDone", {
+									accountName: name,
+									credit: row.credit === void 0 ? "" : ` +${row.credit}`
+								}), "ok");
+								else if (row.status === "already") appendLog(t("row.poolLogGrowthAlready", { accountName: name }), "info");
+								else if (row.status === "skipped") appendLog(t("row.poolLogGrowthSkipped", { accountName: name }), "info");
+								else appendLog(t("row.poolLogGrowthFailed", {
+									accountName: name,
+									message: row.message ?? t("row.requestFailed")
+								}), "error");
+							}
+							appendLog(t(action === "growth-redeem" ? "row.poolLogGrowthRedeemBatchDone" : "row.poolLogGrowthActivityBatchDone"), "ok");
+						} else if (action === "checkin") {
 							for (const row of body?.rows ?? []) if (row.status === "claimed") appendLog(t("row.poolLogCheckinClaimed", {
 								accountName: row.accountName === "" ? t("row.accountUnnamed") : row.accountName,
 								credit: String(row.credit ?? 0)
@@ -4418,7 +4471,29 @@ window.__ModuleLoader__.load({
 						autoCheckin: next
 					}));
 				}
-			}), (0, react.createElement)("span", { className: "sw-track" })), (0, react.createElement)("b", { className: "dsm-workbuddy-pool-modebar-label" }, t("row.poolAutoCheckin"))), (0, react.createElement)("p", { className: "dsm-workbuddy-pool-note" }, t("row.poolAutoCheckinHint")), autoCheckinStatus) : null), poolRunning && currentAccount !== void 0 && !effectiveMembers.includes(currentAccount.accountId) ? (0, react.createElement)("p", { className: "dsm-workbuddy-pool-note dsm-workbuddy-pool-serving-note" }, t("row.poolServingOutside", { account: currentName ?? "" })) : null, poolRunning && effectiveMembers.length > 0 && usable.length === 0 ? allMembersBlockedByModel(pool?.accounts ?? [], effectiveMembers, active.memberAccountIds) ? (0, react.createElement)("p", {
+			}), (0, react.createElement)("span", { className: "sw-track" })), (0, react.createElement)("b", { className: "dsm-workbuddy-pool-modebar-label" }, t("row.poolAutoCheckin"))), (0, react.createElement)("p", { className: "dsm-workbuddy-pool-note" }, t("row.poolAutoCheckinHint")), autoCheckinStatus) : null, (0, react.createElement)("div", { className: "dsm-workbuddy-pool-auto-checkin" }, (0, react.createElement)("div", { className: "dsm-workbuddy-pool-switchrow" }, (0, react.createElement)("label", { className: "sw" }, (0, react.createElement)("input", {
+				type: "checkbox",
+				checked: active.growthRedeem,
+				disabled: !canEditPool,
+				onChange: (event) => {
+					const next = event.currentTarget.checked;
+					editDraft((current) => ({
+						...current,
+						growthRedeem: next
+					}));
+				}
+			}), (0, react.createElement)("span", { className: "sw-track" })), (0, react.createElement)("b", { className: "dsm-workbuddy-pool-modebar-label" }, t("row.poolGrowthRedeem"))), (0, react.createElement)("p", { className: "dsm-workbuddy-pool-note" }, t("row.poolGrowthRedeemHint")), (0, react.createElement)("div", { className: "dsm-workbuddy-pool-switchrow" }, (0, react.createElement)("label", { className: "sw" }, (0, react.createElement)("input", {
+				type: "checkbox",
+				checked: active.growthActivity,
+				disabled: !canEditPool,
+				onChange: (event) => {
+					const next = event.currentTarget.checked;
+					editDraft((current) => ({
+						...current,
+						growthActivity: next
+					}));
+				}
+			}), (0, react.createElement)("span", { className: "sw-track" })), (0, react.createElement)("b", { className: "dsm-workbuddy-pool-modebar-label" }, t("row.poolGrowthActivity"))), (0, react.createElement)("p", { className: "dsm-workbuddy-pool-note" }, t("row.poolGrowthActivityHint")))), poolRunning && currentAccount !== void 0 && !effectiveMembers.includes(currentAccount.accountId) ? (0, react.createElement)("p", { className: "dsm-workbuddy-pool-note dsm-workbuddy-pool-serving-note" }, t("row.poolServingOutside", { account: currentName ?? "" })) : null, poolRunning && effectiveMembers.length > 0 && usable.length === 0 ? allMembersBlockedByModel(pool?.accounts ?? [], effectiveMembers, active.memberAccountIds) ? (0, react.createElement)("p", {
 				className: "dsm-workbuddy-pool-warn",
 				role: "status"
 			}, `${t("row.poolModelWideBusy")} ${t("row.poolModelWideBusyHint")}`) : (0, react.createElement)("p", {
@@ -4482,6 +4557,22 @@ window.__ModuleLoader__.load({
 					runAction("checkin");
 				}
 			}, busy === "checkin" ? t("row.poolCheckingIn") : t("row.poolCheckinAll")) : null, (0, react.createElement)("button", {
+				type: "button",
+				className: "dsm-btn dsm-btn-outline",
+				disabled: busy !== void 0 || effectiveMembers.length === 0,
+				title: t("row.poolGrowthRedeemRunHint"),
+				onClick: () => {
+					runAction("growth-redeem");
+				}
+			}, busy === "growth-redeem" ? t("row.poolGrowthRedeemRunning") : t("row.poolGrowthRedeemRun")), (0, react.createElement)("button", {
+				type: "button",
+				className: "dsm-btn dsm-btn-outline",
+				disabled: busy !== void 0 || effectiveMembers.length === 0,
+				title: t("row.poolGrowthActivityRunHint"),
+				onClick: () => {
+					runAction("growth-activity");
+				}
+			}, busy === "growth-activity" ? t("row.poolGrowthActivityRunning") : t("row.poolGrowthActivityRun")), (0, react.createElement)("button", {
 				type: "button",
 				className: "dsm-btn dsm-btn-outline",
 				disabled: busy !== void 0 || effectiveMembers.length === 0 || pool.targetModelSource === "none" || pool.targetModelSource === "stale",
@@ -4726,7 +4817,22 @@ window.__ModuleLoader__.load({
 				"aria-label": t("row.poolMoveDownAria", { accountName: name }),
 				disabled: moveDownDisabled,
 				onClick: onMoveDown
-			}, "↓")) : null) : null, account.current ? (0, react.createElement)("span", { className: "dsm-workbuddy-pool-current-tag" }, t("row.poolCurrentBadge")) : null, checked ? null : (0, react.createElement)("span", { className: "dsm-workbuddy-pool-not-member" }, t("row.poolNotMember")))), (0, react.createElement)("span", { className: "dsm-workbuddy-pool-credits" }, account.credits === void 0 ? (0, react.createElement)("span", null, "—") : (0, react.createElement)("b", null, formatNumber$1(account.credits)), account.expiringSoon !== void 0 && account.expiringSoon > 0 ? (0, react.createElement)("span", { className: "dsm-workbuddy-pool-soon" }, t("row.poolCreditSoon", { count: formatNumber$1(account.expiringSoon) })) : null, account.enterprise === true || account.benefits === void 0 || account.benefits.length === 0 ? null : (0, react.createElement)("span", { className: "dsm-workbuddy-pool-benefits" }, account.benefits.map((benefit, index) => (0, react.createElement)("span", {
+			}, "↓")) : null) : null, account.current ? (0, react.createElement)("span", { className: "dsm-workbuddy-pool-current-tag" }, t("row.poolCurrentBadge")) : null, checked ? null : (0, react.createElement)("span", { className: "dsm-workbuddy-pool-not-member" }, t("row.poolNotMember")))), (0, react.createElement)("span", { className: "dsm-workbuddy-pool-credits" }, account.credits === void 0 ? (0, react.createElement)("span", null, "—") : (0, react.createElement)("b", null, formatNumber$1(account.credits)), account.expiringSoon !== void 0 && account.expiringSoon > 0 ? (0, react.createElement)("span", { className: "dsm-workbuddy-pool-soon" }, t("row.poolCreditSoon", { count: formatNumber$1(account.expiringSoon) })) : null, account.checkedInToday === true || account.growthRedeemedToday === true || account.growthActiveToday === true ? (0, react.createElement)("span", { className: "dsm-workbuddy-pool-daystamps" }, account.checkedInToday === true ? (0, react.createElement)("span", {
+				className: "dsm-workbuddy-pool-daystamp",
+				title: t("row.poolCheckedIn"),
+				role: "img",
+				"aria-label": t("row.poolCheckedIn")
+			}, dayStateIcon("check")) : null, account.growthRedeemedToday === true ? (0, react.createElement)("span", {
+				className: "dsm-workbuddy-pool-daystamp",
+				title: t("row.poolGrowthRedeemed"),
+				role: "img",
+				"aria-label": t("row.poolGrowthRedeemed")
+			}, dayStateIcon("gift")) : null, account.growthActiveToday === true ? (0, react.createElement)("span", {
+				className: "dsm-workbuddy-pool-daystamp",
+				title: t("row.poolGrowthActive"),
+				role: "img",
+				"aria-label": t("row.poolGrowthActive")
+			}, dayStateIcon("bolt")) : null) : null, account.enterprise === true || account.benefits === void 0 || account.benefits.length === 0 ? null : (0, react.createElement)("span", { className: "dsm-workbuddy-pool-benefits" }, account.benefits.map((benefit, index) => (0, react.createElement)("span", {
 				key: benefit.kind,
 				className: benefit.urgent ? "dsm-workbuddy-pool-benefit dsm-workbuddy-pool-benefit-urgent" : "dsm-workbuddy-pool-benefit"
 			}, index === 0 ? null : (0, react.createElement)("span", { className: "dsm-workbuddy-pool-prov-sep" }, "·"), (0, react.createElement)("span", { className: "dsm-workbuddy-pool-benefit-tag" }, benefit.urgent ? benefit.daysLeft === void 0 || benefit.daysLeft === 0 ? t("row.poolBenefitDueToday", {
@@ -4761,7 +4867,7 @@ window.__ModuleLoader__.load({
 			}, probe.modelId === void 0 ? t("row.poolProbeModelUnknown") : t("row.poolProbeModel", { model: probe.modelId }))] : null)), checkinSupported ? (0, react.createElement)("span", { className: "dsm-workbuddy-pool-checkin" }, account.enterprise === true ? (0, react.createElement)("span", { className: "dsm-workbuddy-pool-unknown" }, t("row.poolCheckinEnterprise")) : account.checkedInToday === void 0 ? (0, react.createElement)("span", {
 				className: "dsm-workbuddy-pool-unknown",
 				title: t("row.poolNeverTested")
-			}, t("row.poolCheckinUnknown")) : account.checkedInToday ? (0, react.createElement)("span", { className: "dsm-workbuddy-pool-checked" }, t("row.poolCheckedIn")) : t("row.poolNotCheckedIn")) : null, (0, react.createElement)("span", { className: "dsm-workbuddy-pool-row-actions" }, onEditDevice === void 0 ? null : (0, react.createElement)("button", {
+			}, t("row.poolCheckinUnknown")) : account.checkedInToday ? null : t("row.poolNotCheckedIn")) : null, (0, react.createElement)("span", { className: "dsm-workbuddy-pool-row-actions" }, onEditDevice === void 0 ? null : (0, react.createElement)("button", {
 				type: "button",
 				className: `dsm-btn dsm-btn-outline dsm-workbuddy-pool-small-btn dsm-workbuddy-device-gear${deviceGearBlocked ? " dsm-workbuddy-device-gear-off" : ""}`,
 				"aria-disabled": deviceGearBlocked ? true : void 0,
@@ -7688,6 +7794,13 @@ ${u} ${p}-pool .sw input:checked+.sw-track::after{transform:translateX(16px)}
    the header reads as one group of equal actions. */
 .dsm-workbuddy-models-sweep{white-space:nowrap}
 .dsm-workbuddy-models-sweep-summary{margin:6px 0 0;font-size:12px;line-height:17px;color:var(--dsw-alias-label-secondary,#c6c9d0)}
+/* The degraded-directory notice (issue #288). AMBER, not red: nothing failed —
+   one product document was refused and the other one answered, so the list is
+   short rather than wrong. Red would read as "the plugin is broken", and the
+   user would go looking for a fault that is not there. */
+.dsm-workbuddy-models-degraded{margin:8px 0 0;padding:8px 10px;border:1px solid var(--dsw-alias-state-warn-primary,#f59e0b);border-radius:8px}
+.dsm-workbuddy-models-degraded-line{margin:0;font-size:12px;line-height:18px;color:var(--dsw-alias-state-warn-primary,#f59e0b);word-break:break-word}
+.dsm-workbuddy-models-degraded-line+.dsm-workbuddy-models-degraded-line{margin-top:4px}
 .dsm-workbuddy-model-probe{flex:none;padding:3px 10px;font-size:11px;line-height:16px}
 .dsm-workbuddy-model-probe-result{margin:0;font-size:12px;line-height:18px;word-break:break-word}
 .dsm-workbuddy-model-probe-result-ok{color:var(--dsw-alias-state-success-primary,#22a06b)}
@@ -8017,6 +8130,12 @@ ${u} ${p}-pool .sw input:checked+.sw-track::after{transform:translateX(16px)}
  * is a seasonal campaign, so the row keeps its honest wrap instead. */
 .dsm-workbuddy-pool-credits{grid-area:credits;display:flex;flex-direction:row;flex-wrap:wrap;align-items:baseline;justify-content:flex-end;gap:0 6px;min-width:0;justify-self:end;text-align:right;font-variant-numeric:tabular-nums}
 .dsm-workbuddy-pool-credits b{color:var(--dsw-alias-label-primary,#e6e6e6);font-weight:600}
+/* All three day-state stamps (已签到/已兑换/已点亮) sit together beside the
+   credits. Smaller than the row text (11px) and quiet-success green — they are
+   confirmations, not the facts the row is about. The group wraps on narrow cards
+   rather than pushing the credits figure off the right edge. */
+.dsm-workbuddy-pool-daystamps{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:4px;font-size:11px;line-height:16px;color:var(--dsw-alias-state-success-primary,#22a06b)}
+.dsm-workbuddy-pool-daystamp{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:5px;background:rgba(34,160,107,.14);cursor:help}
 .dsm-workbuddy-pool-soon{font-size:11px;line-height:16px;color:var(--dsw-alias-state-warn-primary,#f59e0b)}
 /* Claimable benefits (issue #79). A quiet line by default — it is an opportunity, not a fault — and loud only when the window is about to close. */
 .dsm-workbuddy-pool-benefits{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:11px;line-height:16px;color:var(--dsw-alias-label-tertiary,#999);min-width:0}
@@ -9144,6 +9263,7 @@ ${u} ${p}-pool .sw input:checked+.sw-track::after{transform:translateX(16px)}
 		*/
 		function signedOutNotice(input) {
 			if (input.selectionLost) return { key: "row.selectionLostMessage" };
+			if (input.credentialRejected === true) return { key: "row.credentialRejectedNotice" };
 			if (input.searched.some((item) => item.reason === "encrypted")) return { key: "row.signedOutEncrypted" };
 			if (input.searched.some((item) => item.reason === "wrong-region")) return { key: "row.signedOutWrongRegion" };
 			if (input.searched.length > 0) return { key: "row.signedOutHint" };
@@ -10805,7 +10925,9 @@ ${u} ${p}-pool .sw input:checked+.sw-track::after{transform:translateX(16px)}
 					if (!response.ok || !Array.isArray(body.models)) throw new Error(`HTTP ${response.status}`);
 					const fresh = body.models;
 					const freshIds = new Set(fresh.map((model) => model.id));
-					const stillEnabled = [...activeEnabledIds].filter((id) => freshIds.has(id));
+					const degraded = body.degraded;
+					const carried = degraded === void 0 ? [] : visibleModels.filter((model) => !freshIds.has(model.id));
+					const stillEnabled = degraded === void 0 ? [...activeEnabledIds].filter((id) => freshIds.has(id)) : [...activeEnabledIds];
 					const upstreamImages = fresh.filter((model) => imageDefaultFor(model)).map((model) => model.id);
 					const stillBudgets = {};
 					for (const id of freshIds) {
@@ -10820,12 +10942,14 @@ ${u} ${p}-pool .sw input:checked+.sw-track::after{transform:translateX(16px)}
 					setDrafts((prev) => ({
 						...prev,
 						[activeRegion]: {
-							models: fresh,
+							models: [...fresh, ...carried],
 							enabledIds: new Set(stillEnabled),
 							imageIds: new Set(upstreamImages),
 							offIds: new Set(activeOffIds),
 							contextBudgets: stillBudgets,
-							defaultThinkingEfforts: stillEfforts
+							defaultThinkingEfforts: stillEfforts,
+							degraded: degraded ?? null,
+							carriedIds: carried.map((model) => model.id)
 						}
 					}));
 				} catch (error) {
@@ -10843,6 +10967,35 @@ ${u} ${p}-pool .sw input:checked+.sw-track::after{transform:translateX(16px)}
 			};
 			const draft = drafts[activeRegion];
 			const visibleModels = draft?.models ?? (status.status === "signed-in" ? status.models : []);
+			/**
+			* Whether the model directory on screen is a PARTIAL answer (issue #288).
+			*
+			* The DRAFT wins when there is one: its list came from the last refresh, so
+			* the refresh's own answer is the one that describes it — including the
+			* "this refresh was complete" case, which the Host's older status answer
+			* cannot be trusted for (it may not have polled since).
+			*
+			* Without a draft the Host's answer is the source: it is the same fact the
+			* runtime roster was built from, so the card and the picker agree.
+			*
+			* `undefined` means "nothing to report" — NOT "the directory is complete",
+			* which the plugin never claims.
+			*/
+			const catalogDegraded = draft === void 0 ? status.status === "signed-in" ? status.catalogDegraded : void 0 : draft.degraded ?? void 0;
+			/**
+			* The model ids the current list carries from the saved snapshot because the
+			* last refresh was degraded (issue #288).
+			*/
+			const carriedModelIds = draft?.carriedIds ?? [];
+			/**
+			* The same rows, by the NAME the list shows them under.
+			*
+			* The notice must name what the reader sees: a notice that says
+			* `fast-model` beside a row that says `Fast` is two names for one thing, and
+			* two names for one thing is how a reader learns to trust neither. The id is
+			* the fallback for a row that is no longer in the list.
+			*/
+			const carriedModelNames = carriedModelIds.map((id) => visibleModels.find((model) => model.id === id)?.name ?? id);
 			/**
 			* The LIVE load levels, keyed by model id.
 			*
@@ -10885,7 +11038,9 @@ ${u} ${p}-pool .sw input:checked+.sw-track::after{transform:translateX(16px)}
 						imageIds: new Set(activeImageIds),
 						offIds: new Set(activeOffIds),
 						contextBudgets: { ...activeContextBudgets },
-						defaultThinkingEfforts: { ...activeDefaultEfforts }
+						defaultThinkingEfforts: { ...activeDefaultEfforts },
+						degraded: status.status === "signed-in" ? status.catalogDegraded ?? null : null,
+						carriedIds: []
 					})
 				}));
 			};
@@ -11266,9 +11421,40 @@ ${u} ${p}-pool .sw input:checked+.sw-track::after{transform:translateX(16px)}
 			const notice = signedOutNotice({
 				selectionLost,
 				message: status.status === "signed-out" ? status.message : void 0,
-				searched
+				searched,
+				credentialRejected: status.status === "signed-out" && status.credentialRejected === true
 			});
 			status.status === "error" || status.selectionExplicit;
+			/**
+			* The credential-refused advice, shared by the signed-in and signed-out
+			* branches (issue #285). A token can be refused either on a credits read of
+			* an otherwise usable credential, or during `resolve()`'s refresh — the two
+			* land on different `status` values but need the SAME remedy. Keeping one
+			* JSX node is what stops the signed-out copy from drifting back to the
+			* misleading "sign in once" while the signed-in copy says "switch account".
+			*/
+			const credentialRejected = status.status !== "error" && status.credentialRejected === true;
+			const rejectedAccountName = status.status === "signed-in" ? status.accountName : status.status === "signed-out" ? nameOf(status.accounts.find((account) => account.selected)?.accountName ?? "") : "";
+			const recovery = status.status === "error" ? void 0 : status.recovery;
+			const credentialRefusedBlock = !credentialRejected ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
+				className: "dsm-workbuddy-usage-error",
+				role: "alert",
+				children: [
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("strong", { children: t("row.credentialRejectedTitle") }),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: t("row.credentialRejectedIntro", { accountName: nameOf(rejectedAccountName) }) }),
+					recovery?.usableAccount !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: t("row.credentialRejectedSwitch", { accountName: nameOf(recovery.usableAccount.accountName) }) }) : recovery?.reloginRequired === true ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: t("row.credentialRejectedRelogin") }) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: t("row.credentialRejectedChoose") }),
+					recovery?.usableAccount === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+						type: "button",
+						className: "dsm-btn dsm-btn-outline",
+						disabled: switchingAccount || !canWrite,
+						onClick: () => {
+							const target = recovery.usableAccount;
+							if (target !== void 0) switchAccount(target.accountId);
+						},
+						children: switchingAccount ? t("row.accountsScanning") : t("row.credentialRejectedSwitchAction", { accountName: nameOf(recovery.usableAccount.accountName) })
+					})
+				]
+			});
 			/**
 			* Account-adding and account-migration controls, defined ONCE and rendered
 			* in both sign-in states: inside the pool settings block when an account
@@ -12386,25 +12572,7 @@ ${u} ${p}-pool .sw input:checked+.sw-track::after{transform:translateX(16px)}
 									children: t("row.vaultUnreadableHint", { message: vaultUnreadable })
 								}) : null,
 								status.status === "signed-in" ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
-									status.credentialRejected === true ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("section", {
-										className: "dsm-workbuddy-usage-error",
-										role: "alert",
-										children: [
-											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("strong", { children: t("row.credentialRejectedTitle") }),
-											/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: t("row.credentialRejectedIntro", { accountName: nameOf(status.accountName) }) }),
-											status.recovery?.usableAccount !== void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: t("row.credentialRejectedSwitch", { accountName: nameOf(status.recovery.usableAccount.accountName) }) }) : status.recovery?.reloginRequired === true ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: t("row.credentialRejectedRelogin") }) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: t("row.credentialRejectedChoose") }),
-											status.recovery?.usableAccount === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-												type: "button",
-												className: "dsm-btn dsm-btn-outline",
-												disabled: switchingAccount || !canWrite,
-												onClick: () => {
-													const target = status.recovery?.usableAccount;
-													if (target !== void 0) switchAccount(target.accountId);
-												},
-												children: switchingAccount ? t("row.accountsScanning") : t("row.credentialRejectedSwitchAction", { accountName: nameOf(status.recovery.usableAccount.accountName) })
-											})
-										]
-									}) : null,
+									credentialRefusedBlock,
 									status.creditsError === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 										className: "dsm-workbuddy-usage-error",
 										children: t("row.creditsError", { message: status.creditsError })
@@ -12524,6 +12692,28 @@ ${u} ${p}-pool .sw input:checked+.sw-track::after{transform:translateX(16px)}
 											className: "dsm-workbuddy-models-sweep-summary",
 											role: "status",
 											children: sweepSummary
+										}),
+										catalogDegraded === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+											className: "dsm-workbuddy-models-degraded",
+											role: "status",
+											children: [
+												/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+													className: "dsm-workbuddy-models-degraded-line",
+													children: t("row.catalogDegraded", {
+														missing: t(catalogDegraded.missing === "cli" ? "row.catalogSourceCli" : catalogDegraded.missing === "legacy" ? "row.catalogSourceLegacy" : "row.catalogSourceApp"),
+														used: t(catalogDegraded.used === "cli" ? "row.catalogSourceCli" : catalogDegraded.used === "legacy" ? "row.catalogSourceLegacy" : "row.catalogSourceApp"),
+														reason: catalogDegraded.reason
+													})
+												}),
+												catalogDegraded.resetAtMs === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+													className: "dsm-workbuddy-models-degraded-line",
+													children: t("row.catalogDegradedReset", { at: formatShortClock(catalogDegraded.resetAtMs) })
+												}),
+												carriedModelIds.length === 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+													className: "dsm-workbuddy-models-degraded-line",
+													children: t("row.catalogDegradedCarried", { models: carriedModelNames.join("、") })
+												})
+											]
 										}),
 										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 											className: "dsm-workbuddy-model-list",
@@ -12904,16 +13094,20 @@ ${u} ${p}-pool .sw input:checked+.sw-track::after{transform:translateX(16px)}
 								settingsPath: WORKBUDDY_DEVICE_PROFILE_PATH
 							}) : null
 						}),
-						status.status === "signed-out" && loading ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+						status.status === "signed-out" && loading ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 							className: "dsm-workbuddy-usage-text",
 							role: "status",
 							children: t("row.accountsLoading")
-						}) : null,
+						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+							className: "dsm-workbuddy-pool-tools",
+							children: accountTools
+						})] }) : null,
 						status.status === "signed-out" && !loading ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 								className: "dsm-workbuddy-usage-text",
 								children: signedOutText(notice, t)
 							}),
+							credentialRefusedBlock,
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 								className: "dsm-workbuddy-usage-account-actions",
 								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
@@ -12960,19 +13154,26 @@ ${u} ${p}-pool .sw input:checked+.sw-track::after{transform:translateX(16px)}
 						}),
 						status.status === "error" && gateRefused === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 							className: "dsm-workbuddy-usage-error-block",
-							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
-								className: "dsm-workbuddy-usage-error",
-								role: "alert",
-								children: t("row.usageErrorHint", { message: status.message === "" ? t("row.requestFailed") : status.message })
-							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								type: "button",
-								className: "dsm-btn dsm-btn-outline",
-								onClick: () => {
-									statusRetries.current = 0;
-									refreshUsage(activeRegion);
-								},
-								children: t("row.usageRetry")
-							})]
+							children: [
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+									className: "dsm-workbuddy-usage-error",
+									role: "alert",
+									children: t("row.usageErrorHint", { message: status.message === "" ? t("row.requestFailed") : status.message })
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+									type: "button",
+									className: "dsm-btn dsm-btn-outline",
+									onClick: () => {
+										statusRetries.current = 0;
+										refreshUsage(activeRegion);
+									},
+									children: t("row.usageRetry")
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+									className: "dsm-workbuddy-pool-tools",
+									children: accountTools
+								})
+							]
 						}) : null
 					]
 				})
@@ -13797,7 +13998,9 @@ ${u} ${p}-pool .sw input:checked+.sw-track::after{transform:translateX(16px)}
 			if (hostCreditsShownOf(usage) === false) return null;
 			const signedIn = usage?.status === "signed-in" ? usage : void 0;
 			const total = signedIn === void 0 ? void 0 : creditsOf(signedIn);
-			const signedOut = usage !== void 0 && usage.status === "signed-out";
+			const signedOutDocument = usage !== void 0 && usage.status === "signed-out" ? usage : void 0;
+			const credentialRejected = signedOutDocument?.credentialRejected === true;
+			const signedOut = signedOutDocument !== void 0 && !credentialRejected;
 			const valueText = total === void 0 ? "—" : formatCredits(total);
 			const label = t(activeRegion === "cn" ? "composer.pointsCn" : "composer.pointsGlobal");
 			const newModelsShown = hostNewModelsShownOf(usage);
@@ -13813,7 +14016,8 @@ ${u} ${p}-pool .sw input:checked+.sw-track::after{transform:translateX(16px)}
 			* than a spinner the user has to wait on.
 			*/
 			const selectedId = accountCredits?.find((account) => account.selected)?.id ?? (signedIn === void 0 ? void 0 : signedIn.accountId);
-			const rows = (accountCredits ?? (signedIn === void 0 ? [] : signedIn.accounts.map((account) => ({
+			const documentAccounts = signedIn?.accounts ?? signedOutDocument?.accounts ?? [];
+			const rows = (accountCredits ?? (documentAccounts.length === 0 ? [] : documentAccounts.map((account) => ({
 				id: account.id,
 				accountName: account.accountName,
 				selected: account.selected
@@ -13961,7 +14165,10 @@ ${u} ${p}-pool .sw input:checked+.sw-track::after{transform:translateX(16px)}
 							}) : rows.length === 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 								className: "dsm-workbuddy-composer-panel-empty",
 								children: t("composer.noAccounts")
-							}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("table", {
+							}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [credentialRejected ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+								className: "dsm-workbuddy-composer-panel-empty",
+								children: signedOutDocument?.recovery?.usableAccount === void 0 ? t("composer.credentialRejectedReLogin") : t("composer.credentialRejectedSwitch", { accountName: signedOutDocument.recovery.usableAccount.accountName })
+							}) : null, /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("table", {
 								className: "dsm-workbuddy-composer-panel-table",
 								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("thead", { children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("tr", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("th", {
 									scope: "col",
@@ -14031,7 +14238,7 @@ ${u} ${p}-pool .sw input:checked+.sw-track::after{transform:translateX(16px)}
 										})]
 									}, row.id);
 								}) })]
-							}),
+							})] }),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 								className: "dsm-workbuddy-composer-panel-foot",
 								children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", { children: [
@@ -15220,6 +15427,7 @@ ${u} ${p}-pool .sw input:checked+.sw-track::after{transform:translateX(16px)}
 			"row.reloginHint": "If errors occur, sign back in to the WorkBuddy app.",
 			"row.rescanHidesKept": "The accounts you removed are still hidden: the plugin could not update its own list file. On Windows this is usually a file lock — close antivirus or sync tools that may be holding files in the DSH profile, then try again.",
 			"row.credentialRejectedTitle": "WorkBuddy refused this account's token",
+			"row.credentialRejectedNotice": "The signed-in token was refused by WorkBuddy, but your local accounts are still present — see the recovery options below.",
 			"row.credentialRejectedIntro": "The token for \"{accountName}\" is no longer accepted by the upstream, so credits and check-in are unavailable. Signing in again only helps if the problem is the token itself — here is what actually applies:",
 			"row.credentialRejectedSwitch": "Another sign-in on this machine answered the upstream: \"{accountName}\". Switching to it fixes this — no need to sign in again.",
 			"row.credentialRejectedSwitchAction": "Switch to \"{accountName}\"",
@@ -15278,6 +15486,12 @@ ${u} ${p}-pool .sw input:checked+.sw-track::after{transform:translateX(16px)}
 			"row.modelsDirty": "unsaved changes",
 			"row.modelsRefresh": "Refresh from WorkBuddy",
 			"row.modelsRefreshing": "Refreshing models…",
+			"row.catalogDegraded": "Model directory degraded: the {missing} read failed ({reason}). This list comes from the {used} directory, so it may be incomplete.",
+			"row.catalogDegradedReset": "The upstream says it recovers at {at}.",
+			"row.catalogDegradedCarried": "Not returned by this read, still from the saved directory: {models}.",
+			"row.catalogSourceApp": "the app channel",
+			"row.catalogSourceCli": "the CLI channel",
+			"row.catalogSourceLegacy": "the legacy directory",
 			"row.discard": "Discard changes",
 			"row.save": "Save",
 			"row.saving": "Saving…",
@@ -15475,6 +15689,32 @@ ${u} ${p}-pool .sw input:checked+.sw-track::after{transform:translateX(16px)}
 			"row.poolDirty": "● Unsaved changes",
 			"row.poolAutoCheckin": "Check in automatically each day",
 			"row.poolAutoCheckinHint": "On: the plugin claims the daily check-in for the accounts checked into this pool, once a day, in the background. It reads first and never re-claims an account already checked in, so a restart cannot double-claim. Off: nothing runs until you press the button. A missed day resets the streak.",
+			"row.poolGrowthRedeem": "Redeem growth rewards automatically",
+			"row.poolGrowthRedeemHint": "On: once a day the plugin redeems any streak tier the gateway marks available, for each pooled account. Locked tiers are skipped, so repeat runs write nothing. Available in both regions.",
+			"row.poolGrowthArmed": "Enabled — the first run will start shortly; progress shows here.",
+			"row.poolGrowthRedeemToday": "Redeemed: {done} of {total} today",
+			"row.poolGrowthRedeemDone": "Redeemed: all {total} today",
+			"row.poolGrowthActivity": "Light up \"active today\" automatically",
+			"row.poolGrowthActivityHint": "On: once a day the plugin sends ONE short chat turn per pooled account through the console session, which lights up \"active today\". This spends a little credit. Accounts already active get no turn. Available in both regions.",
+			"row.poolGrowthActivityToday": "Active today: {done} of {total}",
+			"row.poolGrowthActivityDone": "Active today: all {total}",
+			"row.poolGrowthRedeemed": "Redeemed",
+			"row.poolGrowthActive": "Activated",
+			"row.poolGrowthRedeemRun": "Redeem selected accounts",
+			"row.poolGrowthRedeemRunning": "Redeeming…",
+			"row.poolGrowthRedeemRunHint": "Redeem available streak tiers for every checked account now, regardless of the automatic switch.",
+			"row.poolGrowthActivityRun": "Activate selected accounts",
+			"row.poolGrowthActivityRunning": "Activating…",
+			"row.poolGrowthActivityRunHint": "Light up \"active today\" for every checked account now. Sends one short chat turn per active account and spends a little credit.",
+			"row.poolLogGrowthRedeemStart": "Redeeming growth tiers for {count} account(s)…",
+			"row.poolLogGrowthActivityStart": "Lighting up \"active today\" for {count} account(s)…",
+			"row.poolLogGrowthRedeemDone": "{accountName}: redeemed{credit}",
+			"row.poolLogGrowthActivityDone": "{accountName}: active today",
+			"row.poolLogGrowthAlready": "{accountName}: already done, skipped",
+			"row.poolLogGrowthSkipped": "{accountName}: nothing to do, skipped",
+			"row.poolLogGrowthFailed": "{accountName}: failed — {message}",
+			"row.poolLogGrowthRedeemBatchDone": "Growth redeem finished",
+			"row.poolLogGrowthActivityBatchDone": "Active-today run finished",
 			"row.poolAutoCheckinToday": "Today: {done} of {total} checked in",
 			"row.poolAutoCheckinDone": "Today: all {total} checked in",
 			"row.poolAutoCheckinPending": "{count} still to retry",
@@ -15723,6 +15963,8 @@ ${u} ${p}-pool .sw input:checked+.sw-track::after{transform:translateX(16px)}
 			"composer.creditSoonHint": "Earliest expiry: {time}",
 			"composer.noAccounts": "No account in this region",
 			"composer.signedOut": "Not signed in",
+			"composer.credentialRejectedReLogin": "The signed-in token was refused by WorkBuddy. Sign in again in the desktop app.",
+			"composer.credentialRejectedSwitch": "The signed-in token was refused by WorkBuddy. Switch to \"{accountName}\" below to recover.",
 			"composer.openSettings": "Settings",
 			"composer.openSettingsHint": "Open this plugin's full page (accounts, models, switches)",
 			"composer.openSettingsFailed": "This host offers no route to the plugin page",
@@ -15790,6 +16032,7 @@ ${u} ${p}-pool .sw input:checked+.sw-track::after{transform:translateX(16px)}
 			"row.reloginHint": "出现错误，重新登录 WorkBuddy APP 即可。",
 			"row.rescanHidesKept": "已删除的账号仍是隐藏状态：插件没能更新自己的名单文件。Windows 上通常是文件被占用——请关闭可能正在占用 DSH 配置目录的杀毒/同步工具后重试。",
 			"row.credentialRejectedTitle": "WorkBuddy 拒绝了这个账号的 token",
+			"row.credentialRejectedNotice": "当前登录的 token 被 WorkBuddy 拒绝，但本机账号仍在——请按下方的恢复提示处理。",
 			"row.credentialRejectedIntro": "「{accountName}」的 token 已不被上游接受，所以积分与签到都用不了。重新登录只在「确实是 token 的问题」时才有用——当前实际适用的是下面这一条：",
 			"row.credentialRejectedSwitch": "本机另一个账号「{accountName}」刚刚实测可用，切换到它即可恢复，不必重新登录。",
 			"row.credentialRejectedSwitchAction": "切换到「{accountName}」",
@@ -15848,6 +16091,12 @@ ${u} ${p}-pool .sw input:checked+.sw-track::after{transform:translateX(16px)}
 			"row.modelsDirty": "有未保存的修改",
 			"row.modelsRefresh": "从 WorkBuddy 刷新",
 			"row.modelsRefreshing": "正在刷新模型…",
+			"row.catalogDegraded": "模型目录降级：{missing}读取失败（{reason}）。当前列表来自{used}，可能不完整。",
+			"row.catalogDegradedReset": "上游给出的恢复时间：{at}。",
+			"row.catalogDegradedCarried": "本次没读到、仍来自已保存目录的模型：{models}。",
+			"row.catalogSourceApp": "应用通道",
+			"row.catalogSourceCli": "CLI 通道",
+			"row.catalogSourceLegacy": "旧版目录",
 			"row.discard": "放弃修改",
 			"row.save": "保存",
 			"row.saving": "保存中…",
@@ -16045,6 +16294,32 @@ ${u} ${p}-pool .sw input:checked+.sw-track::after{transform:translateX(16px)}
 			"row.poolDirty": "● 有未保存的修改",
 			"row.poolAutoCheckin": "每天自动签到",
 			"row.poolAutoCheckinHint": "开启：插件在后台为勾选进池的账号领取每日签到，一天一次。它先读状态、已签到的不重复领取，所以重启也不会多领。关闭：不点按钮就什么都不会发生。漏一天会断连签。",
+			"row.poolGrowthRedeem": "自动兑换成长奖励",
+			"row.poolGrowthRedeemHint": "开启：插件每天为池内每个账号兑换上游标记为可领的连签档位，已锁的档位跳过，因此重复运行不会重复写。国内版与国际版均可用。",
+			"row.poolGrowthArmed": "已开启——即将首次运行，进度会显示在这里。",
+			"row.poolGrowthRedeemToday": "已兑换 {done} / {total}",
+			"row.poolGrowthRedeemDone": "已兑换 全部 {total}",
+			"row.poolGrowthActivity": "自动点亮「今日活跃」",
+			"row.poolGrowthActivityHint": "开启：插件每天通过控制台会话为池内每个账号发一条简短对话，点亮「今日活跃」。这会消耗少量积分；今日已活跃的账号不会发。国内版与国际版均可用。",
+			"row.poolGrowthActivityToday": "已点亮 {done} / {total}",
+			"row.poolGrowthActivityDone": "已点亮 全部 {total}",
+			"row.poolGrowthRedeemed": "已兑换",
+			"row.poolGrowthActive": "已点亮",
+			"row.poolGrowthRedeemRun": "兑换勾选的账号",
+			"row.poolGrowthRedeemRunning": "兑换中…",
+			"row.poolGrowthRedeemRunHint": "立即为勾选的每个账号兑换可领的连签档位，不受自动开关影响。",
+			"row.poolGrowthActivityRun": "点亮勾选的账号",
+			"row.poolGrowthActivityRunning": "点亮中…",
+			"row.poolGrowthActivityRunHint": "立即为勾选的账号点亮「今日活跃」，每个账号发一条简短对话，消耗少量积分。",
+			"row.poolLogGrowthRedeemStart": "正在为 {count} 个账号兑换成长档位…",
+			"row.poolLogGrowthActivityStart": "正在为 {count} 个账号点亮「今日活跃」…",
+			"row.poolLogGrowthRedeemDone": "{accountName}：已兑换{credit}",
+			"row.poolLogGrowthActivityDone": "{accountName}：今日已活跃",
+			"row.poolLogGrowthAlready": "{accountName}：今日已处理，跳过",
+			"row.poolLogGrowthSkipped": "{accountName}：无可处理项，跳过",
+			"row.poolLogGrowthFailed": "{accountName}：失败 — {message}",
+			"row.poolLogGrowthRedeemBatchDone": "成长档位兑换完成",
+			"row.poolLogGrowthActivityBatchDone": "今日活跃点亮完成",
 			"row.poolAutoCheckinToday": "今日：已签 {done} / {total}",
 			"row.poolAutoCheckinDone": "今日：{total} 个全部已签",
 			"row.poolAutoCheckinPending": "待重试 {count} 个",
@@ -16293,6 +16568,8 @@ ${u} ${p}-pool .sw input:checked+.sw-track::after{transform:translateX(16px)}
 			"composer.creditSoonHint": "最早到期：{time}",
 			"composer.noAccounts": "该区域暂无账号",
 			"composer.signedOut": "未登录",
+			"composer.credentialRejectedReLogin": "当前登录的 token 被 WorkBuddy 拒绝，请在桌面端重新登录。",
+			"composer.credentialRejectedSwitch": "当前登录的 token 被 WorkBuddy 拒绝，可在下方切换到「{accountName}」恢复。",
 			"composer.openSettings": "设置",
 			"composer.openSettingsHint": "打开本插件的完整页面（账号、模型、各项开关）",
 			"composer.openSettingsFailed": "这台宿主没有通往插件页面的入口",

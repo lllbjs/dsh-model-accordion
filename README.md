@@ -67,6 +67,7 @@ same star appears in the `/model` popup, where the rows are wider:
 | **Account info** (0.9.0) | The unified hub shows current account name / id / domain / region / expiry, the full account list with per-account credits, credit totals, credit packages, check-in streak and OpenCode IP-pool state. |
 | **Model lists** (0.9.0) | The hub lists every model with context window, credit multiplier and reasoning/image/new/off tags; region selector + search box + refresh button. |
 | **Account config** (0.9.0) | Add/remove Qoder PATs, switch WorkBuddy accounts, OAuth login, refresh Trae accounts, probe the OpenCode IP pool — directly from the hub. |
+| **Connector-style UI** (0.10.0) | The hub is now a real **Settings → 模型连接器中心** section; each connector page uses 账号 / 模型 / 能力 / 诊断 sub-tabs (kept alive with `hidden`), plus read-only capability and diagnostics cards, check-in actions, a self-contained composer credits readout, and fail-soft deep links into each connector's own settings section. |
 | **OpenCode Go key** (0.9.2) | Paste an `oc_sk_…` API key in the OpenCode tab to pull the go-channel model directory (30 models) and use it. The host is vendored here, so this keeps working after the standalone OpenCode Go plugin is uninstalled. |
 | **Qoder local login** (0.9.1) | Pull the Qoder desktop client's **current** sign-in (no PAT needed), record it, and switch to it from the same account dropdown as PAT accounts. See [Qoder local login](#qoder-local-login). |
 | **Trae multi-account** (0.9.1) | List every Trae login already saved on this machine and switch between them from the hub — no re-login required. See [Trae local accounts](#trae-local-accounts). |
@@ -88,8 +89,8 @@ touch selection logic keep working.
 ## Self-contained connectors + unified settings hub
 
 **Since 0.8.0 this is a real physical merge.** The full code of all four
-connectors — WorkBuddy (5.24.15), Trae (4.18.5), Qoder
-(`@dmh2002/dsh-connect-qoder` 1.26.4) and OpenCode
+connectors — WorkBuddy (5.31.2), Trae (4.18.7), Qoder
+(`@dmh2002/dsh-connect-qoder` 1.27.1) and OpenCode
 (`@opencode2dsh/dsh-plugin` 0.3.14) — is vendored inside this package under
 `vendored/`. With the standalone bundles stopped and these four hosts served by
 `dsh-model-accordion`, **models, sign-in, saved config and settings keep working

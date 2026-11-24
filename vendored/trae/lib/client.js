@@ -2407,7 +2407,11 @@ ${u} ${p}-pool .sw input:checked+.sw-track::after{transform:translateX(16px)}
   color:inherit;font:inherit;font-size:12px;text-align:left;cursor:pointer;
   white-space:nowrap;overflow:hidden;
 }
-.dsm-trae-composer-panel-switch>span:last-child{overflow:hidden;text-overflow:ellipsis}
+/* The ellipsis the account NAME gets, in both branches: the switchable row and
+   the read-only one. A zero min-width is what lets a flex item shrink far
+   enough for the ellipsis to appear at all. */
+.dsm-trae-composer-panel-switch>span:last-child,
+.dsm-trae-composer-panel-account>span:last-child{overflow:hidden;text-overflow:ellipsis;min-width:0}
 /* Hover belongs to the switch, not the row: the number cell is not clickable,
    so lighting it up would promise an action it cannot perform. */
 .dsm-trae-composer-panel-switch:hover:not(:disabled){
@@ -2417,6 +2421,15 @@ ${u} ${p}-pool .sw input:checked+.sw-track::after{transform:translateX(16px)}
   outline:2px solid var(--dsw-alias-brand-primary,#5686fe);outline-offset:-1px;
 }
 .dsm-trae-composer-panel-switch:disabled{cursor:default}
+/* The row without a switch: the account pool is choosing the billing account,
+   so the name is a READOUT and not an action. Same shape as the button, minus
+   the pointer — the dot still marks the account in use. */
+.dsm-trae-composer-panel-account{
+  display:flex;align-items:center;gap:7px;
+  width:100%;padding:4px 6px;margin-left:-6px;
+  font-size:12px;text-align:left;
+  white-space:nowrap;overflow:hidden;
+}
 .dsm-trae-composer-panel-dot{
   flex:none;width:7px;height:7px;border-radius:50%;
   background:var(--dsw-alias-label-dimmed,rgba(127,127,127,.5));
@@ -7816,6 +7829,18 @@ ${u} ${p}-pool .sw input:checked+.sw-track::after{transform:translateX(16px)}
 		* per account in the region and that account's general balance, where a row
 		* click switches to it.
 		*
+		* ONE ACCOUNT, ONE NUMBER, ONE READ (issue #95). The row the trigger describes
+		* carries the TRIGGER's own figure — the usage document's balance — instead of a
+		* second, separately-read one; the other rows keep their own balances, because
+		* the document only knows one account. The current row is the account the
+		* request path would bill right now (the pool's `current` flag, then the
+		* document's own id), not the saved binding the `selected` flag names.
+		*
+		* While an account POOL is running the rows are not switchable: a row click
+		* writes the saved binding, and the pool — not the binding — decides who bills.
+		* The account name and the dot stay; only the button goes, and the panel says
+		* why.
+		*
 		* The panel's header carries the account-pool test batch, labelled 「刷新」, and
 		* a SETTINGS pill that opens this plugin's own page in the wide Settings dialog
 		* (`./settings-route.ts`).
@@ -8043,7 +8068,14 @@ ${u} ${p}-pool .sw input:checked+.sw-track::after{transform:translateX(16px)}
 			const usageRef = (0, react.useRef)(void 0);
 			const [lastRefresh, setLastRefresh] = (0, react.useState)(void 0);
 			const [open, setOpen] = (0, react.useState)(false);
-			const inFlight = (0, react.useRef)(false);
+			/**
+			* The usage read that is running right now, if any.
+			*
+			* A PROMISE, not a flag: a caller that finds one waits for it (see
+			* {@link fetchUsage}) instead of dropping its own read. A boolean could only
+			* say "yes, something is running", which is not enough to wait on.
+			*/
+			const inFlight = (0, react.useRef)(void 0);
 			const mounted = (0, react.useRef)(true);
 			const rootRef = (0, react.useRef)(null);
 			const panelRef = (0, react.useRef)(null);
@@ -8079,26 +8111,45 @@ ${u} ${p}-pool .sw input:checked+.sw-track::after{transform:translateX(16px)}
 				margin: 12
 			});
 			useDismissOnOutsidePointer(rootRef, open, setOpen, panelRef);
+			/**
+			* The usage document, read once per call.
+			*
+			* A read that is ALREADY RUNNING is waited for, not dropped.
+			*
+			* It used to be skipped outright (`if (inFlight.current) return`), and that
+			* left a hole in the fix for issue #95: the panel opens, the 5-minute poll
+			* happens to be mid-read, the panel's own read is dropped — and the panel
+			* then shows a balance read AFTER the toolbar's, which is exactly the
+			* disagreement this change removes. Waiting costs nothing: the caller wants
+			* the document anyway, and the wait is what keeps the reads from stacking.
+			*/
 			const fetchUsage = (0, react.useCallback)(async (signal) => {
-				if (inFlight.current || activeRegion === void 0) return;
-				inFlight.current = true;
+				if (activeRegion === void 0) return;
+				while (inFlight.current !== void 0) await inFlight.current;
+				if (signal?.aborted === true) return;
+				const task = (async () => {
+					try {
+						const response = await fetch(withTraeRegion(TRAE_USAGE_PATH, activeRegion), {
+							headers: { accept: "application/json" },
+							credentials: "same-origin",
+							...signal === void 0 ? {} : { signal }
+						});
+						if (!response.ok) throw new Error(`HTTP ${response.status}`);
+						const value = await response.json();
+						if (!mounted.current || signal?.aborted === true) return;
+						usageRef.current = value;
+						setUsage(value);
+						setLastRefresh(Date.now());
+						setFailed(false);
+					} catch {
+						if (mounted.current && signal?.aborted !== true) setFailed(true);
+					}
+				})();
+				inFlight.current = task;
 				try {
-					const response = await fetch(withTraeRegion(TRAE_USAGE_PATH, activeRegion), {
-						headers: { accept: "application/json" },
-						credentials: "same-origin",
-						...signal === void 0 ? {} : { signal }
-					});
-					if (!response.ok) throw new Error(`HTTP ${response.status}`);
-					const value = await response.json();
-					if (!mounted.current || signal?.aborted === true) return;
-					usageRef.current = value;
-					setUsage(value);
-					setLastRefresh(Date.now());
-					setFailed(false);
-				} catch {
-					if (mounted.current && signal?.aborted !== true) setFailed(true);
+					await task;
 				} finally {
-					inFlight.current = false;
+					if (inFlight.current === task) inFlight.current = void 0;
 				}
 			}, [activeRegion]);
 			/**
@@ -8176,9 +8227,25 @@ ${u} ${p}-pool .sw input:checked+.sw-track::after{transform:translateX(16px)}
 				if (!mounted.current || signal?.aborted === true) return;
 				setAccountPlans(Object.fromEntries(entries));
 			}, [activeRegion]);
+			/**
+			* Per-account figures are read on OPEN, not on the 5-minute cycle.
+			*
+			* The USAGE DOCUMENT is read again here too, and that is the fix for the
+			* report (issue #95): the toolbar's number came from the 5-minute poll, so a
+			* credit spent since then left the panel reading a NEWER balance than the
+			* trigger beside it — the two readouts described different moments of one
+			* account. Opening the panel IS the reader asking what is left right now, so
+			* the document is re-read with the table: both numbers then come from the
+			* same moment, and the row the trigger describes carries the trigger's own
+			* figure.
+			*
+			* It costs the same read the poll would have made anyway, and only while
+			* someone is looking at the panel.
+			*/
 			(0, react.useEffect)(() => {
 				if (!open || activeRegion === void 0) return void 0;
 				const controller = new AbortController();
+				fetchUsage(controller.signal);
 				if (activeRegion === "ai") fetchAccountPlans(controller.signal);
 				else fetchAccountCredits(controller.signal);
 				return () => {
@@ -8187,6 +8254,7 @@ ${u} ${p}-pool .sw input:checked+.sw-track::after{transform:translateX(16px)}
 			}, [
 				open,
 				activeRegion,
+				fetchUsage,
 				fetchAccountCredits,
 				fetchAccountPlans
 			]);
@@ -8213,7 +8281,7 @@ ${u} ${p}-pool .sw input:checked+.sw-track::after{transform:translateX(16px)}
 			const switchTo = async (accountId) => {
 				if (settingsScope === void 0 || settingsScope.getSnapshot().writable !== true) return;
 				if (activeRegion === void 0 || switchingId !== void 0) return;
-				if (accountId === (accountCredits?.find((account) => account.selected)?.id ?? (usage?.status === "signed-in" ? usage.accountId : void 0))) return;
+				if (accountId === currentId) return;
 				setSwitchingId(accountId);
 				setFailed(false);
 				try {
@@ -8353,6 +8421,30 @@ ${u} ${p}-pool .sw input:checked+.sw-track::after{transform:translateX(16px)}
 			* than a spinner the user has to wait on.
 			*/
 			const selectedId = accountCredits?.find((account) => account.selected)?.id ?? (signedIn === void 0 ? void 0 : signedIn.accountId);
+			/**
+			* The account the TOOLBAR'S number belongs to.
+			*
+			* TWO rules, one answer — and the answer is "the account the request path
+			* would bill right now", which is the pool card's own rule (`servingAccount`):
+			*
+			*  - the pool section's `current` flag. The pool selection runs BEFORE the
+			*    document reads the credits, so the flag names the very account whose
+			*    balance the document carries;
+			*  - the document's own `accountId`, which names the credential it read.
+			*
+			* The pool's flag comes FIRST on purpose: it stays right even when the two
+			* halves of the plugin are updated at different times — the client bundle is
+			* served from disk, so a browser refresh can pick up a new one while the
+			* Host still runs the old module. `accountId` is the fallback for a Host that
+			* serves no pool section at all.
+			*
+			* The table's `selected` flag is the LAST fallback, and it names a different
+			* thing (the saved binding). Preferring it put the trigger's number on the
+			* wrong row whenever the pool rotated: the panel showed one account's
+			* balance and the toolbar another, and both looked authoritative (issue
+			* #95).
+			*/
+			const currentId = signedIn?.pool?.accounts.find((account) => account.current === true)?.accountId ?? (signedIn !== void 0 && signedIn.accountId !== "" ? signedIn.accountId : void 0) ?? selectedId;
 			const rows = (activeRegion === "ai" ? signedIn === void 0 ? [] : signedIn.accounts.filter((account) => account.region === "ai").map((account) => ({
 				id: account.id,
 				accountName: account.accountName,
@@ -8362,13 +8454,43 @@ ${u} ${p}-pool .sw input:checked+.sw-track::after{transform:translateX(16px)}
 				accountName: account.accountName,
 				selected: account.selected
 			})))).map((row) => {
-				if (row.id !== selectedId || row.generalAvailable !== void 0 || general === void 0) return row;
+				/**
+				* ONE account, ONE number, ONE read (issue #95).
+				*
+				* The current row's balance is the TRIGGER'S balance — the figure the
+				* usage document carries — and not a second, separately-read figure for
+				* the same account.
+				*
+				* Two reads of one balance, taken at different moments, is exactly how the
+				* report looked: a toolbar reading 「Trae CN · <n>」 beside a row reading
+				* a slightly smaller number for the very same account. The table's own
+				* read is still the source for every OTHER account (the document only
+				* knows one), but for the account the toolbar describes there is nothing
+				* to add: the two must be the same number, and the only way to guarantee
+				* that is to use one of them.
+				*
+				* The old rule was the same idea applied to a narrower case — it filled in
+				* a MISSING figure from the document — which left a figure that was merely
+				* present (and therefore possibly read at another moment) standing on its
+				* own.
+				*/
+				if (row.id !== currentId || general === void 0) return row;
 				return {
 					...row,
 					generalAvailable: general
 				};
 			});
 			const canSwitch = settingsScope !== void 0 && settingsScope.getSnapshot().writable === true;
+			/**
+			* Whether the ACCOUNT POOL is the one choosing who bills.
+			*
+			* The pool card answers the same question in one line (「当前计费：X」) and
+			* drops its manual picker, because with the pool on the binding does not
+			* decide who serves. This panel follows the same rule: a row click writes
+			* the saved binding, so while the pool is running the rows are a READOUT of
+			* the balances, not a switch.
+			*/
+			const poolPicks = signedIn?.pool?.enabled === true;
 			/**
 			* This panel's account pool, when the Host reports one.
 			*
@@ -8494,12 +8616,21 @@ ${u} ${p}-pool .sw input:checked+.sw-track::after{transform:translateX(16px)}
 								className: "dsm-trae-composer-panel-num",
 								children: activeRegion === "ai" ? t("composer.plan") : t("composer.generalCredits")
 							})] }) }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("tbody", { children: rows.map((row) => {
-								const current = row.id === selectedId;
+								const current = row.id === currentId;
 								return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("tr", {
 									className: current ? "dsm-trae-composer-panel-row-current" : void 0,
 									children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("th", {
 										scope: "row",
-										children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+										children: poolPicks ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+											className: "dsm-trae-composer-panel-account",
+											children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+												className: "dsm-trae-composer-panel-dot",
+												"aria-hidden": "true"
+											}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+												className: "dsm-trae-composer-panel-name",
+												children: row.accountName
+											})]
+										}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 											type: "button",
 											className: "dsm-trae-composer-panel-switch",
 											disabled: !canSwitch || switchingId !== void 0 || current,
@@ -8510,12 +8641,15 @@ ${u} ${p}-pool .sw input:checked+.sw-track::after{transform:translateX(16px)}
 											children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 												className: "dsm-trae-composer-panel-dot",
 												"aria-hidden": "true"
-											}), row.accountName]
+											}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+												className: "dsm-trae-composer-panel-name",
+												children: row.accountName
+											})]
 										})
 									}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("td", {
 										className: "dsm-trae-composer-panel-num",
 										children: activeRegion === "ai" ? (() => {
-											const payStatus = row.id === selectedId && signedIn?.payStatus !== void 0 ? signedIn.payStatus : accountPlans?.[row.id];
+											const payStatus = row.id === currentId && signedIn?.payStatus !== void 0 ? signedIn.payStatus : accountPlans?.[row.id];
 											return payStatus === void 0 ? "—" : planText(payStatus, t);
 										})() : row.generalAvailable === void 0 ? "—" : formatCredits(row.generalAvailable)
 									})]
@@ -8538,6 +8672,11 @@ ${u} ${p}-pool .sw input:checked+.sw-track::after{transform:translateX(16px)}
 								lastRefresh === void 0 ? "—" : formatClock(lastRefresh)
 							] })
 						}),
+						poolPicks ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
+							className: "dsm-trae-composer-panel-note",
+							role: "status",
+							children: t("composer.poolPicks")
+						}) : null,
 						failed ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", {
 							className: "dsm-trae-composer-panel-error",
 							role: "status",
@@ -9129,6 +9268,7 @@ ${u} ${p}-pool .sw input:checked+.sw-track::after{transform:translateX(16px)}
 			"composer.testFailed": "Could not test the pool",
 			"composer.testTimedOut": "Testing took too long and was given up on",
 			"composer.refreshFailed": "Could not refresh credits",
+			"composer.poolPicks": "The account pool is choosing the billing account — switch accounts in the settings page",
 			"row.accountsRefreshed": "Accounts refreshed: {count} found{selected}",
 			"row.accountsSaved": "bound to",
 			"row.accountsKept": "still bound to",
@@ -9554,6 +9694,7 @@ ${u} ${p}-pool .sw input:checked+.sw-track::after{transform:translateX(16px)}
 			"composer.testFailed": "账号池测速失败",
 			"composer.testTimedOut": "测速用时过长，已放弃",
 			"composer.refreshFailed": "积分刷新失败",
+			"composer.poolPicks": "账号池正在挑选计费账号——手动切换账号请到设置页",
 			"row.accountsRefreshed": "已刷新账号：找到 {count} 个账号{selected}",
 			"row.accountsSaved": "已绑定",
 			"row.accountsKept": "仍绑定",

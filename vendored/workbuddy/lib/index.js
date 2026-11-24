@@ -1,4 +1,4 @@
-import { $ as CREDENTIAL_REJECTED_CODE, $t as imageSizeLimitsOf, A as withoutRouters, An as openEncryptedField, At as promoBadgeTone, B as defaultDesktopAuthPath, Bt as VIDEO_TAG_TEXT_TO_VIDEO, C as setDeviceMode, Cn as fetchAtRestKeyPayload, Ct as perturbChannelFingerprints, D as applyContextBudgets, Dn as isWorkbuddyBundle, Dt as rewriteSessionTitleModel, E as WorkBuddyCatalog, En as isEncryptedFieldWrapper, Et as requestEvidenceOf, F as WorkBuddyCredentialStore, Fn as withFileLock, Ft as offDefaultFor, G as parseWorkBuddyAuth, Gt as IMAGE_SIZE_LIMITS_WIDE, H as isEncryptedCredentialError, Ht as parseSupportedSecondsRange, I as WorkBuddyEncryptedCredentialError, In as writeFileAtomic, It as offRefused, J as workbuddyOwnAuthPath, Jt as MAX_INPUT_IMAGE_BYTES, K as preferredAccountName, Kt as IMAGE_TAG_IMAGE_TO_IMAGE, L as authFileName, Lt as recordRefusal, M as WORKBUDDY_AUTH_FILENAME, Mn as workbuddyAppExecutableCandidates, Mt as REFUSES_OFF_MODEL_IDS, N as WORKBUDDY_AUTH_FILE_ENV, Nt as defaultOffModelIds, O as deriveCatalog, On as macosBundleExecutable, Ot as toolSchemaRejectAdvice, Pn as resolveDshHome, Pt as lastRefusalFor, Q as CONTEXT_OVERFLOW_MARKER, Qt as imageModelChoices, R as defaultDesktopAuthCandidates, Rt as withEffectiveOff, S as saveDeviceSdkSettings, Sn as deriveAtRestKeyId, St as parseUpstreamModel, T as FALLBACK_WORKBUDDY_MODELS_GLOBAL, Tt as regionOf, U as isVaultAccountId, Ut as pickVideoModel, V as hasEncryptedCredentialFields, Vt as WorkBuddyVideoError, W as legacyWorkbuddyOwnAuthPath, Wt as resolveVideoParams, X as APP_VERSION, Xt as imageDataUrl, Yt as WorkBuddyImageError, Z as BODY_OVERSIZE_MARKER, Zt as imageMimeForPath, _ as createDeviceProfileLookup, _t as knownRegionOf, a as readHostHeartbeat, an as parseQueueAnswer, at as classifyUpstreamError, b as readDeviceSettings, bn as clearAtRestKeyCache, bt as parseCreditMultiplier, c as WORKBUDDY_CONNECT_VERSION, cn as NATIVE_MODALITY_BY_MODEL_ID, ct as deriveStableConversationId, dt as isBodyOversizeRefusal, en as isBareBase64Image, ft as isContextTooLongBody, g as createTuringSdk, gn as isDeviceId, gt as isToolSchemaRejectBody, h as createDeviceSdkPort, ht as isFirstMessageGateBody, i as processStartTimeMs, in as sniffImageMime, it as channelGateMemberOf, j as ENCRYPTED_CREDENTIAL_CODE, jn as readAtRestKey, jt as selectPromoBadge, k as fallbackModelsFor, kn as macosNestedAppBundles, kt as attachBusyLevels, l as createFileRosterSeenStore, ln as imageDefaultFor, m as piAiRuntimeInfo, mt as isCredentialRejectedError, n as clearHostHeartbeat, nn as parseImageDataUrl, nt as WorkBuddyCredentialRejectedError, o as workbuddyHostHeartbeatPath, on as queueNoticeText, ot as conversationIdFromSessionId, p as resolveCnGateway, pt as isConversationIdGateBody, q as workbuddyAccountId, qt as IMAGE_TAG_TEXT_TO_IMAGE, r as isHeartbeatProcessAlive, rn as pickMediaModel, rt as WorkBuddyUpstreamClient, s as writeHostHeartbeat, sn as pruneTempDir, st as declaredTools, t as WORKBUDDY_HOST_HEARTBEAT_FILENAME, tn as isWatermarkFreeImageModel, tt as WORKBUDDY_FALLBACK_SYSTEM_PROMPT, un as nativeModalityOf, ut as forceNeutralHead, v as describeDerivedDevices, vt as modelIdOfBody, w as FALLBACK_WORKBUDDY_MODELS, wn as findWorkbuddyAppExecutable, wt as prepareChatBody, x as saveDeviceProfile, xn as deriveAtRestKey, xt as parseReasoning, y as isDeviceMode, yn as WORKBUDDY_APP_EXECUTABLE_ENV, yt as openingEvidenceOfBody, z as defaultDesktopAuthDirs, zt as VIDEO_TAG_IMAGE_TO_VIDEO } from "./host-heartbeat-BqK7yBp2.js";
+import { $ as CREDENTIAL_REJECTED_CODE, $t as imageModelChoices, A as withoutRouters, An as macosBundleExecutable, At as attachBusyLevels, B as defaultDesktopAuthPath, Bt as VIDEO_TAG_IMAGE_TO_VIDEO, C as setDeviceMode, Cn as deriveAtRestKey, Ct as parseUpstreamModel, D as applyContextBudgets, Dt as requestEvidenceOf, E as WorkBuddyCatalog, En as findWorkbuddyAppExecutable, Et as regionOf, F as WorkBuddyCredentialStore, Ft as lastRefusalFor, G as parseWorkBuddyAuth, Gt as resolveVideoParams, H as isEncryptedCredentialError, Ht as WorkBuddyVideoError, I as WorkBuddyEncryptedCredentialError, In as resolveDshHome, It as offDefaultFor, J as workbuddyOwnAuthPath, Jt as IMAGE_TAG_TEXT_TO_IMAGE, K as preferredAccountName, Kt as IMAGE_SIZE_LIMITS_WIDE, L as authFileName, Ln as withFileLock, Lt as offRefused, M as WORKBUDDY_AUTH_FILENAME, Mn as openEncryptedField, Mt as selectPromoBadge, N as WORKBUDDY_AUTH_FILE_ENV, Nn as readAtRestKey, Nt as REFUSES_OFF_MODEL_IDS, O as deriveCatalog, On as isEncryptedFieldWrapper, Ot as rewriteSessionTitleModel, Pn as workbuddyAppExecutableCandidates, Pt as defaultOffModelIds, Q as CONTEXT_OVERFLOW_MARKER, Qt as imageMimeForPath, R as defaultDesktopAuthCandidates, Rn as writeFileAtomic, Rt as recordRefusal, S as saveDeviceSdkSettings, Sn as clearAtRestKeyCache, St as parseReasoning, T as FALLBACK_WORKBUDDY_MODELS_GLOBAL, Tn as fetchAtRestKeyPayload, Tt as prepareChatBody, U as isVaultAccountId, Ut as parseSupportedSecondsRange, V as hasEncryptedCredentialFields, Vt as VIDEO_TAG_TEXT_TO_VIDEO, W as legacyWorkbuddyOwnAuthPath, Wt as pickVideoModel, X as APP_VERSION, Xt as WorkBuddyImageError, Yt as MAX_INPUT_IMAGE_BYTES, Z as BODY_OVERSIZE_MARKER, Zt as imageDataUrl, _ as createDeviceProfileLookup, _t as isToolSchemaRejectBody, a as readHostHeartbeat, an as sniffImageMime, at as classifyUpstreamError, b as readDeviceSettings, bt as openingEvidenceOfBody, c as WORKBUDDY_CONNECT_VERSION, cn as pruneTempDir, ct as deriveStableConversationId, dn as isRouterModelId, dt as growthHostOf, en as imageSizeLimitsOf, fn as nativeModalityOf, ft as isBodyOversizeRefusal, g as createTuringSdk, gt as isFirstMessageGateBody, h as createDeviceSdkPort, ht as isCredentialRejectedError, i as processStartTimeMs, in as pickMediaModel, it as channelGateMemberOf, j as ENCRYPTED_CREDENTIAL_CODE, jn as macosNestedAppBundles, jt as promoBadgeTone, k as fallbackModelsFor, kn as isWorkbuddyBundle, kt as toolSchemaRejectAdvice, l as createFileRosterSeenStore, ln as NATIVE_MODALITY_BY_MODEL_ID, m as piAiRuntimeInfo, mt as isConversationIdGateBody, n as clearHostHeartbeat, nn as isWatermarkFreeImageModel, nt as WorkBuddyCredentialRejectedError, o as workbuddyHostHeartbeatPath, on as parseQueueAnswer, ot as conversationIdFromSessionId, p as resolveCnGateway, pt as isContextTooLongBody, q as workbuddyAccountId, qt as IMAGE_TAG_IMAGE_TO_IMAGE, r as isHeartbeatProcessAlive, rn as parseImageDataUrl, rt as WorkBuddyUpstreamClient, s as writeHostHeartbeat, sn as queueNoticeText, st as declaredTools, t as WORKBUDDY_HOST_HEARTBEAT_FILENAME, tn as isBareBase64Image, tt as WORKBUDDY_FALLBACK_SYSTEM_PROMPT, un as imageDefaultFor, ut as forceNeutralHead, v as describeDerivedDevices, vn as isDeviceId, vt as knownRegionOf, w as FALLBACK_WORKBUDDY_MODELS, wn as deriveAtRestKeyId, wt as perturbChannelFingerprints, x as saveDeviceProfile, xn as WORKBUDDY_APP_EXECUTABLE_ENV, xt as parseCreditMultiplier, y as isDeviceMode, yt as modelIdOfBody, z as defaultDesktopAuthDirs, zt as withEffectiveOff } from "./host-heartbeat-DS8vA9bT.js";
 import z from "@deepseek-ai/schemastery";
 import { appendFile, mkdir, open, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
@@ -251,6 +251,42 @@ function isUnconfiguredFallbackSnapshot(saved, region) {
 	return saved.every((model) => model.reasoning === void 0 && model.creditMultiplier === void 0);
 }
 /**
+* The roster an upstream READ answers with.
+*
+* ISSUE #288, and the whole of it. The international region reads the product
+* configuration twice — as the CLI channel and as the app channel — because
+* neither document is a superset of the other. When one of the two reads is
+* refused (a rate limit, a transport error) the answer comes from the other
+* one, and that answer is missing every row the refused document published:
+* the CLI-only rows (`fast-model`, `balanced-model`, `primary-model`,
+* `deepseek-v4.1-flash`, `hy4-preview`, …) are exactly what the app document
+* does not carry.
+*
+* The answer is then filtered by the user's own selection — so a rate limit
+* could leave the model picker with a single row, while the profile still
+* held the whole directory and nothing on screen said why. The reporter's
+* words: 「模型选择器静默降级成只剩 1 个模型」.
+*
+* SO A DEGRADED READ IS ANSWERED WITH THE SAVED DIRECTORY BESIDE IT. The rows
+* the refused document published are still the upstream's offer; they are just
+* not in this answer. Merging the saved directory back in is the same rule
+* issue #32 states — a refresh must never withdraw a model the user is on —
+* and it is what keeps the picker whole while the upstream is refusing.
+*
+* A HEALTHY READ ANSWERS ALONE. The upstream is the truth about what it
+* currently offers, and the saved directory is a snapshot of one moment; the
+* union would keep offering models the upstream has since withdrawn. That
+* difference is deliberate: a COMPLETE read may narrow the list, a PARTIAL one
+* may not.
+*
+* @param saved The region's saved directory (may be empty).
+* @param read The upstream read: its roster, and whether it was degraded.
+*/
+function rosterOfRead(saved, read) {
+	if (read.degraded === void 0) return read.models;
+	return mergeRoster(saved, read.models);
+}
+/**
 * The roster the runtime serves for a region.
 *
 * THE ORDER OF THE THREE SOURCES is the whole point of issues #114/#115:
@@ -283,6 +319,420 @@ function resolveRoster(saved, live, region, options = {}) {
 		const { busyLevel: _dropped, ...rest } = model;
 		return rest;
 	});
+}
+//#endregion
+//#region src/probe.ts
+/**
+* How long to bench a MODEL that answered 14003 with no stated time.
+*
+* One minute, because that is what the upstream itself says: the failure body
+* carries `displayTips.zh` = "建议等待约 1 分钟后重试，或切换到负载较低的模型"
+* (and its English twin "Wait about a minute before retrying, or switch to a
+* less busy model"). A fallback coarser than the upstream's own advice is not
+* conservatism, it is a different and worse claim: issue #56 reports 14003 being
+* multiplied into 30 minutes per account, which turned a one-minute model
+* hiccup into a half-hour outage across the whole pool.
+*
+* Two minutes rather than one, because a probe costs a full request and the
+* point of the wait is to be past the burst, not to land exactly on its edge.
+*/
+const MODEL_BUSY_COOLDOWN_MS$1 = 12e4;
+/**
+* The system message every probe carries.
+*
+* Not decoration: the international gateway rejects a conversation that does not
+* start with a system message (see the module note). A probe that omitted it
+* would report every global model as broken.
+*/
+const PROBE_SYSTEM_PROMPT = "You are a connectivity check. Reply with a single word.";
+/**
+* Output cap for a probe. One token is enough to prove the model answers.
+*
+* The probe's cost comes from its INPUT, not its output (see
+* {@link DEFAULT_PROBE_INPUT_TOKENS}), so paying for a long completion would add money
+* without adding signal.
+*/
+const PROBE_MAX_TOKENS = 1;
+/**
+* How much input a probe sends, in tokens.
+*
+* This is the whole point of the probe, and it is NOT a free choice. The
+* upstream's rate limit (business code 6004) fires on request SIZE, measured on
+* 2026-09-29 by varying only the input against one account and one model:
+*
+*   | input     | prompt_tokens the upstream counted | result |
+*   | ---       | ---                                | ---    |
+*   | ~10       | 38                                 | ok     |
+*   | ~1,000    | 1,138                              | ok     |
+*   | ~10,000   | 11,138                             | ok     |
+*   | ~18,000   | 20,018                             | ok     |
+*   | ~25,000   | 25,023                             | ok     |
+*   | ~30,000   | ~32k                               | **429 / 6004** |
+*
+* So the threshold sits between 20k and 30k, a SINGLE large request is enough to
+* trip it (it is not a running total), and each account reports its own reset
+* time (two accounts at the same moment: `22:20:33` and `00:32:51`).
+*
+* A probe that sent a handful of tokens answered "usable" while every real
+* request in a long conversation was refused — the probe was asking too small a
+* question. 25k is sized to be a realistic long-conversation payload.
+*
+* Renamed from `PROBE_INPUT_TOKENS` to say what it now IS: the DEFAULT, not the
+* only possible size. The size is a property of the user's own traffic (see
+* {@link probeRequestBody}), so it became a setting; this constant is what an
+* unset setting, an older profile, and every existing test mean by "a probe".
+*/
+const DEFAULT_PROBE_INPUT_TOKENS = 25e3;
+/**
+* The probe sizes the card offers, in tokens.
+*
+* A closed set, each step a meaningful position relative to the measured 20k~30k
+* threshold: below it (10k/20k) proves an account can serve SHORT requests and
+* is the cheap choice; at it (30k) is the size that finally covers the whole
+* measured window; above it (50k/100k) is for conversations that routinely run
+* long, where a smaller probe would report "usable" for an account that refuses
+* the very next message.
+*
+* Exported so the schema's description, the card's dropdown, and the coercion
+* below cannot drift apart into three different menus.
+*/
+const PROBE_INPUT_TOKEN_CHOICES = [
+	1e4,
+	2e4,
+	3e4,
+	5e4,
+	1e5
+];
+/**
+* A requested probe size reduced to a size this build will actually send.
+*
+* Anything outside {@link PROBE_INPUT_TOKEN_CHOICES} — `undefined` from an older
+* profile, `0` from an unset field, a hand-edited odd number — becomes the
+* measured default. Coercing rather than rejecting keeps a hand-edited profile
+* working instead of turning one odd value into a failed test batch.
+*/
+function resolveProbeInputTokens(requested) {
+	return requested !== void 0 && PROBE_INPUT_TOKEN_CHOICES.includes(requested) ? requested : DEFAULT_PROBE_INPUT_TOKENS;
+}
+/**
+* Characters per token for the filler text, measured.
+*
+* Filling with a fixed English sentence, the upstream counted about 4.5
+* characters per token. An estimate rather than a bundled tokenizer: the body
+* only needs to be the right SIZE CLASS, and the target has ample margin over
+* the measured threshold, so estimate error cannot change the verdict.
+*/
+const CHARS_PER_TOKEN = 4.5;
+/** Neutral filler; carries no user content, only volume. */
+const FILLER_LINE = "The quick brown fox jumps over the lazy dog. ";
+/**
+* Build the request body for one probe.
+*
+* `stream` is forced because the upstream rejects non-streaming chat requests;
+* `prepareChatBody` enforces that too, but sending it explicitly keeps this
+* function's output valid on its own.
+*
+* Measured on the built artifact at the DEFAULT size: 112,713 bytes of body, and
+* the upstream counted `prompt_tokens: 25023` at a cost of `credit: 0.72`. The
+* body bytes and the credit both scale with the size asked for, which is why the
+* size is a user setting: a larger probe answers more truthfully for someone
+* whose conversations are long, and costs proportionally more to ask.
+*/
+function probeRequestBody(modelId, inputTokens = DEFAULT_PROBE_INPUT_TOKENS) {
+	const targetChars = Math.ceil(resolveProbeInputTokens(inputTokens) * CHARS_PER_TOKEN);
+	const filler = FILLER_LINE.repeat(Math.ceil(targetChars / 45));
+	return JSON.stringify({
+		model: modelId,
+		messages: [{
+			role: "system",
+			content: PROBE_SYSTEM_PROMPT
+		}, {
+			role: "user",
+			content: `${filler}Reply with a single word.`
+		}],
+		max_tokens: 1,
+		stream: true
+	});
+}
+/**
+* Parse a `Retry-After` header value into an absolute time.
+*
+* Both RFC 9110 forms are accepted: delay-seconds (`120`) and an HTTP-date
+* (`Wed, 21 Oct 2026 07:28:00 GMT`). Returns undefined for anything else,
+* including the negative/zero delays some gateways emit — a "retry now" is not
+* a cooldown and reporting it as one would be worse than saying nothing.
+*
+* `nowMs` is injected so the delay-seconds branch is testable without a clock.
+*/
+function parseRetryAfter(value, nowMs) {
+	if (value === null) return void 0;
+	const trimmed = value.trim();
+	if (trimmed === "") return void 0;
+	if (/^\d+$/u.test(trimmed)) {
+		const seconds = Number(trimmed);
+		if (!Number.isFinite(seconds) || seconds <= 0) return void 0;
+		return nowMs + seconds * 1e3;
+	}
+	const parsed = Date.parse(trimmed);
+	if (Number.isNaN(parsed)) return void 0;
+	if (parsed <= nowMs) return void 0;
+	return parsed;
+}
+/**
+* The `<timestamp> UTC±N` core of the upstream's reset sentence.
+*
+* Shared by both spellings below so the two can never drift into accepting
+* different timestamps: the offset handling and the calendar round-trip check in
+* {@link parseUpstreamResetAt} are what make a parsed value trustworthy, and two
+* copies of this shape would be two chances to loosen one of them.
+*/
+const RESET_STAMP = String.raw`(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})\s*UTC\s*([+-])(\d{1,2})(?::?(\d{2}))?`;
+/**
+* The upstream's reset sentence, in BOTH spellings this service uses.
+*
+* Chinese gateway, measured on a live 429 (code 6004), verbatim:
+*
+*   `您的使用量已超出频率限制，将在 2026-09-30 02:30:30 UTC+8 重置，您也可以切换其他模型继续使用。`
+*
+* International gateway, measured on the same code over the same account pool,
+* verbatim:
+*
+*   `usage exceeds frequency limit, but don't worry, your usage will reset at
+*    2026-10-16 11:34:04 UTC+8, alternatively, you can switch to the other
+*    models to continue using it.`
+*
+* WHY THERE ARE TWO. Each gateway states the time in its own language, and the
+* marker sits on a DIFFERENT SIDE of the timestamp: 重置 follows it in Chinese,
+* while `reset at` precedes it in English — so one pattern cannot cover both by
+* loosening the surrounding prose alone. The original pattern demanded the
+* Chinese keyword, so an English body parsed to nothing and the card said
+* 「上游未给出何时恢复」 about a message that had just named the exact minute.
+*
+* That is the honest-absence contract broken in the OTHER direction — not a
+* made-up time, but a real time discarded — and it is the worse of the two
+* failures, because the account stays excluded on the 30-minute fallback instead
+* of the ~18 hours upstream asked for. The pool then returns the account to
+* candidacy early and spends a request rediscovering the same 6004.
+*
+* Both patterns stay deliberately loose about the surrounding prose and strict
+* about the parts that must not be guessed: a keyword, the timestamp shape, and
+* an explicit UTC offset. A message that merely mentions a reset without a
+* parsable offset still yields no time, which remains the honest answer.
+*/
+const UPSTREAM_RESET_PATTERN_ZH = new RegExp(`将在?\\s*${RESET_STAMP}[\\s\\S]*?重置`, "u");
+/**
+* The English spelling, anchored on `reset at` / `refresh on` IMMEDIATELY before
+* the timestamp — the same strictness as the Chinese pattern, which requires its
+* marker immediately after it. A message that mentions a reset somewhere else
+* entirely therefore still yields no time.
+*/
+const UPSTREAM_RESET_PATTERN_EN = new RegExp(`(?:reset|resets|refresh|refreshes)\\s+(?:at|on)\\s+${RESET_STAMP}`, "iu");
+/**
+* Parse the reset time out of an upstream failure message.
+*
+* Returns epoch ms, or undefined when the message names no parsable time — the
+* caller must then say "the upstream gave no time", never invent one.
+*
+* THE OFFSET IS HONOURED, NOT ASSUMED. `2026-09-30 02:30:30 UTC+8` is 18:30:30
+* UTC the previous day, and `Date.parse` on the bare string would read it as
+* LOCAL time — on a machine set to UTC+8 that happens to be right, and on any
+* other machine it is silently wrong by the offset. So the components are
+* assembled with `Date.UTC` and the stated offset subtracted, which is correct
+* on every host regardless of its own zone.
+*
+* A whole-second resolution is what the upstream prints; sub-second precision
+* would be fiction in the other direction.
+*/
+function parseUpstreamResetAt(message) {
+	const match = UPSTREAM_RESET_PATTERN_ZH.exec(message) ?? UPSTREAM_RESET_PATTERN_EN.exec(message);
+	if (match === null) return void 0;
+	const [, year, month, day, hour, minute, second, sign, offsetHours, offsetMinutes] = match;
+	const offsetTotalMinutes = (sign === "-" ? -1 : 1) * (Number(offsetHours) * 60 + Number(offsetMinutes ?? "0"));
+	const utcMs = Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second));
+	const parsed = new Date(utcMs);
+	if (parsed.getUTCFullYear() !== Number(year) || parsed.getUTCMonth() !== Number(month) - 1 || parsed.getUTCDate() !== Number(day) || parsed.getUTCHours() !== Number(hour) || parsed.getUTCMinutes() !== Number(minute) || parsed.getUTCSeconds() !== Number(second)) return;
+	if (Math.abs(offsetTotalMinutes) > 840) return void 0;
+	return utcMs - offsetTotalMinutes * 6e4;
+}
+/**
+* The upstream reset metadata, if stated. A credit-package refresh timestamp
+* is retained for diagnostics; it is not a minimum wait or recovery evidence.
+*
+* Three sources, in order of authority:
+*
+* 1. `Retry-After` on the failure response. This is the upstream naming a time
+*    for THIS request, so it wins.
+* 2. The reset time the upstream writes into its own failure body (see
+*    {@link parseUpstreamResetAt}). This is the case that actually fires on
+*    this service: a 429 from the Chinese gateway carries code 6004 and a
+*    `将在 … 重置` sentence, with no `Retry-After` header at all.
+* 3. The region's monthly quota refresh point, but ONLY for an out-of-credit
+*    outcome. Check-in or a purchase can replenish credits earlier, so callers
+*    must not render this metadata as a recovery countdown or release the
+*    account when the timestamp passes.
+*
+* A limited outcome with none of the three returns `{}`. Rate-limit views state
+* that no time was given; credit-exhaustion views name the replenishment action
+* instead. Neither view invents a countdown.
+*
+* An `ok` outcome ALWAYS returns `{}`, whatever headers or body came with it.
+* A successful probe has already answered "can this account serve right now?"
+* with yes, so there is no wait to state; and on this gateway a 200 can carry a
+* `Retry-After` whose value is the account's monthly quota reset, which must
+* never be rendered as a lockout. See the guard at the top of the function.
+*
+* `model-busy` is the ONE exception, and it is not an invented countdown: the
+* upstream states a magnitude in prose ("about a minute") rather than a
+* timestamp, and the card's own vocabulary has no way to render "about". A
+* per-account fallback of 30 minutes is what it used to get, which is both wrong
+* about the magnitude and wrong about the scope (issue #56). The returned value
+* is {@link MODEL_BUSY_COOLDOWN_MS}, and it is used only to bench the MODEL, never
+* an account.
+*/
+function cooldownOf(input) {
+	if (input.outcome === "ok") return {};
+	const fromHeader = parseRetryAfter(input.retryAfter, input.nowMs);
+	if (fromHeader !== void 0) return {
+		retryAtMs: fromHeader,
+		retrySource: "retry-after"
+	};
+	const fromBody = input.body === void 0 ? void 0 : parseUpstreamResetAt(input.body);
+	if (fromBody !== void 0) return {
+		retryAtMs: fromBody,
+		retrySource: "upstream-message"
+	};
+	if (input.outcome === "out-of-credit" && input.quotaRefreshAtMs !== void 0) return {
+		retryAtMs: input.quotaRefreshAtMs,
+		retrySource: "quota-refresh"
+	};
+	if (input.outcome === "model-busy") return {
+		retryAtMs: input.nowMs + MODEL_BUSY_COOLDOWN_MS$1,
+		retrySource: "upstream-tips"
+	};
+	return {};
+}
+/**
+* Classify one failed probe into the card's outcome vocabulary.
+*
+* Built on `classifyUpstreamError` rather than re-testing status codes, so a
+* probe and a real chat request can never disagree about what the same upstream
+* answer means. The extra splits here are `credential-rejected`, which the
+* upstream signals with a non-JSON 401/403 edge page and which needs completely
+* different advice (re-auth, not "wait"), `policy-rejected`, a JSON 403
+* content-policy refusal where re-auth advice would be actively misleading,
+* `model-busy`, the model-scoped 14003 throttle that must NOT be benched as an
+* account failure (issue #56), and `channel-rejected`, the gateway's 11128 gate
+* on the PROMPT's opening, which no account can change.
+*/
+function outcomeOfFailure(status, body) {
+	if (status === 401 || status === 403) {
+		const kind = classifyUpstreamError(status, body);
+		if (kind === "policy_reject") return "policy-rejected";
+		if (kind === "account_restricted") return "account-restricted";
+		return "credential-rejected";
+	}
+	switch (classifyUpstreamError(status, body)) {
+		case "soft_rate": return "rate-limited";
+		case "model_busy": return "model-busy";
+		case "hard_credit": return "out-of-credit";
+		case "session_dead": return "credential-rejected";
+		case "account_restricted": return "account-restricted";
+		case "channel_reject": return "channel-rejected";
+		case "not_found": return "not-found";
+		default: return status === 0 || status >= 500 ? "unavailable" : "failed";
+	}
+}
+/**
+* Read the credit this probe consumed out of an SSE stream, when the upstream
+* reports it.
+*
+* Purely informational — the card shows it so a user can see how little a probe
+* actually costs rather than having to trust a claim. Absent when the stream
+* carried no `usage` block.
+*/
+function creditOfStream(text) {
+	const match = /"credit"\s*:\s*(-?[0-9]*\.?[0-9]+)/u.exec(text);
+	if (match === null) return void 0;
+	const value = Number(match[1]);
+	return Number.isFinite(value) ? value : void 0;
+}
+/** Whether a probe outcome means the model answered. */
+function probeSucceeded(outcome) {
+	return outcome === "ok";
+}
+/** Max characters of upstream text kept for display, after redaction. */
+const PROBE_MESSAGE_LIMIT = 300;
+/**
+* Redact token-shaped content out of upstream text before it is stored or sent.
+*
+* Lives here rather than in the route layer because this module is the one that
+* reads raw failure bodies, so the redaction belongs at the point of capture. A
+* probe failure body is the one place a raw upstream string from an arbitrary
+* endpoint enters the plugin's data flow.
+*
+* EXPORTED because a failed CHAT request now persists its reason into the pool
+* store too (`recordAccountFailure` in `src/index.ts`), and that text is a raw
+* upstream body as well. One implementation, so the two writers cannot drift
+* into redacting differently — the same "one definition" rule this codebase
+* applies to `effectiveMembersOf`.
+*/
+function redactUpstreamText(text) {
+	return text.replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/gu, "[redacted token]").replace(/(\b(?:code|token|refresh_token|access_token)=)[^&\s]+/giu, "$1[redacted]").slice(0, PROBE_MESSAGE_LIMIT);
+}
+/**
+* Run one probe for one model and reduce it to the card's row.
+*
+* The successful path drains the SSE stream purely to read the `credit` figure
+* the upstream reports, then discards the rest: the question is whether this
+* model answers a real-sized request, and `max_tokens: 1` means there is nothing
+* else in the stream worth keeping.
+*
+* Never throws. A probe is a diagnostic the user asked for, so every failure is
+* a RESULT — one dead model must not abort the batch and hide the other rows.
+*/
+async function probeModel(input) {
+	let answer;
+	const startedAt = Date.now();
+	try {
+		answer = await input.client.probeChat(input.credential, probeRequestBody(input.modelId, input.inputTokens), input.signal);
+	} catch (error) {
+		return {
+			modelId: input.modelId,
+			outcome: "unavailable",
+			status: 0,
+			message: redactUpstreamText(error instanceof Error ? error.message : String(error))
+		};
+	}
+	const elapsedMs = Date.now() - startedAt;
+	if (answer.ok) {
+		let credit;
+		if (answer.response !== void 0) try {
+			credit = creditOfStream(await answer.response.text());
+		} catch {}
+		return {
+			modelId: input.modelId,
+			outcome: "ok",
+			elapsedMs: Date.now() - startedAt,
+			status: answer.status,
+			...credit === void 0 ? {} : { message: `credit ${credit}` }
+		};
+	}
+	const body = answer.body ?? "";
+	const outcome = outcomeOfFailure(answer.status, body);
+	return {
+		modelId: input.modelId,
+		outcome,
+		elapsedMs,
+		status: answer.status,
+		...body === "" ? {} : { message: redactUpstreamText(body) },
+		...cooldownOf({
+			outcome,
+			retryAfter: answer.retryAfter,
+			nowMs: input.nowMs,
+			body,
+			...input.quotaRefreshAtMs === void 0 ? {} : { quotaRefreshAtMs: input.quotaRefreshAtMs }
+		})
+	};
 }
 //#endregion
 //#region src/status-paths.ts
@@ -440,7 +890,7 @@ function poolActionOf(url) {
 	const at = url.indexOf("?");
 	if (at === -1) return void 0;
 	const value = new URLSearchParams(url.slice(at + 1)).get(WORKBUDDY_POOL_ACTION_PARAM);
-	return value === "checkin" || value === "test" || value === "remove" ? value : void 0;
+	return value === "checkin" || value === "test" || value === "remove" || value === "growth-redeem" || value === "growth-activity" ? value : void 0;
 }
 /** Query parameter naming ONE pool account a per-row request addresses. */
 const WORKBUDDY_POOL_ACCOUNT_PARAM = "accountId";
@@ -862,6 +1312,29 @@ function toPersistedWorkBuddyModel(model) {
 	return {
 		...rest,
 		contextWindow: nativeContextWindow
+	};
+}
+/**
+* Project the Host's degradation onto the wire shape.
+*
+* The upstream's body is REDACTED before it crosses to the browser, for the
+* same reason the pool redacts it before it touches the disk: this is a raw
+* upstream string, and a failure body that happens to carry a token-shaped
+* fragment must not be shown on screen (see `redactUpstreamText`).
+*
+* The recovery time is PARSED from that body rather than carried by the
+* upstream layer, so the parser that reads the upstream's two spellings
+* (Chinese and English) stays the one this codebase already uses for the pool's
+* cooldowns — a second copy of it would be a second chance to loosen it.
+*/
+function toWebCatalogDegradation(degradation) {
+	const reason = redactUpstreamText(degradation.body.trim());
+	const resetAtMs = parseUpstreamResetAt(degradation.body);
+	return {
+		missing: degradation.missing,
+		used: degradation.used,
+		reason,
+		...resetAtMs === void 0 ? {} : { resetAtMs }
 	};
 }
 /**
@@ -1408,13 +1881,42 @@ const WORKBUDDY_STREAM_IDLE_TIMEOUT_MS = 3e5;
 * number to put in `maxRequestImages` — with a comment saying where it came
 * from. Do not "borrow" the host's 50: it belongs to the host's own pi-ai
 * routes, not to WorkBuddy.
+*
+* THE PER-IMAGE CAP HAS TWO SPELLINGS, AND BOTH MUST BE STATED (issue #289).
+* Up to 0.2.2 the RESOLVED profile carried `requestImageMaxBytes`; from 0.2.3
+* the host renamed that field to `maxImageBytes` on the resolved profile
+* (`resolveProfiles` maps the CONFIG spelling `requestImageMaxBytes` to the
+* RESOLVED spelling `maxImageBytes`). This route hand-builds its resolved
+* profile — it never goes through `resolveProfiles()` — so neither rename can
+* happen for it. Stating both is what keeps the 1 MiB cap on both host lines:
+* 0.2.2 reads `requestImageMaxBytes`, 0.2.3 reads `maxImageBytes`.
+*
+* `requestImageBudgetCount` is REQUIRED from 0.2.3, where
+* `resolveImageRequestBudget()` divides the aggregate byte budget by it:
+*
+*   allocated = floor(maxRequestImageBytes / requestImageBudgetCount / 4) * 3
+*   cap       = min(allocated, maxImageBytes ?? catalogBytes ?? 1 MiB)
+*
+* A hand-built profile that omitted it produced `division by undefined` →
+* `NaN`, which the attachment layer rejected as `INVALID_ATTACHMENT_REF` —
+* the image never reached the model. 14 is the divisor that keeps the equal
+* share ABOVE 1 MiB (floor(20971520 / 14 / 4) * 3 = 1_123_473), so the
+* explicit `maxImageBytes` cap below still decides the exact 1 MiB. Divisor
+* 15 already yields 1_048_575 — one byte short — and 20 yields 786432, so
+* any larger divisor would make the SHARE the cap and silently narrow it.
+*
+* On 0.2.2 these three fields are simply extra keys on a resolved profile the
+* adapter reads by name; they are inert there, so this one object serves both
+* host lines without a version branch.
 */
 const REQUEST_IMAGE_BUDGETS = {
 	maxRequestImages: 1e6,
 	imageOffloadCountQuantum: 1e6,
 	maxRequestImageBytes: 20971520,
 	requestImagePixelBudget: 4194304,
-	requestImageMaxBytes: 1048576
+	requestImageMaxBytes: 1048576,
+	maxImageBytes: 1048576,
+	requestImageBudgetCount: 14
 };
 /**
 * Inert pi-ai auth plane. The workbuddy route authenticates only through the
@@ -9634,420 +10136,6 @@ function readProjectedState(reader, session, key) {
 	if (typeof reader.snapshot === "function") return reader.snapshot(session, [key])?.values?.[key];
 	return reader.stateOf?.(session, key);
 }
-//#endregion
-//#region src/probe.ts
-/**
-* How long to bench a MODEL that answered 14003 with no stated time.
-*
-* One minute, because that is what the upstream itself says: the failure body
-* carries `displayTips.zh` = "建议等待约 1 分钟后重试，或切换到负载较低的模型"
-* (and its English twin "Wait about a minute before retrying, or switch to a
-* less busy model"). A fallback coarser than the upstream's own advice is not
-* conservatism, it is a different and worse claim: issue #56 reports 14003 being
-* multiplied into 30 minutes per account, which turned a one-minute model
-* hiccup into a half-hour outage across the whole pool.
-*
-* Two minutes rather than one, because a probe costs a full request and the
-* point of the wait is to be past the burst, not to land exactly on its edge.
-*/
-const MODEL_BUSY_COOLDOWN_MS$1 = 12e4;
-/**
-* The system message every probe carries.
-*
-* Not decoration: the international gateway rejects a conversation that does not
-* start with a system message (see the module note). A probe that omitted it
-* would report every global model as broken.
-*/
-const PROBE_SYSTEM_PROMPT = "You are a connectivity check. Reply with a single word.";
-/**
-* Output cap for a probe. One token is enough to prove the model answers.
-*
-* The probe's cost comes from its INPUT, not its output (see
-* {@link DEFAULT_PROBE_INPUT_TOKENS}), so paying for a long completion would add money
-* without adding signal.
-*/
-const PROBE_MAX_TOKENS = 1;
-/**
-* How much input a probe sends, in tokens.
-*
-* This is the whole point of the probe, and it is NOT a free choice. The
-* upstream's rate limit (business code 6004) fires on request SIZE, measured on
-* 2026-09-29 by varying only the input against one account and one model:
-*
-*   | input     | prompt_tokens the upstream counted | result |
-*   | ---       | ---                                | ---    |
-*   | ~10       | 38                                 | ok     |
-*   | ~1,000    | 1,138                              | ok     |
-*   | ~10,000   | 11,138                             | ok     |
-*   | ~18,000   | 20,018                             | ok     |
-*   | ~25,000   | 25,023                             | ok     |
-*   | ~30,000   | ~32k                               | **429 / 6004** |
-*
-* So the threshold sits between 20k and 30k, a SINGLE large request is enough to
-* trip it (it is not a running total), and each account reports its own reset
-* time (two accounts at the same moment: `22:20:33` and `00:32:51`).
-*
-* A probe that sent a handful of tokens answered "usable" while every real
-* request in a long conversation was refused — the probe was asking too small a
-* question. 25k is sized to be a realistic long-conversation payload.
-*
-* Renamed from `PROBE_INPUT_TOKENS` to say what it now IS: the DEFAULT, not the
-* only possible size. The size is a property of the user's own traffic (see
-* {@link probeRequestBody}), so it became a setting; this constant is what an
-* unset setting, an older profile, and every existing test mean by "a probe".
-*/
-const DEFAULT_PROBE_INPUT_TOKENS = 25e3;
-/**
-* The probe sizes the card offers, in tokens.
-*
-* A closed set, each step a meaningful position relative to the measured 20k~30k
-* threshold: below it (10k/20k) proves an account can serve SHORT requests and
-* is the cheap choice; at it (30k) is the size that finally covers the whole
-* measured window; above it (50k/100k) is for conversations that routinely run
-* long, where a smaller probe would report "usable" for an account that refuses
-* the very next message.
-*
-* Exported so the schema's description, the card's dropdown, and the coercion
-* below cannot drift apart into three different menus.
-*/
-const PROBE_INPUT_TOKEN_CHOICES = [
-	1e4,
-	2e4,
-	3e4,
-	5e4,
-	1e5
-];
-/**
-* A requested probe size reduced to a size this build will actually send.
-*
-* Anything outside {@link PROBE_INPUT_TOKEN_CHOICES} — `undefined` from an older
-* profile, `0` from an unset field, a hand-edited odd number — becomes the
-* measured default. Coercing rather than rejecting keeps a hand-edited profile
-* working instead of turning one odd value into a failed test batch.
-*/
-function resolveProbeInputTokens(requested) {
-	return requested !== void 0 && PROBE_INPUT_TOKEN_CHOICES.includes(requested) ? requested : DEFAULT_PROBE_INPUT_TOKENS;
-}
-/**
-* Characters per token for the filler text, measured.
-*
-* Filling with a fixed English sentence, the upstream counted about 4.5
-* characters per token. An estimate rather than a bundled tokenizer: the body
-* only needs to be the right SIZE CLASS, and the target has ample margin over
-* the measured threshold, so estimate error cannot change the verdict.
-*/
-const CHARS_PER_TOKEN = 4.5;
-/** Neutral filler; carries no user content, only volume. */
-const FILLER_LINE = "The quick brown fox jumps over the lazy dog. ";
-/**
-* Build the request body for one probe.
-*
-* `stream` is forced because the upstream rejects non-streaming chat requests;
-* `prepareChatBody` enforces that too, but sending it explicitly keeps this
-* function's output valid on its own.
-*
-* Measured on the built artifact at the DEFAULT size: 112,713 bytes of body, and
-* the upstream counted `prompt_tokens: 25023` at a cost of `credit: 0.72`. The
-* body bytes and the credit both scale with the size asked for, which is why the
-* size is a user setting: a larger probe answers more truthfully for someone
-* whose conversations are long, and costs proportionally more to ask.
-*/
-function probeRequestBody(modelId, inputTokens = DEFAULT_PROBE_INPUT_TOKENS) {
-	const targetChars = Math.ceil(resolveProbeInputTokens(inputTokens) * CHARS_PER_TOKEN);
-	const filler = FILLER_LINE.repeat(Math.ceil(targetChars / 45));
-	return JSON.stringify({
-		model: modelId,
-		messages: [{
-			role: "system",
-			content: PROBE_SYSTEM_PROMPT
-		}, {
-			role: "user",
-			content: `${filler}Reply with a single word.`
-		}],
-		max_tokens: 1,
-		stream: true
-	});
-}
-/**
-* Parse a `Retry-After` header value into an absolute time.
-*
-* Both RFC 9110 forms are accepted: delay-seconds (`120`) and an HTTP-date
-* (`Wed, 21 Oct 2026 07:28:00 GMT`). Returns undefined for anything else,
-* including the negative/zero delays some gateways emit — a "retry now" is not
-* a cooldown and reporting it as one would be worse than saying nothing.
-*
-* `nowMs` is injected so the delay-seconds branch is testable without a clock.
-*/
-function parseRetryAfter(value, nowMs) {
-	if (value === null) return void 0;
-	const trimmed = value.trim();
-	if (trimmed === "") return void 0;
-	if (/^\d+$/u.test(trimmed)) {
-		const seconds = Number(trimmed);
-		if (!Number.isFinite(seconds) || seconds <= 0) return void 0;
-		return nowMs + seconds * 1e3;
-	}
-	const parsed = Date.parse(trimmed);
-	if (Number.isNaN(parsed)) return void 0;
-	if (parsed <= nowMs) return void 0;
-	return parsed;
-}
-/**
-* The `<timestamp> UTC±N` core of the upstream's reset sentence.
-*
-* Shared by both spellings below so the two can never drift into accepting
-* different timestamps: the offset handling and the calendar round-trip check in
-* {@link parseUpstreamResetAt} are what make a parsed value trustworthy, and two
-* copies of this shape would be two chances to loosen one of them.
-*/
-const RESET_STAMP = String.raw`(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})\s*UTC\s*([+-])(\d{1,2})(?::?(\d{2}))?`;
-/**
-* The upstream's reset sentence, in BOTH spellings this service uses.
-*
-* Chinese gateway, measured on a live 429 (code 6004), verbatim:
-*
-*   `您的使用量已超出频率限制，将在 2026-09-30 02:30:30 UTC+8 重置，您也可以切换其他模型继续使用。`
-*
-* International gateway, measured on the same code over the same account pool,
-* verbatim:
-*
-*   `usage exceeds frequency limit, but don't worry, your usage will reset at
-*    2026-10-16 11:34:04 UTC+8, alternatively, you can switch to the other
-*    models to continue using it.`
-*
-* WHY THERE ARE TWO. Each gateway states the time in its own language, and the
-* marker sits on a DIFFERENT SIDE of the timestamp: 重置 follows it in Chinese,
-* while `reset at` precedes it in English — so one pattern cannot cover both by
-* loosening the surrounding prose alone. The original pattern demanded the
-* Chinese keyword, so an English body parsed to nothing and the card said
-* 「上游未给出何时恢复」 about a message that had just named the exact minute.
-*
-* That is the honest-absence contract broken in the OTHER direction — not a
-* made-up time, but a real time discarded — and it is the worse of the two
-* failures, because the account stays excluded on the 30-minute fallback instead
-* of the ~18 hours upstream asked for. The pool then returns the account to
-* candidacy early and spends a request rediscovering the same 6004.
-*
-* Both patterns stay deliberately loose about the surrounding prose and strict
-* about the parts that must not be guessed: a keyword, the timestamp shape, and
-* an explicit UTC offset. A message that merely mentions a reset without a
-* parsable offset still yields no time, which remains the honest answer.
-*/
-const UPSTREAM_RESET_PATTERN_ZH = new RegExp(`将在?\\s*${RESET_STAMP}[\\s\\S]*?重置`, "u");
-/**
-* The English spelling, anchored on `reset at` / `refresh on` IMMEDIATELY before
-* the timestamp — the same strictness as the Chinese pattern, which requires its
-* marker immediately after it. A message that mentions a reset somewhere else
-* entirely therefore still yields no time.
-*/
-const UPSTREAM_RESET_PATTERN_EN = new RegExp(`(?:reset|resets|refresh|refreshes)\\s+(?:at|on)\\s+${RESET_STAMP}`, "iu");
-/**
-* Parse the reset time out of an upstream failure message.
-*
-* Returns epoch ms, or undefined when the message names no parsable time — the
-* caller must then say "the upstream gave no time", never invent one.
-*
-* THE OFFSET IS HONOURED, NOT ASSUMED. `2026-09-30 02:30:30 UTC+8` is 18:30:30
-* UTC the previous day, and `Date.parse` on the bare string would read it as
-* LOCAL time — on a machine set to UTC+8 that happens to be right, and on any
-* other machine it is silently wrong by the offset. So the components are
-* assembled with `Date.UTC` and the stated offset subtracted, which is correct
-* on every host regardless of its own zone.
-*
-* A whole-second resolution is what the upstream prints; sub-second precision
-* would be fiction in the other direction.
-*/
-function parseUpstreamResetAt(message) {
-	const match = UPSTREAM_RESET_PATTERN_ZH.exec(message) ?? UPSTREAM_RESET_PATTERN_EN.exec(message);
-	if (match === null) return void 0;
-	const [, year, month, day, hour, minute, second, sign, offsetHours, offsetMinutes] = match;
-	const offsetTotalMinutes = (sign === "-" ? -1 : 1) * (Number(offsetHours) * 60 + Number(offsetMinutes ?? "0"));
-	const utcMs = Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second));
-	const parsed = new Date(utcMs);
-	if (parsed.getUTCFullYear() !== Number(year) || parsed.getUTCMonth() !== Number(month) - 1 || parsed.getUTCDate() !== Number(day) || parsed.getUTCHours() !== Number(hour) || parsed.getUTCMinutes() !== Number(minute) || parsed.getUTCSeconds() !== Number(second)) return;
-	if (Math.abs(offsetTotalMinutes) > 840) return void 0;
-	return utcMs - offsetTotalMinutes * 6e4;
-}
-/**
-* The upstream reset metadata, if stated. A credit-package refresh timestamp
-* is retained for diagnostics; it is not a minimum wait or recovery evidence.
-*
-* Three sources, in order of authority:
-*
-* 1. `Retry-After` on the failure response. This is the upstream naming a time
-*    for THIS request, so it wins.
-* 2. The reset time the upstream writes into its own failure body (see
-*    {@link parseUpstreamResetAt}). This is the case that actually fires on
-*    this service: a 429 from the Chinese gateway carries code 6004 and a
-*    `将在 … 重置` sentence, with no `Retry-After` header at all.
-* 3. The region's monthly quota refresh point, but ONLY for an out-of-credit
-*    outcome. Check-in or a purchase can replenish credits earlier, so callers
-*    must not render this metadata as a recovery countdown or release the
-*    account when the timestamp passes.
-*
-* A limited outcome with none of the three returns `{}`. Rate-limit views state
-* that no time was given; credit-exhaustion views name the replenishment action
-* instead. Neither view invents a countdown.
-*
-* An `ok` outcome ALWAYS returns `{}`, whatever headers or body came with it.
-* A successful probe has already answered "can this account serve right now?"
-* with yes, so there is no wait to state; and on this gateway a 200 can carry a
-* `Retry-After` whose value is the account's monthly quota reset, which must
-* never be rendered as a lockout. See the guard at the top of the function.
-*
-* `model-busy` is the ONE exception, and it is not an invented countdown: the
-* upstream states a magnitude in prose ("about a minute") rather than a
-* timestamp, and the card's own vocabulary has no way to render "about". A
-* per-account fallback of 30 minutes is what it used to get, which is both wrong
-* about the magnitude and wrong about the scope (issue #56). The returned value
-* is {@link MODEL_BUSY_COOLDOWN_MS}, and it is used only to bench the MODEL, never
-* an account.
-*/
-function cooldownOf(input) {
-	if (input.outcome === "ok") return {};
-	const fromHeader = parseRetryAfter(input.retryAfter, input.nowMs);
-	if (fromHeader !== void 0) return {
-		retryAtMs: fromHeader,
-		retrySource: "retry-after"
-	};
-	const fromBody = input.body === void 0 ? void 0 : parseUpstreamResetAt(input.body);
-	if (fromBody !== void 0) return {
-		retryAtMs: fromBody,
-		retrySource: "upstream-message"
-	};
-	if (input.outcome === "out-of-credit" && input.quotaRefreshAtMs !== void 0) return {
-		retryAtMs: input.quotaRefreshAtMs,
-		retrySource: "quota-refresh"
-	};
-	if (input.outcome === "model-busy") return {
-		retryAtMs: input.nowMs + MODEL_BUSY_COOLDOWN_MS$1,
-		retrySource: "upstream-tips"
-	};
-	return {};
-}
-/**
-* Classify one failed probe into the card's outcome vocabulary.
-*
-* Built on `classifyUpstreamError` rather than re-testing status codes, so a
-* probe and a real chat request can never disagree about what the same upstream
-* answer means. The extra splits here are `credential-rejected`, which the
-* upstream signals with a non-JSON 401/403 edge page and which needs completely
-* different advice (re-auth, not "wait"), `policy-rejected`, a JSON 403
-* content-policy refusal where re-auth advice would be actively misleading,
-* `model-busy`, the model-scoped 14003 throttle that must NOT be benched as an
-* account failure (issue #56), and `channel-rejected`, the gateway's 11128 gate
-* on the PROMPT's opening, which no account can change.
-*/
-function outcomeOfFailure(status, body) {
-	if (status === 401 || status === 403) {
-		const kind = classifyUpstreamError(status, body);
-		if (kind === "policy_reject") return "policy-rejected";
-		if (kind === "account_restricted") return "account-restricted";
-		return "credential-rejected";
-	}
-	switch (classifyUpstreamError(status, body)) {
-		case "soft_rate": return "rate-limited";
-		case "model_busy": return "model-busy";
-		case "hard_credit": return "out-of-credit";
-		case "session_dead": return "credential-rejected";
-		case "account_restricted": return "account-restricted";
-		case "channel_reject": return "channel-rejected";
-		case "not_found": return "not-found";
-		default: return status === 0 || status >= 500 ? "unavailable" : "failed";
-	}
-}
-/**
-* Read the credit this probe consumed out of an SSE stream, when the upstream
-* reports it.
-*
-* Purely informational — the card shows it so a user can see how little a probe
-* actually costs rather than having to trust a claim. Absent when the stream
-* carried no `usage` block.
-*/
-function creditOfStream(text) {
-	const match = /"credit"\s*:\s*(-?[0-9]*\.?[0-9]+)/u.exec(text);
-	if (match === null) return void 0;
-	const value = Number(match[1]);
-	return Number.isFinite(value) ? value : void 0;
-}
-/** Whether a probe outcome means the model answered. */
-function probeSucceeded(outcome) {
-	return outcome === "ok";
-}
-/** Max characters of upstream text kept for display, after redaction. */
-const PROBE_MESSAGE_LIMIT = 300;
-/**
-* Redact token-shaped content out of upstream text before it is stored or sent.
-*
-* Lives here rather than in the route layer because this module is the one that
-* reads raw failure bodies, so the redaction belongs at the point of capture. A
-* probe failure body is the one place a raw upstream string from an arbitrary
-* endpoint enters the plugin's data flow.
-*
-* EXPORTED because a failed CHAT request now persists its reason into the pool
-* store too (`recordAccountFailure` in `src/index.ts`), and that text is a raw
-* upstream body as well. One implementation, so the two writers cannot drift
-* into redacting differently — the same "one definition" rule this codebase
-* applies to `effectiveMembersOf`.
-*/
-function redactUpstreamText(text) {
-	return text.replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/gu, "[redacted token]").replace(/(\b(?:code|token|refresh_token|access_token)=)[^&\s]+/giu, "$1[redacted]").slice(0, PROBE_MESSAGE_LIMIT);
-}
-/**
-* Run one probe for one model and reduce it to the card's row.
-*
-* The successful path drains the SSE stream purely to read the `credit` figure
-* the upstream reports, then discards the rest: the question is whether this
-* model answers a real-sized request, and `max_tokens: 1` means there is nothing
-* else in the stream worth keeping.
-*
-* Never throws. A probe is a diagnostic the user asked for, so every failure is
-* a RESULT — one dead model must not abort the batch and hide the other rows.
-*/
-async function probeModel(input) {
-	let answer;
-	const startedAt = Date.now();
-	try {
-		answer = await input.client.probeChat(input.credential, probeRequestBody(input.modelId, input.inputTokens), input.signal);
-	} catch (error) {
-		return {
-			modelId: input.modelId,
-			outcome: "unavailable",
-			status: 0,
-			message: redactUpstreamText(error instanceof Error ? error.message : String(error))
-		};
-	}
-	const elapsedMs = Date.now() - startedAt;
-	if (answer.ok) {
-		let credit;
-		if (answer.response !== void 0) try {
-			credit = creditOfStream(await answer.response.text());
-		} catch {}
-		return {
-			modelId: input.modelId,
-			outcome: "ok",
-			elapsedMs: Date.now() - startedAt,
-			status: answer.status,
-			...credit === void 0 ? {} : { message: `credit ${credit}` }
-		};
-	}
-	const body = answer.body ?? "";
-	const outcome = outcomeOfFailure(answer.status, body);
-	return {
-		modelId: input.modelId,
-		outcome,
-		elapsedMs,
-		status: answer.status,
-		...body === "" ? {} : { message: redactUpstreamText(body) },
-		...cooldownOf({
-			outcome,
-			retryAfter: answer.retryAfter,
-			nowMs: input.nowMs,
-			body,
-			...input.quotaRefreshAtMs === void 0 ? {} : { quotaRefreshAtMs: input.quotaRefreshAtMs }
-		})
-	};
-}
 /**
 * Smallest spacing between content chunks, in milliseconds, that still counts
 * as generation.
@@ -11364,7 +11452,7 @@ function mergeTransferRecords(records, indexes, region, knownRegionOfDomain) {
 * @module dsh-connect-workbuddy/account-pool-store
 */
 /** On-disk format version; readers reject anything else. */
-const STORE_FORMAT_VERSION$1 = 1;
+const STORE_FORMAT_VERSION$3 = 1;
 /** Filename prefix for one region's measured pool facts. */
 const POOL_STORE_PREFIX = ".workbuddy-pool";
 /** Whether a parsed value looks like a stored probe. */
@@ -11454,7 +11542,7 @@ async function readPoolProbes(region) {
 	}
 	if (typeof parsed !== "object" || parsed === null) return {};
 	const document = parsed;
-	if (document.version !== STORE_FORMAT_VERSION$1) return {};
+	if (document.version !== STORE_FORMAT_VERSION$3) return {};
 	if (typeof document.probes !== "object" || document.probes === null) return {};
 	const probes = {};
 	for (const [accountId, probe] of Object.entries(document.probes)) {
@@ -11557,7 +11645,7 @@ async function writePoolProbes(region, updates) {
 			const merged = { ...existing };
 			for (const [accountId, update] of Object.entries(updates)) merged[accountId] = mergePoolProbe(existing[accountId], update);
 			await writeFileAtomic(path, `${JSON.stringify({
-				version: STORE_FORMAT_VERSION$1,
+				version: STORE_FORMAT_VERSION$3,
 				probes: merged
 			}, null, 2)}\n`, {
 				mode: 384,
@@ -11587,7 +11675,7 @@ async function reconcilePoolCredits(region, readings) {
 				changed = true;
 			}
 			if (changed) await writeFileAtomic(path, `${JSON.stringify({
-				version: STORE_FORMAT_VERSION$1,
+				version: STORE_FORMAT_VERSION$3,
 				probes
 			}, null, 2)}\n`, {
 				mode: 384,
@@ -11765,23 +11853,6 @@ function todaySummary(state, nowMs) {
 	return summarizeAutoCheckin(state);
 }
 /**
-* Whether a cached check-in reading may still be served.
-*
-* Two conditions, and the second is the one that took a bug report: a reading is
-* an answer to "has this account checked in TODAY", so it must not survive local
-* midnight. The TTL alone would serve a `true` read taken at 23:58 until 00:08,
-* so the column would assert a check-in that has not happened — the per-account
-* half of the same lie as {@link todaySummary}.
-*
-* The day is derived from `atMs` rather than stored beside it: the read time
-* already says which day the answer belongs to, and a second field could drift
-* out of step with it.
-*/
-function checkinReadingFresh(atMs, nowMs, ttlMs) {
-	if (nowMs - atMs >= ttlMs) return false;
-	return localDayKey(atMs) === localDayKey(nowMs);
-}
-/**
 * The accounts an attempt should address, in the pool's own order.
 *
 * Only members that are not already done. Enterprise members are dropped HERE
@@ -11819,11 +11890,11 @@ function pendingTargets(targets, state) {
 * @module dsh-connect-workbuddy/auto-checkin-store
 */
 /** On-disk format version; readers reject anything else. */
-const STORE_FORMAT_VERSION = 1;
+const STORE_FORMAT_VERSION$2 = 1;
 /** Filename prefix for one region's auto-check-in memory. */
 const AUTO_CHECKIN_PREFIX = ".workbuddy-auto-checkin";
 /** Whether a parsed value looks like a stored state. */
-function isState(value) {
+function isState$1(value) {
 	if (typeof value !== "object" || value === null) return false;
 	const candidate = value;
 	return typeof candidate["day"] === "string" && Array.isArray(candidate["doneAccountIds"]) && candidate["doneAccountIds"].every((id) => typeof id === "string") && typeof candidate["failures"] === "number" && Number.isFinite(candidate["failures"]) && (candidate["lastAttemptAtMs"] === void 0 || typeof candidate["lastAttemptAtMs"] === "number") && (candidate["lastError"] === void 0 || typeof candidate["lastError"] === "string");
@@ -11854,11 +11925,11 @@ async function readAutoCheckinState(region) {
 	}
 	if (typeof parsed !== "object" || parsed === null) return void 0;
 	const document = parsed;
-	if (document.version !== STORE_FORMAT_VERSION) return void 0;
+	if (document.version !== STORE_FORMAT_VERSION$2) return void 0;
 	const regions = document.regions;
 	if (typeof regions !== "object" || regions === null) return void 0;
 	const state = regions[region];
-	return isState(state) ? state : void 0;
+	return isState$1(state) ? state : void 0;
 }
 /**
 * Write one region's state, merging into whatever the file already holds.
@@ -11876,7 +11947,7 @@ async function writeAutoCheckinState(region, state) {
 				[region]: state
 			};
 			await writeFileAtomic(path, `${JSON.stringify({
-				version: STORE_FORMAT_VERSION,
+				version: STORE_FORMAT_VERSION$2,
 				regions
 			}, null, 2)}\n`, {
 				mode: 384,
@@ -11901,12 +11972,562 @@ async function readDocument(path) {
 	}
 	if (typeof parsed !== "object" || parsed === null) return {};
 	const document = parsed;
-	if (document.version !== STORE_FORMAT_VERSION) return {};
+	if (document.version !== STORE_FORMAT_VERSION$2) return {};
 	const regions = document.regions;
 	if (typeof regions !== "object" || regions === null) return {};
 	const clean = {};
-	for (const [key, value] of Object.entries(regions)) if (isState(value)) clean[key] = value;
+	for (const [key, value] of Object.entries(regions)) if (isState$1(value)) clean[key] = value;
 	return clean;
+}
+//#endregion
+//#region src/daily-done-store.ts
+/**
+* On-disk "done today" memory for the three per-account day facts (issue #286
+* follow-up): checked-in / tier-redeemed / active-today.
+*
+* WHY THIS EXISTS. The card used to RE-READ "did this account check in today"
+* from upstream every 10 minutes, for every account — including ones that had
+* been done since morning. The user asked for the obvious: once a fact is true
+* today, remember it locally and stop asking; only read when there is no record
+* yet (a fresh day, or an account the plugin has never observed). This module is
+* that memory. It is keyed by (kind, region), persisted under `$DSH_HOME`, and
+* bounded by the LOCAL day so a `true` read at 23:58 never answers for 00:08.
+*
+* It deliberately does NOT distinguish "we did it" from "the user did it in the
+* official client": both are observed as `true` from upstream and both mean the
+* same thing to the card — done today, nothing more to do. That is why the read
+* path writes the record: the first observation (whoever caused it) is enough.
+*
+* Reads/writes never throw — a corrupt or missing file means "nothing done
+* today", and the caller then performs the one read this module saves.
+*
+* No token, no account name in the file — only account ids and a local day key.
+*
+* @module dsh-connect-workbuddy/daily-done-store
+*/
+const STORE_FORMAT_VERSION$1 = 1;
+/** A process-local mirror so the hot path never touches the disk. */
+const memory = {};
+/**
+* Cache key includes the resolved home so a changed `$DSH_HOME` (only ever a
+* test fixture in practice) cannot reuse another home's memory. In production
+* the home is fixed for the process, so this is a pure correctness safeguard.
+*/
+const keyOf = (kind, region) => `${resolveDshHome()}:${kind}:${region}`;
+function filePath(kind, region) {
+	return join(resolveDshHome(), `.workbuddy-daydone-${kind}.${region}.json`);
+}
+function isDocument(value) {
+	if (typeof value !== "object" || value === null) return false;
+	const doc = value;
+	return doc["version"] === STORE_FORMAT_VERSION$1 && typeof doc["day"] === "string" && Array.isArray(doc["ids"]) && doc["ids"].every((id) => typeof id === "string");
+}
+/** Load one (kind, region) from disk into the mirror, once. Never throws. */
+async function load(kind, region) {
+	const key = keyOf(kind, region);
+	const hit = memory[key];
+	if (hit !== void 0) return hit;
+	let loaded = {
+		day: localDayKey(Date.now()),
+		ids: /* @__PURE__ */ new Set()
+	};
+	try {
+		const raw = await readFile(filePath(kind, region), "utf8");
+		const parsed = JSON.parse(raw);
+		if (isDocument(parsed) && parsed.day === localDayKey(Date.now())) loaded = {
+			day: parsed.day,
+			ids: new Set(parsed.ids)
+		};
+	} catch {}
+	memory[key] = loaded;
+	return loaded;
+}
+/** Is this account already recorded done TODAY? No disk read after the first. */
+async function isDoneToday(kind, region, accountId) {
+	const state = await load(kind, region);
+	if (state.day !== localDayKey(Date.now())) {
+		memory[keyOf(kind, region)] = {
+			day: localDayKey(Date.now()),
+			ids: /* @__PURE__ */ new Set()
+		};
+		return false;
+	}
+	return state.ids.has(accountId);
+}
+/** Record one (or several) accounts done today. Never throws. */
+async function markDoneToday(kind, region, accountIds) {
+	if (accountIds.length === 0) return;
+	const key = keyOf(kind, region);
+	const today = localDayKey(Date.now());
+	const state = memory[key]?.day === today ? memory[key] : {
+		day: today,
+		ids: /* @__PURE__ */ new Set()
+	};
+	for (const id of accountIds) state.ids.add(id);
+	memory[key] = state;
+	const path = filePath(kind, region);
+	try {
+		await withFileLock(path, async () => {
+			const document = {
+				version: STORE_FORMAT_VERSION$1,
+				day: today,
+				ids: [...state.ids]
+			};
+			await writeFileAtomic(path, `${JSON.stringify(document, null, 2)}\n`, {
+				mode: 384,
+				dirMode: 448
+			});
+		});
+	} catch {}
+}
+/** The full done-today set for one (kind, region), for the first-paint map. */
+async function doneTodayMap(kind, region) {
+	const state = await load(kind, region);
+	if (state.day !== localDayKey(Date.now())) return {};
+	return Object.fromEntries([...state.ids].map((id) => [id, true]));
+}
+//#endregion
+//#region src/growth-acp.ts
+/** Normalize a session link to its ACP endpoint, without duplicating the suffix. */
+function resolveAcpEndpoint(link) {
+	let value = (link ?? "").trim().replace(/^http:\/\//u, "https://").replace(/\/+$/u, "");
+	if (value === "") return "";
+	if (/\/api\/v1\/acp$/u.test(value) || /\/acp$/u.test(value)) return value;
+	return `${value}/api/v1/acp`;
+}
+/** Parse an SSE body: yield the JSON payloads of `data:` lines with the given id. */
+function rpcResultFromSse(text, id) {
+	for (const line of text.split(/\r?\n/u)) {
+		const trimmed = line.trim();
+		if (!trimmed.startsWith("data:")) continue;
+		let parsed;
+		try {
+			parsed = JSON.parse(trimmed.slice(5).trim());
+		} catch {
+			continue;
+		}
+		if (typeof parsed !== "object" || parsed === null) continue;
+		const message = parsed;
+		if (message["id"] !== id) continue;
+		if (message["error"] !== void 0) throw new Error(`ACP RPC error: ${String(message["error"]).slice(0, 200)}`);
+		return typeof message["result"] === "object" && message["result"] !== null ? message["result"] : {};
+	}
+}
+/** Send one console ACP session; returns its conversation id. Throws on failure. */
+async function sendAcpSession(options) {
+	const doFetch = options.fetch ?? globalThis.fetch;
+	const base = options.base.replace(/\/+$/u, "");
+	const ua = options.userAgent ?? "WorkBuddy/5.8.3";
+	const jsonHeaders = (token) => ({
+		"accept": "application/json, text/plain, */*",
+		"content-type": "application/json",
+		"x-codebuddy-request": "1",
+		"x-client-platform": "web",
+		"user-agent": ua,
+		"authorization": `Bearer ${token}`,
+		"origin": options.origin,
+		"referer": `${options.origin.replace(/\/+$/u, "")}/`
+	});
+	let created;
+	let lastError = "";
+	for (const withPlugins of [true, false]) {
+		const body = {
+			prompt: options.prompt ?? "你好",
+			model: options.model
+		};
+		if (withPlugins) body["plugins"] = [];
+		try {
+			const response = await doFetch(`${base}/console/as/conversations/`, {
+				method: "POST",
+				headers: jsonHeaders(options.accessToken),
+				body: JSON.stringify(body),
+				signal: AbortSignal.timeout(6e4)
+			});
+			if (response.ok) {
+				const parsed = await response.json();
+				created = typeof parsed === "object" && parsed !== null ? parsed : void 0;
+				break;
+			}
+			lastError = `HTTP ${response.status}`;
+			if (response.status !== 400 && response.status !== 404) break;
+		} catch (error) {
+			lastError = String(error);
+			break;
+		}
+	}
+	if (created === void 0) throw new Error(`ACP create conversation failed: ${lastError}`);
+	const data = typeof created["data"] === "object" && created["data"] !== null ? created["data"] : created;
+	const id = String(data["id"] ?? data["conversationId"] ?? data["info"]?.id ?? "");
+	if (id === "") throw new Error("ACP create response had no conversation id");
+	let session = typeof data["session"] === "object" && data["session"] !== null ? data["session"] : void 0;
+	if (session === void 0 || typeof session["link"] !== "string" || typeof session["token"] !== "string") {
+		const response = await doFetch(`${base}/console/as/conversations/${encodeURIComponent(id)}/session`, {
+			method: "GET",
+			headers: jsonHeaders(options.accessToken),
+			signal: AbortSignal.timeout(6e4)
+		});
+		if (!response.ok) throw new Error(`ACP fetch session failed: HTTP ${response.status}`);
+		const parsed = await response.json();
+		const sdata = typeof parsed === "object" && parsed !== null ? parsed : {};
+		session = typeof sdata["data"] === "object" && sdata["data"] !== null ? sdata["data"] : sdata;
+	}
+	const link = resolveAcpEndpoint(String(session?.["link"] ?? session?.["endpoint"] ?? ""));
+	const sessionToken = String(session?.["token"] ?? session?.["accessToken"] ?? "");
+	const sessionId = String(session?.["sessionId"] ?? session?.["session_id"] ?? "");
+	if (link === "" || sessionToken === "" || sessionId === "") throw new Error("ACP session response missing link/token/sessionId");
+	const connectionId = (await doFetch(link, {
+		method: "GET",
+		headers: {
+			...jsonHeaders(sessionToken),
+			"accept": "text/event-stream"
+		},
+		signal: AbortSignal.timeout(6e4)
+	})).headers.get("acp-connection-id") ?? "";
+	if (connectionId === "") throw new Error("ACP SSE response missing acp-connection-id");
+	const rpc = async (method, params, rpcId) => {
+		const response = await doFetch(link, {
+			method: "POST",
+			headers: {
+				...jsonHeaders(sessionToken),
+				"accept": "application/json, text/event-stream",
+				"acp-connection-id": connectionId
+			},
+			body: JSON.stringify({
+				jsonrpc: "2.0",
+				id: rpcId,
+				method,
+				params
+			}),
+			signal: AbortSignal.timeout(6e4)
+		});
+		if (!response.ok) throw new Error(`ACP RPC ${method} failed: HTTP ${response.status}`);
+		rpcResultFromSse(await response.text(), rpcId);
+	};
+	await rpc("initialize", {
+		protocolVersion: 1,
+		clientInfo: {
+			name: "dsh-connect-workbuddy",
+			version: "1.0"
+		},
+		clientCapabilities: {
+			fs: {
+				readTextFile: false,
+				writeTextFile: false
+			},
+			_meta: { "codebuddy.ai": {
+				question: false,
+				terminalOutput: false
+			} }
+		}
+	}, 1);
+	await rpc("session/prompt", {
+		sessionId,
+		prompt: [{
+			type: "text",
+			text: options.prompt ?? "你好"
+		}]
+	}, 2);
+	try {
+		await doFetch(link, {
+			method: "DELETE",
+			headers: {
+				...jsonHeaders(sessionToken),
+				"acp-connection-id": connectionId
+			},
+			signal: AbortSignal.timeout(1e4)
+		});
+	} catch {}
+	return id;
+}
+/**
+* Ensure the account is active today. Idempotent: already-active sends nothing.
+* After sending, polls the heatmap up to `verifyAttempts` times to confirm the
+* write landed before reporting success.
+*/
+async function activateGrowth(options) {
+	const before = await options.heatmap();
+	if (before?.isActive === true) return {
+		status: "already-active",
+		score: before.score
+	};
+	let conversationId;
+	try {
+		conversationId = await sendAcpSession(options);
+	} catch (error) {
+		return {
+			status: "failed",
+			reason: String(error)
+		};
+	}
+	const sleep = options.sleep ?? (async (ms) => {
+		await new Promise((resolve) => setTimeout(resolve, ms));
+	});
+	const attempts = options.verifyAttempts ?? 4;
+	const gap = options.verifyIntervalMs ?? 1500;
+	for (let i = 0; i < attempts; i += 1) {
+		if (i > 0) await sleep(gap);
+		const now = await options.heatmap();
+		if (now?.isActive === true) return {
+			status: "activated",
+			score: now.score,
+			conversationId
+		};
+	}
+	return {
+		status: "failed",
+		conversationId,
+		reason: "ACP session sent but heatmap today.is_active stayed false"
+	};
+}
+//#endregion
+//#region src/growth-run.ts
+/** Accounts still due today: pool members minus those already settled. */
+function growthPendingTargets(targets, state) {
+	const done = new Set(state?.doneAccountIds ?? []);
+	return targets.filter((target) => !done.has(target.accountId));
+}
+/**
+* Fold one growth attempt into today's state: every addressed account is marked
+* settled. No backoff, no `lastError` — the card shows a plain done/total count.
+* `scopeSize` is the REAL member count passed by the caller (never accumulated),
+* so a manual run cannot inflate the denominator the way the earlier bug did.
+*/
+function foldGrowthAttempt(state, attemptedIds, scopeSize, nowMs) {
+	const done = /* @__PURE__ */ new Set([...state.doneAccountIds, ...attemptedIds]);
+	return {
+		day: state.day,
+		doneAccountIds: [...done],
+		scopeSize,
+		failures: 0,
+		lastAttemptAtMs: nowMs
+	};
+}
+/** A day summary with NO pending/retry/failure fields — just done of total. */
+function growthTodaySummary(state, day) {
+	if (state === void 0 || state.day !== day) return void 0;
+	return {
+		done: Math.min(state.doneAccountIds.length, state.scopeSize),
+		total: state.scopeSize
+	};
+}
+async function pause(deps, issued) {
+	if (issued > 0) await (deps.wait ?? (async (ms) => {
+		await new Promise((r) => setTimeout(r, ms));
+	}))(400);
+}
+/**
+* Redeem every claimable tier for every target, one account at a time.
+* Only tiers the gateway reported `available` are written — a `locked` tier is
+* never redeemed, so a repeated run is a no-op rather than a refused write.
+* Never throws: each problem becomes a `failed` row and the batch continues.
+*/
+async function redeemGrowthAll(targets, deps) {
+	const rows = [];
+	let issued = 0;
+	for (const target of targets) {
+		const base = {
+			accountId: target.accountId,
+			accountName: target.accountName
+		};
+		let credential;
+		try {
+			credential = await deps.credentialFor(target.accountId);
+		} catch (error) {
+			rows.push({
+				...base,
+				status: "failed",
+				message: String(error)
+			});
+			continue;
+		}
+		if (credential === void 0) {
+			rows.push({
+				...base,
+				status: "failed",
+				message: "no stored credential for this account"
+			});
+			continue;
+		}
+		let streak;
+		try {
+			streak = await deps.readStreak(credential);
+		} catch (error) {
+			rows.push({
+				...base,
+				status: "failed",
+				message: String(error)
+			});
+			continue;
+		}
+		if (streak === void 0) {
+			rows.push({
+				...base,
+				status: "failed",
+				message: "growth streak was not readable"
+			});
+			continue;
+		}
+		if (streak.availableTiers.length === 0) {
+			rows.push({
+				...base,
+				status: "skipped",
+				message: "no tier is available to redeem"
+			});
+			continue;
+		}
+		await pause(deps, issued);
+		issued += 1;
+		let credit = 0;
+		const done = [];
+		let failure = "";
+		for (const tier of streak.availableTiers) try {
+			const result = await deps.redeem(credential, tier);
+			credit += result.credit;
+			done.push(tier);
+		} catch (error) {
+			failure = String(error);
+			break;
+		}
+		if (failure !== "" && done.length === 0) rows.push({
+			...base,
+			status: "failed",
+			message: failure
+		});
+		else rows.push({
+			...base,
+			status: "done",
+			credit,
+			message: `redeemed ${done.join(",")}${failure === "" ? "" : `; stopped: ${failure}`}`
+		});
+	}
+	return rows;
+}
+/**
+* Ensure "active today" for every target, one account at a time. The caller
+* supplies `activateOne` so model selection and ACP details stay outside this
+* module. Idempotency lives in the activate function (already-active sends no
+* session), so a repeated batch is safe.
+*/
+async function activateGrowthAll(targets, activateOne, wait) {
+	const rows = [];
+	let issued = 0;
+	for (const target of targets) {
+		let result;
+		try {
+			result = await activateOne(target.accountId);
+		} catch (error) {
+			rows.push({
+				accountId: target.accountId,
+				accountName: target.accountName,
+				status: "failed",
+				message: String(error)
+			});
+			continue;
+		}
+		if (result.status === "already-active") {
+			rows.push({
+				accountId: target.accountId,
+				accountName: target.accountName,
+				status: "skipped",
+				message: "already active today"
+			});
+			continue;
+		}
+		if (result.status === "activated") {
+			if (issued > 0) await (wait ?? (async (ms) => {
+				await new Promise((r) => setTimeout(r, ms));
+			}))(400);
+			issued += 1;
+			rows.push({
+				accountId: target.accountId,
+				accountName: target.accountName,
+				status: "done",
+				message: "activated"
+			});
+			continue;
+		}
+		rows.push({
+			accountId: target.accountId,
+			accountName: target.accountName,
+			status: "failed",
+			message: result.reason ?? "activation failed"
+		});
+	}
+	return rows;
+}
+//#endregion
+//#region src/growth-state-store.ts
+/**
+* On-disk memory for the two background growth capabilities (issue #286).
+*
+* Same discipline as `auto-checkin-store.ts`: one file per CAPABILITY + REGION
+* under `$DSH_HOME`, atomic + locked writes, `mode: 0o600`, no token and no
+* account name inside — only account ids and a short failure reason. Kept in a
+* separate file from auto-check-in so the three capabilities' `doneAccountIds`
+* can never overwrite each other: "checked in" ≠ "active" ≠ "redeemed".
+*
+* Reads and writes never throw. A corrupt file degrades to "nothing done
+* today", and a repeat run is idempotent by design.
+*
+* @module dsh-connect-workbuddy/growth-state-store
+*/
+const STORE_FORMAT_VERSION = 1;
+/** Path for one capability + region. */
+function growthStatePath(capability, region) {
+	return join(resolveDshHome(), `.workbuddy-${capability}.${region}.json`);
+}
+function isState(value) {
+	if (typeof value !== "object" || value === null) return false;
+	const candidate = value;
+	return typeof candidate["day"] === "string" && Array.isArray(candidate["doneAccountIds"]) && candidate["doneAccountIds"].every((id) => typeof id === "string") && typeof candidate["failures"] === "number" && Number.isFinite(candidate["failures"]) && (candidate["lastAttemptAtMs"] === void 0 || typeof candidate["lastAttemptAtMs"] === "number") && (candidate["lastError"] === void 0 || typeof candidate["lastError"] === "string");
+}
+/** Read one capability + region's state, or undefined when absent/corrupt. */
+async function readGrowthState(capability, region) {
+	try {
+		const raw = await readFile(growthStatePath(capability, region), "utf8");
+		const parsed = JSON.parse(raw);
+		if (typeof parsed !== "object" || parsed === null) return void 0;
+		const document = parsed;
+		if (document.version !== STORE_FORMAT_VERSION) return void 0;
+		const regions = document.regions;
+		if (typeof regions !== "object" || regions === null) return void 0;
+		const state = regions[region];
+		return isState(state) ? state : void 0;
+	} catch {
+		return;
+	}
+}
+/** Write one capability + region's state, merging the sibling region. Never throws. */
+async function writeGrowthState(capability, region, state) {
+	const path = growthStatePath(capability, region);
+	try {
+		await withFileLock(path, async () => {
+			let existing = {};
+			try {
+				const raw = await readFile(path, "utf8");
+				const parsed = JSON.parse(raw);
+				if (typeof parsed === "object" && parsed !== null) {
+					const doc = parsed;
+					if (doc.version === STORE_FORMAT_VERSION && typeof doc.regions === "object" && doc.regions !== null) {
+						const clean = {};
+						for (const [key, value] of Object.entries(doc.regions)) if (isState(value)) clean[key] = value;
+						existing = clean;
+					}
+				}
+			} catch {}
+			const document = {
+				version: STORE_FORMAT_VERSION,
+				regions: {
+					...existing,
+					[region]: state
+				}
+			};
+			await writeFileAtomic(path, `${JSON.stringify(document, null, 2)}\n`, {
+				mode: 384,
+				dirMode: 448
+			});
+		});
+	} catch {}
 }
 //#endregion
 //#region src/web-status.ts
@@ -12263,6 +12884,24 @@ async function workBuddyAccountCredits(deps, region) {
 	}));
 }
 /**
+* Decide what the user can do about a refused credential in one region.
+*
+* Shared by the two refusal paths: a credits/check-in read that was rejected
+* on an otherwise usable credential ({@link liveFigures}), and a `resolve()`
+* whose TOKEN REFRESH was rejected outright (issue #285 — the CN card hid all
+* of its accounts while the export dialog still saw them). The recovery answer
+* must not depend on which path noticed the refusal: both offer the same
+* "switch to a verified account / sign in again" advice.
+*/
+async function credentialRecoveryOf(deps, region, rejectedAccountId) {
+	return resolveCredentialRecovery({
+		region,
+		store: deps.store(region),
+		...rejectedAccountId === void 0 ? {} : { rejectedAccountId },
+		probe: deps.accountUsable ?? (async () => false)
+	});
+}
+/**
 * Read the selected account's live figures, and classify a refusal.
 *
 * Extracted so the first-paint path can omit it as a unit: the two calls here
@@ -12272,12 +12911,7 @@ async function workBuddyAccountCredits(deps, region) {
 async function liveFigures(deps, region, credential, selected) {
 	const [creditsResult, checkinResult] = await Promise.allSettled([deps.client.fetchCredits(credential), deps.client.fetchCheckinStatus(credential)]);
 	const rejected = [creditsResult, checkinResult].some((result) => result.status === "rejected" && isCredentialRejectedError(result.reason));
-	const recovery = !rejected ? void 0 : await resolveCredentialRecovery({
-		region,
-		store: deps.store(region),
-		...selected === void 0 ? {} : { rejectedAccountId: selected.id },
-		probe: deps.accountUsable ?? (async () => false)
-	});
+	const recovery = !rejected ? void 0 : await credentialRecoveryOf(deps, region, selected?.id);
 	return {
 		...creditsResult.status === "fulfilled" ? { credits: toCredits(creditsResult.value) } : { creditsError: safeMessage(creditsResult.reason) },
 		...checkinResult.status === "fulfilled" ? { checkin: checkinResult.value } : { checkinError: safeMessage(checkinResult.reason) },
@@ -12330,6 +12964,10 @@ async function workBuddyWebStatus(deps, region, options = {}) {
 	const dropForeignThinking = deps.dropForeignThinking?.() === true;
 	const lastForeignThinking = deps.latestForeignThinking?.();
 	const busyLevels = deps.busyLevels?.(region) ?? {};
+	const catalogDegraded = (() => {
+		const degradation = deps.catalogDegradation?.(region);
+		return degradation === void 0 ? void 0 : toWebCatalogDegradation(degradation);
+	})();
 	const authStatus = await store.status();
 	const selectionExplicit = store.hasExplicitSelection();
 	if (authStatus.state !== "signed-out" && accounts.length === 0) return {
@@ -12357,10 +12995,14 @@ async function workBuddyWebStatus(deps, region, options = {}) {
 		if (credential === void 0) credential = await store.resolve();
 	} catch (error) {
 		const webAccounts = accounts.map(toWebAccount);
+		const refreshRejected = isCredentialRejectedError(error);
+		const recovery = !refreshRejected ? void 0 : await credentialRecoveryOf(deps, region, accounts.find((account) => account.selected)?.id);
 		return {
 			status: "signed-out",
 			accounts: webAccounts,
 			message: safeMessage(error),
+			...!refreshRejected ? {} : { credentialRejected: true },
+			...recovery === void 0 ? {} : { recovery },
 			selectionExplicit,
 			enabled,
 			showCreditsInMainUi,
@@ -12419,7 +13061,8 @@ async function workBuddyWebStatus(deps, region, options = {}) {
 		}),
 		enabledModelIds: [...deps.enabledModelIds(region)],
 		imageModelIds: [...deps.imageModelIds(region)],
-		offModelIds: [...deps.offModelIds(region)]
+		offModelIds: [...deps.offModelIds(region)],
+		...catalogDegraded === void 0 ? {} : { catalogDegraded }
 	};
 	const figures = fast ? {} : await liveFigures(deps, region, credential, selected);
 	const rosterSeen = deps.rosterSeen === void 0 ? void 0 : await deps.rosterSeen(region);
@@ -12484,7 +13127,9 @@ async function workBuddyWebPool(deps, region, fast = false) {
 	const byId = new Map(members.map((member) => [member.account.id, member]));
 	const rankedIds = new Set(ranked.map((row) => row.account.id));
 	const others = await pool.otherAccounts?.(region) ?? [];
-	const checkedIn = fast ? pool.cachedCheckedInToday?.(region) ?? {} : await pool.checkedInToday?.(region).catch(() => ({})) ?? {};
+	const checkedIn = fast ? await pool.cachedCheckedInToday?.(region) ?? {} : await pool.checkedInToday?.(region).catch(() => ({})) ?? {};
+	const growthRedeemed = await pool.growthDoneAccountIds?.(region, "growth-redeem") ?? {};
+	const growthActive = await pool.growthDoneAccountIds?.(region, "growth-activity") ?? {};
 	const claimable = fast ? pool.cachedBenefits?.(region) ?? {} : await pool.benefits?.(region).catch(() => ({})) ?? {};
 	const rows = [...ranked.map((row) => ({
 		account: row.account,
@@ -12535,6 +13180,8 @@ async function workBuddyWebPool(deps, region, fast = false) {
 			current: account.id === currentAccountId,
 			member,
 			...checkedIn[account.id] === void 0 ? {} : { checkedInToday: checkedIn[account.id] },
+			...growthRedeemed[account.id] === true ? { growthRedeemedToday: true } : {},
+			...growthActive[account.id] === true ? { growthActiveToday: true } : {},
 			...(() => {
 				const views = claimable[account.id];
 				if (views === void 0 || views.length === 0) return {};
@@ -12552,9 +13199,19 @@ async function workBuddyWebPool(deps, region, fast = false) {
 		enabled: preferences.enabled,
 		checkinSupported: pool.checkinSupported?.(region) === true,
 		...preferences.autoCheckin !== true ? {} : { autoCheckin: true },
+		...preferences.growthRedeem !== true ? {} : { growthRedeem: true },
+		...preferences.growthActivity !== true ? {} : { growthActivity: true },
 		...(() => {
 			const today = pool.autoCheckinToday?.(region);
 			return today === void 0 ? {} : { autoCheckinToday: today };
+		})(),
+		...(() => {
+			const today = pool.growthRedeemToday?.(region);
+			return today === void 0 ? {} : { growthRedeemToday: today };
+		})(),
+		...(() => {
+			const today = pool.growthActivityToday?.(region);
+			return today === void 0 ? {} : { growthActivityToday: today };
 		})(),
 		...target.modelId === void 0 ? {} : { targetModelId: target.modelId },
 		...target.staleModelId === void 0 ? {} : { staleTargetModelId: target.staleModelId },
@@ -12721,9 +13378,12 @@ function registerWorkBuddyStatusRoute(ctx, deps) {
 			method: "POST",
 			ready: (res) => deps.discoverModels === void 0 ? (json(res, 503, { error: "model refresh unavailable" }), false) : deps.persistModels === void 0 ? (json(res, 503, { error: "model refresh cannot be persisted" }), false) : true
 		}, async (_req, res, region) => {
-			const models = await deps.discoverModels(region);
-			await deps.persistModels(region, models);
-			json(res, 200, { models: models.map((model) => toWebModel(model, deps.contextBudgets(region))) });
+			const read = await deps.discoverModels(region);
+			await deps.persistModels(region, read);
+			json(res, 200, {
+				models: read.models.map((model) => toWebModel(model, deps.contextBudgets(region))),
+				...read.degraded === void 0 ? {} : { degraded: toWebCatalogDegradation(read.degraded) }
+			});
 		});
 		endpointRegion({
 			path: WORKBUDDY_MEDIA_MODELS_PATH,
@@ -12847,6 +13507,16 @@ function registerWorkBuddyStatusRoute(ctx, deps) {
 						return json(res, 200, {
 							action: "checkin",
 							rows: await pool.checkin(region)
+						});
+					}
+					if (action === "growth-redeem" || action === "growth-activity") {
+						if (pool.growthRun === void 0) return json(res, 503, {
+							reason: "pool-unavailable",
+							error: "pool growth action unavailable"
+						});
+						return json(res, 200, {
+							action,
+							rows: await pool.growthRun(region, action)
 						});
 					}
 					if (pool.test === void 0) return json(res, 503, {
@@ -13328,6 +13998,8 @@ const poolConfig = z.object({
 	* background path spend a request per account per day learning a refusal.
 	*/
 	autoCheckin: z.boolean().default(false).description("Claim the daily check-in automatically for the accounts checked into this pool (opt-in). Idempotent: an account already checked in today is reported, never re-claimed. Only the CN region has a daily check-in."),
+	growthRedeem: z.boolean().default(false).description("Redeem claimable streak-growth tiers automatically (opt-in, both regions). Only tiers the gateway marks available are written; a locked tier is skipped. Idempotent across repeat runs."),
+	growthActivity: z.boolean().default(false).description("Light up \"active today\" via one console ACP session per account per day (opt-in, both regions). Spends a small amount of credit. Idempotent: an already-active account sends no session."),
 	orderAccountIds: z.array(z.string()).default([]).description("The user's hand-ordered pool order, as account ids. Independent of membership: an id need not be checked in (it only takes effect once the account is a member), and ids not listed sort last. Separate from memberAccountIds so reordering never conflicts with, or is destroyed by, a membership edit.")
 });
 const regionStateConfig = z.object({
@@ -13937,35 +14609,15 @@ function apply(ctx, config) {
 		};
 	})());
 	/**
-	* How long a check-in reading is reused before asking the upstream again.
-	*
-	* The card polls the usage route every 60 seconds, but "did this account
-	* check in today" changes only when a check-in runs or the day rolls over.
-	* Without a cache, a 10-account pool cost ~14,400 upstream requests a day for
-	* an answer that was almost always identical.
-	*/
-	const CHECKIN_CACHE_MS = 6e5;
-	/**
-	* Per-region, per-account check-in readings.
-	*
-	* Invalidated by this plugin's own check-in batch (the only writer that can
-	* change the answer during a session), so the user sees their result
-	* immediately instead of waiting out the TTL.
-	*
-	* A reading is ALSO bounded by the local day, not just by the TTL — see
-	* `checkinReadingFresh`. Both readers go through it, because an entry is an
-	* answer to "has this account checked in TODAY" and a `true` read at 23:58
-	* must not be served at 00:08.
-	*/
-	const checkinStateCache = {};
-	/**
 	* Per-region, per-account benefit readings (issue #79).
 	*
-	* Same shape and same reasoning as `checkinStateCache`: claim state changes
-	* when a human acts on the web page or in the desktop app, not spontaneously,
-	* so a per-poll read of two endpoints per account would be thousands of
-	* requests a day to learn nothing. Coarser than the check-in TTL because a
-	* benefit window is measured in days, not hours.
+	* "Did this account check in today" is NOT cached here any more: it lives in
+	* the persistent done-today memory (`daily-done-store`), so a fact observed
+	* once is never re-read that day — not even after a restart. Benefit claim
+	* state changes when a human acts on the web page or in the desktop app, not
+	* spontaneously, so a per-poll read of two endpoints per account would be
+	* thousands of requests a day to learn nothing. Its window is measured in
+	* days, not hours.
 	*/
 	const benefitStateCache = {};
 	const settingsNs = settingsNamespaceOf(ctx);
@@ -14272,6 +14924,22 @@ function apply(ctx, config) {
 		return client.fetchModels(credential, signal, keep);
 	};
 	/**
+	* The runtime roster an upstream read answers with.
+	*
+	* ISSUE #288. A DEGRADED read — one of the product documents was refused (a
+	* rate limit, a transport error) and the other one answered — is NOT the
+	* upstream's whole offer: it is missing every row the refused document
+	* published. So the SAVED directory fills that gap, and the roster is the
+	* union of the two — the same shape `applySelection` builds through
+	* {@link resolveRoster}, and the same rule issue #32 states: a refresh must
+	* never withdraw a model the user is on.
+	*
+	* The rule itself lives in {@link rosterOfRead}, next to the merge it uses,
+	* so the runtime, the discovery answer and the card's refresh cannot drift
+	* into answering three different things.
+	*/
+	const rosterOfReadFor = (region, read) => rosterOfRead(regionStateOf(current(), region).lastCatalog ?? [], read);
+	/**
 	* Record a refresh the card just asked for (issue #214).
 	*
 	* The reported bug, in one sentence: the refresh button was the only code
@@ -14302,13 +14970,14 @@ function apply(ctx, config) {
 	* become true and every other reader stop mistaking the static table for the
 	* upstream (see `displayModels`).
 	*/
-	const persistRefreshedModels = async (region, models) => {
+	const persistRefreshedModels = async (region, read) => {
+		const models = rosterOfReadFor(region, read);
 		if (models.length === 0) return;
 		const state = regionStateOf(current(), region);
 		const next = withEffectiveOff(withImageSelection(deriveCatalog(models, new Set(state.enabledModelIds ?? []), state.contextBudgets ?? {}), effectiveImageIds(state, models)), new Set(savedOffModelIds(state, models)));
-		stacks[region].catalog.set(next);
+		stacks[region].catalog.set(next, "upstream", read.degraded);
 		invalidateCatalog();
-		await repairRegionCatalog(region, models, { strict: true });
+		await repairRegionCatalog(region, read.models, { strict: true });
 	};
 	/**
 	* The region's MEDIA models, cached briefly for the card's read-only roster.
@@ -14773,6 +15442,15 @@ function apply(ctx, config) {
 			discoverModels,
 			persistModels: persistRefreshedModels,
 			/**
+			* Whether this region's directory is a PARTIAL answer (issue #288).
+			*
+			* Read off the catalog, which is the one place that knows: the upstream
+			* read that produced the current roster is the only writer of the fact, and
+			* a derivation keeps it. The card turns it into a notice, so a short model
+			* list is never mistaken for the upstream's whole offer.
+			*/
+			catalogDegradation: (region) => stacks[region].catalog.degradation(),
+			/**
 			* This region's first-sighting readout, the data behind the composer pill's
 			* "· N 新模型" segment.
 			*
@@ -15048,22 +15726,14 @@ function apply(ctx, config) {
 					if (region !== "cn" || !poolPreferencesOf(current(), region).enabled) return {};
 					const store = stacks[region].store;
 					const accounts = await store.accounts();
-					const now = Date.now();
 					const entries = await Promise.all(accounts.map(async (account) => {
 						if (account.enterprise === true) return void 0;
-						const cached = checkinStateCache[region]?.[account.id];
-						if (cached !== void 0 && checkinReadingFresh(cached.atMs, now, CHECKIN_CACHE_MS)) return [account.id, cached.checkedIn];
+						if (await isDoneToday("checkin", region, account.id)) return [account.id, true];
 						const credential = await store.credentialFor(account.id).catch(() => void 0);
 						if (credential === void 0) return void 0;
 						const status = await client.fetchCheckinStatus(credential).catch(() => void 0);
 						if (status === void 0 || !status.active) return void 0;
-						checkinStateCache[region] = {
-							...checkinStateCache[region],
-							[account.id]: {
-								checkedIn: status.todayCheckedIn,
-								atMs: now
-							}
-						};
+						if (status.todayCheckedIn) await markDoneToday("checkin", region, [account.id]);
 						return [account.id, status.todayCheckedIn];
 					}));
 					return Object.fromEntries(entries.filter((entry) => entry !== void 0));
@@ -15076,17 +15746,15 @@ function apply(ctx, config) {
 				* on one request per account. An unmeasured account is absent, which the
 				* card already renders as unknown rather than as "not checked in".
 				*/
-				cachedCheckedInToday(region) {
-					if (!poolPreferencesOf(current(), region).enabled) return {};
-					const now = Date.now();
-					const state = checkinStateCache[region] ?? {};
-					const cached = {};
-					for (const [accountId, entry] of Object.entries(state)) {
-						if (!checkinReadingFresh(entry.atMs, now, CHECKIN_CACHE_MS)) continue;
-						cached[accountId] = entry.checkedIn;
-					}
-					return cached;
-				},
+				/**
+				* Today's checked-in accounts for the first paint (issue #77).
+				*
+				* Reads the persistent done-today memory and NOTHING else: no upstream
+				* request, so painting never blocks, and — unlike the old in-memory TTL
+				* cache — it survives a restart within the same day. An account with no
+				* record is absent, which the card already renders as unknown.
+				*/
+				cachedCheckedInToday: (region) => doneTodayMap("checkin", region),
 				/**
 				* Claimable promotional benefits per account (issue #79).
 				*
@@ -15185,13 +15853,56 @@ function apply(ctx, config) {
 					if (state === void 0) return void 0;
 					return todaySummary(state, Date.now());
 				},
+				/**
+				* Today's growth-job progress (issue #286), from the runner's own in-memory
+				* state — same source the tick writes, so the card cannot drift from what
+				* actually ran. `undefined` when the switch is off or nothing has run yet.
+				*/
+				growthRedeemToday: (region) => growthTodayOf("growth-redeem", region),
+				growthActivityToday: (region) => growthTodayOf("growth-activity", region),
+				/**
+				* Per-account growth completion for the row stamps (issue #286). Backed by
+				* the runner's day state: an account is "done" once today's job addressed
+				* it, regardless of whether it redeemed or was already active. No upstream
+				* read, so it is safe on the card's poll.
+				*/
+				growthDoneAccountIds: async (region, cap) => {
+					const map = { ...await doneTodayMap(cap, region) };
+					const state = growthState[growthKey(cap, region)] ?? await readGrowthState(cap, region);
+					if (state !== void 0 && state.day === localDayKey(Date.now())) for (const id of state.doneAccountIds) map[id] = true;
+					return map;
+				},
+				/**
+				* Manual "run now" for a growth job (issue #286). Same batch + state as
+				* the timer, but ignores the opt-in switch and the backoff clock: the user
+				* asked for it now. Returns check-in-shaped rows for the shared log UI.
+				*/
+				growthRun: async (region, action) => {
+					const cap = action === "growth-redeem" ? "growth-redeem" : "growth-activity";
+					const key = growthKey(cap, region);
+					const nowMs = Date.now();
+					const stored = growthState[key] ?? await readGrowthState(cap, region);
+					const state = stored === void 0 || stored.day !== localDayKey(nowMs) ? emptyAutoCheckinState(localDayKey(nowMs)) : stored;
+					const all = (await poolMemberAccounts(region)).map((account) => ({
+						accountId: account.id,
+						accountName: account.accountName
+					}));
+					const rows = await runGrowthBatch(cap, region, all);
+					const folded = foldGrowthAttempt(state, rows.map((row) => row.accountId), all.length, nowMs);
+					growthState[key] = folded;
+					await writeGrowthState(cap, region, folded);
+					await markDoneToday(cap, region, rows.map((row) => row.accountId));
+					return rows.map((row) => ({
+						accountId: row.accountId,
+						accountName: row.accountName,
+						status: row.status === "done" ? "claimed" : row.status === "skipped" ? "already" : "failed",
+						...row.credit === void 0 ? {} : { credit: row.credit },
+						...row.message === void 0 ? {} : { message: row.message }
+					}));
+				},
 				checkin: async (region) => {
 					const rows = await checkinAllAccounts(await poolTargets(region), poolRunnerDeps(region));
-					for (const row of rows) {
-						if (row.status === "failed") continue;
-						const cached = checkinStateCache[region];
-						if (cached !== void 0) delete cached[row.accountId];
-					}
+					await markDoneToday("checkin", region, rows.filter((row) => row.status === "claimed" || row.status === "already").map((row) => row.accountId));
 					if (rows.some((row) => row.status !== "failed")) {
 						await poolMembersOf(region);
 						await applyPoolSelection(region);
@@ -15760,7 +16471,9 @@ function apply(ctx, config) {
 			...probeInputTokens === void 0 ? {} : { probeInputTokens },
 			memberAccountIds: pool?.memberAccountIds ?? [],
 			orderAccountIds: pool?.orderAccountIds ?? [],
-			autoCheckin: pool?.autoCheckin === true
+			autoCheckin: pool?.autoCheckin === true,
+			growthRedeem: pool?.growthRedeem === true,
+			growthActivity: pool?.growthActivity === true
 		};
 	};
 	/**
@@ -15881,11 +16594,7 @@ function apply(ctx, config) {
 				return;
 			}
 			const rows = await checkinAllAccounts(targets, poolRunnerDeps(region));
-			for (const row of rows) {
-				if (row.status === "failed") continue;
-				const cached = checkinStateCache[region];
-				if (cached !== void 0) delete cached[row.accountId];
-			}
+			await markDoneToday("checkin", region, rows.filter((row) => row.status === "claimed" || row.status === "already").map((row) => row.accountId));
 			if (rows.some((row) => row.status !== "failed")) {
 				await poolMembersOf(region);
 				await applyPoolSelection(region);
@@ -15945,6 +16654,134 @@ function apply(ctx, config) {
 	ctx.effect(() => () => {
 		stopAutoCheckin();
 	});
+	const growthTimers = {};
+	const growthState = {};
+	const growthRunning = {};
+	const GROWTH_IDLE_MS = AUTO_CHECKIN_IDLE_MS;
+	const growthKey = (cap, region) => `${cap}:${region}`;
+	/** Today's summary for one growth job, for the card's status line. */
+	function growthTodayOf(cap, region) {
+		if (!growthEnabled(cap, region)) return void 0;
+		const state = growthState[growthKey(cap, region)];
+		return growthTodaySummary(state, localDayKey(Date.now()));
+	}
+	/** Both growth capabilities apply to both regions — unlike check-in. */
+	const GROWTH_REGIONS = ["cn", "global"];
+	const GROWTH_CAPABILITIES = ["growth-redeem", "growth-activity"];
+	function growthEnabled(cap, region) {
+		const prefs = poolPreferencesOf(current(), region);
+		if (!prefs.enabled) return false;
+		return cap === "growth-redeem" ? prefs.growthRedeem : prefs.growthActivity;
+	}
+	/** The ACP model for one region: its first advertised model, or a safe fallback. */
+	function growthAcpModel(region) {
+		return displayModels(current(), region).filter((model) => !isRouterModelId(model.id))[0]?.id ?? (region === "cn" ? "hy3" : "deepseek-v4.1-flash");
+	}
+	/**
+	* Execute one growth batch over the given targets — the ONE implementation
+	* both the background timer and the manual "run now" button call. Never throws
+	* at the batch level; each account's problem is captured on its own row by the
+	* runner. Returns the raw growth rows (done/skipped/failed).
+	*/
+	async function runGrowthBatch(cap, region, targets) {
+		const store = stacks[region].store;
+		if (cap === "growth-redeem") return redeemGrowthAll(targets, {
+			credentialFor: (id) => store.credentialFor(id),
+			readStreak: (credential) => client.fetchGrowthStreak(credential),
+			redeem: (credential, tier) => client.redeemGrowthTier(credential, tier)
+		});
+		const model = growthAcpModel(region);
+		return activateGrowthAll(targets, async (accountId) => {
+			const credential = await store.credentialFor(accountId);
+			if (credential === void 0) return {
+				status: "failed",
+				reason: "no stored credential"
+			};
+			const host = growthHostOf(credential);
+			return activateGrowth({
+				base: host,
+				accessToken: credential.accessToken,
+				origin: host,
+				model,
+				heatmap: async () => {
+					const cell = await client.fetchGrowthToday(credential);
+					return cell === void 0 ? void 0 : {
+						isActive: cell.isActive,
+						score: cell.score
+					};
+				}
+			});
+		});
+	}
+	/** Run one capability for one region across its pooled members. Never throws. */
+	async function growthTick(cap, region) {
+		const key = growthKey(cap, region);
+		if (growthRunning[key] === true) return;
+		growthRunning[key] = true;
+		try {
+			if (!growthEnabled(cap, region)) return;
+			const nowMs = Date.now();
+			const today = localDayKey(nowMs);
+			const stored = growthState[key] ?? await readGrowthState(cap, region);
+			const state = stored === void 0 || stored.day !== today ? emptyAutoCheckinState(today) : stored;
+			growthState[key] = state;
+			const all = (await poolMemberAccounts(region)).map((account) => ({
+				accountId: account.id,
+				accountName: account.accountName
+			}));
+			const targets = growthPendingTargets(all, state);
+			if (targets.length === 0) {
+				scheduleGrowth(cap, region, GROWTH_IDLE_MS);
+				return;
+			}
+			const rows = await runGrowthBatch(cap, region, targets);
+			const folded = foldGrowthAttempt(state, rows.map((row) => row.accountId), all.length, nowMs);
+			growthState[key] = folded;
+			await writeGrowthState(cap, region, folded);
+			await markDoneToday(cap, region, rows.map((row) => row.accountId));
+			scheduleGrowth(cap, region, GROWTH_IDLE_MS);
+		} catch (error) {
+			ctx.logger.warn(`dsh-connect-workbuddy: growth tick failed (${cap}/${region})`, error);
+			scheduleGrowth(cap, region, GROWTH_IDLE_MS);
+		} finally {
+			growthRunning[key] = false;
+		}
+	}
+	function scheduleGrowth(cap, region, delayMs) {
+		const key = growthKey(cap, region);
+		const existing = growthTimers[key];
+		if (existing !== void 0) clearTimeout(existing);
+		const timer = setTimeout(() => {
+			growthTick(cap, region);
+		}, delayMs);
+		timer.unref?.();
+		growthTimers[key] = timer;
+	}
+	function syncGrowth() {
+		for (const cap of GROWTH_CAPABILITIES) for (const region of GROWTH_REGIONS) {
+			const key = growthKey(cap, region);
+			if (growthEnabled(cap, region)) {
+				if (growthTimers[key] === void 0) scheduleGrowth(cap, region, 0);
+				continue;
+			}
+			const timer = growthTimers[key];
+			if (timer !== void 0) {
+				clearTimeout(timer);
+				delete growthTimers[key];
+			}
+		}
+	}
+	function stopGrowth() {
+		for (const timer of Object.values(growthTimers)) clearTimeout(timer);
+		for (const key of Object.keys(growthTimers)) delete growthTimers[key];
+	}
+	function refreshGrowthSchedules() {
+		syncGrowth();
+	}
+	refreshGrowthSchedules();
+	ctx.effect(() => () => {
+		stopGrowth();
+	});
 	ctx.inject(["settings"], (sctx) => {
 		const settings = sctx.settings;
 		ctx.effect(() => settings.configure({ auto: true }, ctx.fiber));
@@ -15979,6 +16816,7 @@ function apply(ctx, config) {
 	ctx.on("loader/volatile-update", () => {
 		applySelection(current());
 		syncAutoCheckin();
+		refreshGrowthSchedules();
 		syncDeviceSdk();
 	});
 	applySelection(config);
@@ -16088,7 +16926,8 @@ function apply(ctx, config) {
 				if (region === void 0) return [];
 				if (!regionEnabled(current(), region)) return [];
 				const discovered = await discoverModels(region, signal);
-				const live = await withBusyLevels(region, discovered, signal);
+				const roster = rosterOfReadFor(region, discovered);
+				const live = await withBusyLevels(region, roster, signal);
 				const state = regionStateOf(current(), region);
 				return withImageSelection(deriveCatalog(live, new Set(state.enabledModelIds ?? []), state.contextBudgets ?? {}), effectiveImageIds(state, live)).map((model) => ({
 					id: model.id,
@@ -16113,10 +16952,11 @@ function apply(ctx, config) {
 			(async () => {
 				try {
 					const credential = await stacks[region].store.resolve();
-					const models = await withBusyLevels(region, await client.fetchModels(credential, void 0, regionStateOf(current(), region).enabledModelIds ?? []));
+					const read = await client.fetchModels(credential, void 0, regionStateOf(current(), region).enabledModelIds ?? []);
+					const models = await withBusyLevels(region, rosterOfReadFor(region, read));
 					if (stopped) return;
 					const state = regionStateOf(current(), region);
-					stacks[region].catalog.set(withEffectiveOff(withImageSelection(deriveCatalog(models, new Set(state.enabledModelIds ?? []), state.contextBudgets ?? {}), effectiveImageIds(state, models)), new Set(savedOffModelIds(state, models))));
+					stacks[region].catalog.set(withEffectiveOff(withImageSelection(deriveCatalog(models, new Set(state.enabledModelIds ?? []), state.contextBudgets ?? {}), effectiveImageIds(state, models)), new Set(savedOffModelIds(state, models))), "upstream", read.degraded);
 					adapters[region].invalidate();
 					try {
 						await stacks[region].rosterSeen.note(models.map((model) => model.id));
@@ -16124,7 +16964,7 @@ function apply(ctx, config) {
 						ctx.logger.warn(`dsh-connect-workbuddy: ${region} first-sighting history not updated`, error);
 					}
 					await regionsFieldHealed;
-					await repairRegionCatalog(region, models);
+					await repairRegionCatalog(region, read.models);
 				} catch (error) {
 					ctx.logger.warn(`dsh-connect-workbuddy: dynamic ${region} model catalog unavailable; serving the static fallback list`, error);
 				}

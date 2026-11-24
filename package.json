@@ -1,6 +1,6 @@
 {
   "name": "dsh-model-accordion",
-  "version": "0.9.3",
+  "version": "0.10.0",
   "private": true,
   "type": "module",
   "description": "Self-contained DSH plugin: collapses the model list by provider and bundles the WorkBuddy / Trae / Qoder / OpenCode connector hosts (vendored), with a unified settings hub that shows account info and model lists, configures accounts (PAT / OAuth / switching), refreshes models and tests individual models — all working after the original four connector plugins are uninstalled.",
