@@ -1,70 +1,43 @@
 # Changelog
 
-## 0.10.0 (unreleased)
+## 0.11.0 (unreleased)
 
-- **Rebuilt the hub's UI to match the three connector plugins' current
-  paradigm.** Modeled after `dsh-connect-workbuddy` / `-qoder` / `-trae`
-  (their mature `settings.section` + two-tier tabs + fast-first pattern):
-  - **Entry moved to `settings.section`** (`id: settings.model-accordion`,
-    order 40, with a matching `settings.section.icon`), so the hub is a real
-    row in the Settings navigation next to WorkBuddy / Trae / Qoder /
-    OpenCode Go. The legacy `plugins.item` / `*.config` registrations are kept
-    for older hosts.
-  - **Deep links no longer scrape the DOM.** "Open connector settings" now uses
-    the three connectors' own three-route pattern: the shell's
-    `sidebar.settings` store seat (`openSection(id)`) first, then driving the
-    real settings chrome by label, each step fail-soft. The correct section ids
-    are read from upstream constants (`dsh-connect-workbuddy`, `dsh-connect-trae`,
-    `dsh-connect-qoder`, `opencode-go`).
-  - **Two-tier information architecture.** Each connector page now has
-    `账号 / 模型 / 能力 / 诊断` sub-tabs rendered as `role=tabpanel` with
-    `hidden` (not unmounted), so search terms and drafts survive a switch.
-    Added read-only **能力** (reasoning/image/off/context counts) and **诊断**
-    (source version, region, status, account/model counts, updated-at) cards.
-  - **Check-in / benefit actions** on the accounts card, calling each host's
-    own `/checkin`, `/benefit/claim` or `/pool?action=checkin` route (strictly
-    prefix-checked against that connector's own `/plugins/...` namespace).
-  - **Composer credits readout** registered in the two shared LIST slots
-    (`conversation.input.right` order 4, `conversation.composer.dock` order 10)
-    with unique ids and a provider gate (`modelSelection.next ?? lastUsed`),
-    so it only paints for our providers (`opencode` / `delegate`) and never
-    collides with the three native readouts. `conversation.input.model.label`
-    is intentionally NOT registered: it is a single slot already won at -105,
-    and repainting every other provider's badge would silently break them.
-  - **Resilience**: a local `HubBoundary` error boundary (a failed card shows a
-    readable message instead of the host's empty div), and latest-wins probe
-    guards so a slow earlier response cannot overwrite a newer account's data.
-  - Vendored hosts re-synced to the latest published artifacts in the source
-    repos: WorkBuddy 5.31.2, Trae 4.18.7, Qoder 1.27.1 (verified byte-for-byte
-    against the registry tarballs).
-
-Verified in a real DSH session with Playwright: the "模型连接器中心" row appears
-in Settings; opening it shows 6 top-level tabs; the WorkBuddy page shows 4
-sub-tabs and 4 tabpanels (3 `hidden`, proving keep-alive); the 能力/诊断 cards
-render real data with the 5.31.2 source version; no render errors.
+- **Removed the model connector center (统一模型连接器中心) hub UI.** The
+  `settings.section` registration, its tabs, the account / model / capability /
+  diagnostics cards, the composer credits overlay, `HubPanel` and all related
+  client code are gone. Each connector host already ships its own settings
+  page, so the central control panel was redundant; the plugin is back to its
+  core purpose — the model-menu accordion plus the three self-contained
+  connector hosts.
+- **Removed all Qoder support.** The `vendored/qoder/` host was deleted,
+  `install.sh` no longer inserts a Qoder host, `lib/client.js` contains no
+  Qoder code or refresh target, and all Qoder documentation was removed.
+  There are now three connector hosts: WorkBuddy (5.31.2), Trae (4.18.7) and
+  OpenCode (`opencode2dsh` + `opencode-go`).
+- Documentation updated: both READMEs and this changelog now describe only
+  the accordion (favorites / sorting / search passthrough / one-click model
+  refresh / stable height / keyboard / i18n / hot reload) and the three
+  self-contained connector hosts.
 
 ## 0.9.3 (unreleased)
 
-- **Re-synced the three vendored connector hosts to the current upstream
-  releases.** The copies under `vendored/` had drifted several minor versions
-  behind the published packages, so models, quota panels and login flows were
-  missing the fixes shipped since 0.9.0:
+- **Re-synced the vendored connector hosts to the current upstream releases.**
+  The copies under `vendored/` had drifted several minor versions behind the
+  published packages, so models, quota panels and login flows were missing
+  the fixes shipped since 0.9.0:
   - WorkBuddy `5.17.0` → **`5.24.15`**
   - Trae `4.6.12` → **`4.18.5`**
-  - Qoder (`@dmh2002/dsh-connect-qoder`) `1.16.4` → **`1.26.4`**
   Each is a verbatim copy of the published artifact, including the nested
   `node_modules/` that ships inside those packages; the `file:` entry ids are
   unchanged, so saved accounts, regions and `lastCatalog` keep applying.
 - **schemastery `3.18.4` → `3.19.0`, cosmokit `1.8.5` → `1.9.0`.** WorkBuddy
   5.24.15 pins schemastery `3.19.0`, and its bundled copy is what the
   `install.sh` shim links for every host. The newer version still satisfies the
-  other two peers' ranges (`trae` ≥3.18.4, `workbuddy`/`qoder` ≥3.18.2) and
-  keeps `.volatile()` that OpenCode's `Config` needs.
-- The hub's connector cards now show the new versions.
+  other peers' ranges and keeps `.volatile()` that OpenCode's `Config` needs.
 - Verified with a fresh `install.sh` run on a clean profile: boot has zero
-  errors, WorkBuddy/Trae/Qoder `/usage` all answer 200 with live account data
-  ("17号" / "18号" signed in), the OpenCode IP-pool bridge still accepts its
-  POST, and the vendored opencode-go hub reports the configured account.
+  errors, WorkBuddy / Trae `/usage` all answer 200 with live account data, the
+  OpenCode IP-pool bridge still accepts its POST, and the vendored opencode-go
+  hub reports the configured account.
 
 ## 0.9.2 (unreleased)
 
@@ -84,10 +57,9 @@ render real data with the 5.31.2 source version; no render errors.
     `https://opencode.ai/inference/v1/models` (HTTP 200).
   - This keeps the ~88 MB runtime binary out of the plugin payload. The Go
     channel is unaffected — it never shells out to Bun.
-- **OpenCode Go is now vendored, and the hub can take an API key.** Previously
-  the OpenCode tab only showed the IP-pool bridge; using opencode.ai's Go
-  channel required the standalone `dsh-opencode-go` plugin and its own settings
-  page. Now:
+- **OpenCode Go is now vendored.** Previously using opencode.ai's Go channel
+  required the standalone `dsh-opencode-go` plugin and its own settings page.
+  Now:
   - `dsh-opencode-go` ships inside this package as `vendored/opencode-go/`
     (upstream 0.4.0, Apache-2.0, unmodified apart from the bridge below) and the
     profile's `opencode-go` entry points at it through a `file:` URL. The entry
@@ -109,9 +81,6 @@ render real data with the 5.31.2 source version; no render errors.
     back to a direct anonymous `GET <baseURL>/models` after 8s, because that
     endpoint is unauthenticated — an appkey is only needed to *call* a model,
     never to list one.
-  - The hub's OpenCode tab gained an 「OpenCode Go 账号」 section: paste an
-    `oc_sk_…` key, add the account, see it listed with a configured/in-use tag,
-    switch between accounts, remove one, and refresh the model directory.
 - **`install.sh` is now idempotent about the vendored host** and fixes two
   real bugs found while wiring it:
   - the conversion of the npm override row now scans line-by-line; the previous
@@ -127,7 +96,7 @@ render real data with the 5.31.2 source version; no render errors.
   `discoverModels()` and returned the live roster (33 CN / 26 Intl models), but
   the host never wrote it anywhere durable: `/usage` reads
   `displayModels()`, which serves `settings.regions.<panel>.lastCatalog` — the
-  stale 4/7-row snapshot saved by the native settings page. The hub's
+  stale 4/7-row snapshot saved by the native settings page. The old
   `refreshedModels` overlay covered it for the current tab only, so a page
   reload or app restart lost the full list again.
   - New `persistDiscovery(panel, models)` in the Trae host writes the discovered
@@ -140,15 +109,14 @@ render real data with the 5.31.2 source version; no render errors.
     returns the discovered models instead of failing the whole refresh.
   - Verified on an isolated DSH web instance: CN `/usage` went 4 → 33 and Intl
     7 → 26 immediately after refresh, both **persisted across two full
-    restarts** (settings file carried the new `lastCatalog`), and Qoder stayed
-    healthy.
+    restarts** (settings file carried the new `lastCatalog`).
 - **Fixed Trae model-list refresh showing the wrong roster.** The live roster
   cached by a successful `POST /models/refresh` was a permanent override with
-  no account binding, so after switching Trae accounts (or regions) the hub
+  no account binding, so after switching Trae accounts (or regions) the UI
   kept showing the **previous account's** models, and a failed refresh left the
   old roster in place looking like a success. Concretely: with account 18号 the
   CN refresh returns `HTTP 401 SOLO remote models returned HTTP 401`, while
-  16号 returns the full roster — the hub had no way to tell these apart.
+  16号 returns the full roster — there was no way to tell these apart.
   - The cache now stores `{ accountId, models }` and `connectorPanel` applies
     it only when `st.body.accountId` matches, so a switch or region change
     falls back to the authoritative `/usage` list instead of a stale one.
@@ -157,10 +125,10 @@ render real data with the 5.31.2 source version; no render errors.
     roster) and the refresh note reports the reason, e.g.
     `部分区域刷新失败: cn: SOLO remote models returned HTTP 401`. Both the
     per-tab 「刷新模型」 and 「刷新全部模型」 paths do this.
-  - Switching a Trae local account, switching a Qoder/WorkBuddy account, and
-    changing region all clear the connector's roster cache and re-probe +
-    re-refresh for the newly selected account.
-- **Trae multi-account switching from the local login library.** Trae's hub tab
+  - Switching a Trae local account or a WorkBuddy account, and changing region,
+    all clear the connector's roster cache and re-probe + re-refresh for the
+    newly selected account.
+- **Trae multi-account switching from the local login library.** Trae's tab
   previously showed only the one account mirrored from the desktop client's
   current sign-in, with no way to switch. The machine already stores full login
   snapshots for **every** Trae account in TraeDaddy's library
@@ -179,102 +147,47 @@ render real data with the 5.31.2 source version; no render errors.
     ordering is a second, independent persistence layer: `preferred()` picks
     `eligible[0]` when no explicit binding exists, so the choice survives a
     restart even if the settings write is unavailable.
-  - The hub's Trae tab now has a 「切换账号」 dropdown plus a 「Trae 本地账号库」
-    section listing every saved login with an 「客户端当前登录」 tag, a per-row
-    「切换」 button and a 「同步本地账号」 button.
   - Verified on an isolated DSH web instance: `sync` merged 3/1 accounts,
     `switch` changed `/usage` from 15号 → 17号 (CN) and 19号 → 20号 (Intl) with
     4/2 accounts listed and `selected` on the right row, a real upstream
     `models/test` call answered `verdict: "available"` with the switched
     credential, and the selection **persisted across a full restart**. Bad
     action / malformed id / non-loopback origin return 400 / 400 / 403.
-- **Fixed Qoder / Trae model-list refresh in the hub.** Two independent causes:
-  - `hubUsageView` normalized model entries as `{ id: m.id }`, but Qoder's
-    `/usage` uses `key` (settings-catalog shape). Every Qoder model was filtered
-    out by `.filter(m => m.id !== "")`, so the tab always showed
-    「模型列表 · 0」. It now accepts `m.id || m.key` (plus `displayName`,
-    `nativeContextWindow`, `supportsThinking`).
-  - A connector's `POST /models/refresh` only **returns** the live roster into
-    its settings draft; it does not write `lastCatalog` back, so re-probing
-    `/usage` still showed the stale short list (Trae: 4 shown vs 33 live). The
-    hub now keeps the POST's `models` per `connector|region` and renders that
-    live roster after a refresh — for both the per-tab 「刷新模型」 and
-    「刷新全部模型」 buttons. Verified: Qoder 0→11, Trae 4→33.
-- **Pull Qoder's live desktop-client login and use it as a switchable account.**
-  The unified hub's Qoder tab now has a 「Qoder 本地登录」 section:
-  - 「拉取当前本地登录」 reads the Qoder desktop client's current sign-in
-    directly — `~/Library/Application Support/com.qoder(cn).app.stable/auth.v1.dat`
-    (Electron `safeStorage` `v10`, macOS Keychain password per region) — and
-    records the identity into a per-region ledger
-    (`~/.dsh/.qoder-local-logins.<region>.json`, mode `0600`). **No PAT needed.**
-  - Recorded logins appear in the Qoder account dropdown next to PAT / vault /
-    daddy-suite accounts; selecting one writes
-    `regions.<region>.accountId` via the existing `__save` endpoint, so the
-    normal account-switch machinery applies.
-  - The hub also lists recorded logins with an active/inactive tag, a per-row
-    「切换账号」 button and a remove button.
-- **Why this is not just "store the desktop `drt-` as a PAT".** Verified on both
-  regions: the connector gateway's `jobToken` exchange only accepts `pt-` PATs;
-  desktop `dt-` / `drt-` tokens are rejected with
-  `HTTP 401 personal token is invalid`. But `dt-` **is** accepted directly as
-  the COSY `security_oauth_token` (with the real uid from the decrypted login),
-  exactly as buddy-switch does. So `QoderUpstreamClient` gained a device-credential
-  branch: `dt-…` credentials skip the jobToken exchange, build the COSY session
-  from the live desktop login, and drive chat / model listing / usage. End to end
-  verified: model list (11 models), real chat probe `outcome: ok`, usage 200.
-- **Qoder account switching in the hub was broken** — it POSTed
-  `{ field: "accounts", value: { [region]: id } }`, but Qoder stores the
-  selection in `regions.<region>.accountId`. `switchAccount` now uses the
-  correct `field: "regions"` payload for Qoder; WorkBuddy keeps `accounts`.
-- **New loopback-only route** `GET|POST /plugins/dsh-connect-qoder/local-login?region=<r>`
-  (`action: pull | select | remove`). It never returns credential material —
-  only uid / display name / expiry / client status. The ledger likewise stores
-  no tokens (verified): tokens are re-read from the client's encrypted file on
-  every use, so a client re-login always yields the freshest credential and a
-  leaked ledger cannot be replayed.
-- Selecting a recorded login that is **not** the client's current sign-in is a
-  hard, readable error (409) with instructions to switch accounts in the Qoder
-  client and pull again — it never silently serves a different account. The
-  read path (`/usage`) degrades to 「所选账号已不存在」 instead of 500.
 
 ## 0.9.0
 
-- **Account info, model lists and model testing in the unified hub.** The
-  「模型连接器中心」 settings page now does what the four native connector
-  settings pages did, in one place — no need to open the original plugins:
-  - **Account info** (`/usage` full detail, no more `&detail=fast`) — current
-    account name / id / domain / region / credential expiry, the full account
-    list with per-account credits (from `/account-credits`), credit total /
-    used / available, credit packages, check-in streak, and the OpenCode IP
-    pool state / total / enabled flag.
-  - **Model lists** — every model from `/usage` (`models`, or `pool.catalog`
-    for Qoder, or `/ip-pool/models` for OpenCode) with context window, credit
+- **Account info, model lists and model testing in the unified hub.** (Historical
+  note: the unified hub described in this entry was removed in 0.11.0; each
+  connector now exposes these capabilities on its own settings page.)
+  The page did what the native connector settings pages did, in one place:
+  - **Account info** (`/usage` full detail) — current account name / id /
+    domain / region / credential expiry, the full account list with per-account
+    credits (from `/account-credits`), credit total / used / available, credit
+    packages, check-in streak, and the OpenCode IP pool state / total / enabled
+    flag.
+  - **Model lists** — every model from `/usage` with context window, credit
     multiplier, reasoning / image / verified / new / off tags, enabled-state,
     a region selector, a search box and a refresh button that reuses the
     existing `POST /models/refresh` refresh skeleton.
-  - **Account configuration** — Qoder PAT add/remove (`POST /accounts` with
-    `?action=add|remove`), WorkBuddy account switching (`POST /__save` with
-    `field:"accounts"`) plus OAuth login (`/oauth?action=start|poll`), Trae
-    account refresh and a hint pointing at its native/transfer flow (Trae has
-    no add-account route), OpenCode IP-pool probe (`/ip-pool/probe`).
+  - **Account configuration** — WorkBuddy account switching (`POST /__save`
+    with `field:"accounts"`) plus OAuth login (`/oauth?action=start|poll`),
+    Trae account refresh and a hint pointing at its native/transfer flow (Trae
+    has no add-account route), OpenCode IP-pool probe (`/ip-pool/probe`).
   - **Test a model** — each model row has a 「测试」 button that makes one real
-    upstream call: WorkBuddy `POST /probe {modelIds:[id]}`, Trae
-    `POST /models/test {ids:[id]}`, Qoder `GET /probe?model=<id>`. Results
-    (outcome / elapsed ms / message) render inline. Note: Trae's test costs
-    real quota, so the UI shows a warning.
-  - **Live refresh** — the open connector tab re-probes every 60s, skipping
+    upstream call. Results (outcome / elapsed ms / message) render inline.
+    Note: Trae's test costs real quota, so the UI shows a warning.
+  - **Live refresh** — the open connector tab re-probed every 60s, skipping
     ticks while `document.hidden` (the daddy-suite polling pattern).
-- All of the above is pure browser-side `fetch` against the four vendored
-  hosts' existing same-origin routes: **no host code, `configForms`, or
+- All of the above was pure browser-side `fetch` against the vendored hosts'
+  existing same-origin routes: **no host code, `configForms`, or
   `dsh.client.inject` changes were needed**. The reference implementation in
   `daddy-suite` was used for the data-normalization / card / polling patterns
   only; its CDP / `window.ipc` / Electron-specific parts are not portable to a
   DSH web-client plugin and were deliberately not copied.
 - Fixed the OpenCode bridge status shape: `value` is flat (`state`, `total`),
   not nested under `value.snapshot`; the pool count now shows.
-- Added ~50 new `HUB_MESSAGES` keys (zh + en) and ~27 `[data-dsh-hub]` CSS
-  rules (inputs, selects, form rows, key/value grids, model list, tags,
-  inline notes) to `lib/client.js`.
+- Added ~50 new message keys (zh + en) and ~27 CSS rules (inputs, selects,
+  form rows, key/value grids, model list, tags, inline notes) to `lib/client.js`.
 - Version bumped to 0.9.0; `package.json` description updated; README.md /
   README.zh.md document the new capabilities.
 - Host-provided packages are now declared as `peerDependencies` on the plugin
@@ -286,29 +199,29 @@ render real data with the 5.31.2 source version; no render errors.
 
 ## 0.8.0
 
-- **Self-contained connectors (物理合并).** The four connector host adapters —
-  WorkBuddy (5.17.0), Trae (4.6.12), Qoder (`@dmh2002/dsh-connect-qoder`
-  1.16.4) and OpenCode (`@opencode2dsh/dsh-plugin` 0.3.14) — are now vendored
-  inside this package (`vendored/<name>/`, full copies of the installed plugins).
-  After stopping the four standalone bundles, `dsh-model-accordion` itself
-  provides the models, login state, saved config and settings pages. **Uninstalling
-  the original connector npm packages in the GUI no longer breaks anything.**
-  - Architecture: the profile `cordis.patch.yml` gains four `- insert:` loader
-    rows whose `name` is a `file:` URL pointing at each vendored
-    `vendored/<name>/lib/index.js`. The four `entry.id`s stay unchanged
-    (`dsh-connect-workbuddy`, `dsh-connect-trae`, `dsh-connect-qoder`,
-    `opencode2dsh`) because they are the settings namespace, the
-    `/plugins/<id>/...` route prefix and the key for saved config — so the
-    hardcoded routes, client fetches, `REFRESH_TARGETS`, vault/auth filenames
-    and version constants need **zero** string changes. The four host
-    `lib/index.js` files stay separate module URLs (their top-level `Config`
-    schemas and module-level `Map`/`let` singletons would otherwise collide).
-  - Each vendored subpackage keeps its own `dsh.client` + `exports["./client"]`,
-    and `nearestPackage` resolves each `file:` URL to that subpackage's
-    `package.json` name — which equals its `lib/client.js`
-    `window.__ModuleLoader__.load({id})` id. So the four native settings/login
-    UIs keep working with no client concatenation and no slot-key rewrites. The
-    two standalone bundles (`dsh-connect-workbuddy`, `@opencode2dsh/dsh-plugin`)
+- **Self-contained connectors (物理合并).** The connector host adapters —
+  WorkBuddy (5.17.0), Trae (4.6.12) and OpenCode (`@opencode2dsh/dsh-plugin`
+  0.3.14) — are now vendored inside this package (`vendored/<name>/`, full
+  copies of the installed plugins). After stopping the standalone bundles,
+  `dsh-model-accordion` itself provides the models, login state, saved config
+  and settings pages. **Uninstalling the original connector npm packages in
+  the GUI no longer breaks anything.**
+  - Architecture: the profile `cordis.patch.yml` gains `- insert:` loader rows
+    whose `name` is a `file:` URL pointing at each vendored
+    `vendored/<name>/lib/index.js`. The `entry.id`s stay unchanged
+    (`dsh-connect-workbuddy`, `dsh-connect-trae`, `opencode2dsh`) because they
+    are the settings namespace, the `/plugins/<id>/...` route prefix and the
+    key for saved config — so the hardcoded routes, client fetches,
+    `REFRESH_TARGETS`, vault/auth filenames and version constants need **zero**
+    string changes. The host `lib/index.js` files stay separate module URLs
+    (their top-level `Config` schemas and module-level `Map`/`let` singletons
+    would otherwise collide).
+  - Each vendored subpackage keeps its own `dsh.client` +
+    `exports["./client"]`, and `nearestPackage` resolves each `file:` URL to
+    that subpackage's `package.json` name — which equals its `lib/client.js`
+    `window.__ModuleLoader__.load({id})` id. So the native settings/login UIs
+    keep working with no client concatenation and no slot-key rewrites. The
+    standalone bundles (`dsh-connect-workbuddy`, `@opencode2dsh/dsh-plugin`)
     are removed from `dsh.profile.bundles` so the client graph does not see the
     same package name from two sources; their `dependencies` stay so the GUI
     still lists them as uninstallable.
@@ -326,59 +239,48 @@ render real data with the 5.31.2 source version; no render errors.
     Verified: DSH's `ResolutionRouter` routes these `file:` URLs to native ESM,
     so the shim is what resolves their bare imports.
   - `install.sh` rewritten to do all of the above, idempotently: link the
-    package, build the shim, wire the four rows + the accordion row (only if
-    absent), drop the two standalone bundles, back up both files, and clean up
+    package, build the shim, wire the loader rows + the accordion row (only if
+    absent), drop the standalone bundles, back up both files, and clean up
     0.7.0 leftovers. A **full app quit/reopen is required** afterwards (the
     profile's `package.json`/linked roots change at startup — a GUI reload is
     not enough, `ResolutionRouter.replace` rejects live replacement).
-  - Unified hub (0.7.0) copy updated to the self-contained wording; the
-    "打开连接器设置" button now shows a clear message if its deep link target is
-    gone (the `openNativeFail` string is no longer dead code).
   - `package.json` version 0.8.0, `files` now includes `vendored` and
     `README.zh.md`; `window.__dshModelAccordion.version` is `"0.8.0"`.
 
 ## 0.7.0
 
-- **Unified connector settings hub (统一设置界面).** The plugin now registers a
-  single settings card in the Plugins page ("内置插件配置") that puts all four
-  connector plugins — WorkBuddy, Trae, Qoder (`@dmh2002/dsh-connect-qoder`) and
-  OpenCode (`@opencode2dsh/dsh-plugin`) — behind one set of tabs.
-  - The connectors stay installed **independently**: this does not merge their
+- **Unified connector settings hub (统一设置界面).** (Removed in 0.11.0 — see the
+  0.11.0 entry above.) At the time, the plugin registered a single settings
+  card in the Plugins page ("内置插件配置") that put the connector plugins
+  behind one set of tabs.
+  - The connectors stayed installed **independently**: this did not merge their
     host adapters, login state, saved config or `cordis.patch.yml` rows. The hub
-    is a central *control panel* that surfaces their status, model refresh and a
-    deep link to each connector's own native settings page — it deliberately does
-    not duplicate their account/credits/SDK settings forms.
-  - Tabs: 总览 / WorkBuddy / Trae / Qoder / OpenCode / 手风琴选项. The overview
-    probes every connector and shows a status grid; per-connector tabs add
-    "重新探测", "刷新模型" and "打开原生设置" actions. The 手风琴选项 tab exposes the
-    accordion's own sort / stable-height / favorites / auto-probe options plus a
-    refresh-all button.
-  - Status probes are read-only: `GET <prefix>/usage?region=<first>&detail=fast`
-    for the three `/plugins/` connectors (loopback-guarded, 8 s timeout), and
+    was a central *control panel* that surfaced their status, model refresh
+    and a deep link to each connector's own native settings page.
+  - Tabs: 总览 / WorkBuddy / Trae / OpenCode / 手风琴选项. The overview probed
+    every connector and showed a status grid; per-connector tabs added
+    "重新探测", "刷新模型" and "打开原生设置" actions. The 手风琴选项 tab exposed
+    the accordion's own sort / stable-height / favorites / auto-probe options
+    plus a refresh-all button.
+  - Status probes were read-only: `GET <prefix>/usage?region=<first>&detail=fast`
+    for the `/plugins/` connectors (loopback-guarded, 8 s timeout), and
     `POST /api/opencode2dsh/ip-pool/status` for OpenCode. A `400`/`404`/`405`
-    or timeout shows "未知" instead of an error, so a missing connector never
-    breaks the card.
-  - `apply(ctx)` now mounts the card via `ctx.locale.register(...)` plus three
+    or timeout showed "未知" instead of an error, so a missing connector never
+    broke the card.
+  - `apply(ctx)` mounted the card via `ctx.locale.register(...)` plus three
     `ctx.slots.inject(...)` registrations (`plugins.item`, `plugins.row.config`,
-    `plugins.bundle.config`). Every step is `try`/`catch` guarded, so a host
-    without those services simply keeps working as a plain accordion. The card
-    is built with `React.createElement` (React is a platform seed), no JSX and no
-    build step.
-  - The `plugins.item` slot registration is what makes the card appear under
+    `plugins.bundle.config`). Every step was `try`/`catch` guarded, so a host
+    without those services simply kept working as a plain accordion. The card
+    was built with `React.createElement` (React is a platform seed), no JSX and
+    no build step.
+  - The `plugins.item` slot registration is what made the card appear under
     "内置插件配置" — the plugin manager builds that list purely from slot
     entries, with no settings-namespace filter. The host half (`lib/index.js`)
-    therefore stays a dependency-free no-op (no bare npm imports, no `Config`);
-    the hub's own UI prefs live in `localStorage`. Keeping the host free of bare
-    imports avoids ESM realpath resolution failures when the package is linked
-    into a profile from outside its node_modules tree.
-  - `dsh.client.inject` widened to the connector superset (locale, ui-settings,
+    therefore stayed a dependency-free no-op (no bare npm imports, no `Config`);
+    the hub's own UI prefs lived in `localStorage`.
+  - `dsh.client.inject` was widened to the connector superset (locale, ui-settings,
     ui-slots, ui-settings-plugins, ui-plugin-manager).
-  - **Fix:** the Qoder refresh target used the scoped package name
-    (`/plugins/@dmh2002/dsh-connect-qoder/models/refresh`), which always 404'd.
-    Qoder deliberately uses the unscoped row id `dsh-connect-qoder` and requires
-    `?region=`, so the built-in target is now
-    `/plugins/dsh-connect-qoder/models/refresh` with regions `cn`, `global`.
-  - Diagnostics: `window.__dshModelAccordion.hub` exposes
+  - Diagnostics: `window.__dshModelAccordion.hub` exposed
     `{ connectors(), probe(conn), openNative(pkg), state() }`.
 
 ## 0.6.0
@@ -387,10 +289,10 @@ render real data with the 5.31.2 source version; no render errors.
   lists of every installed connector plugin in parallel and forces the composer's
   model catalog to re-read, so a connector that just discovered new models shows
   them without reopening the app.
-  - Built-in targets: WorkBuddy (`cn`, `global`), Trae (`cn`, `ai`) and
-    `@dmh2002/dsh-connect-qoder`. Each is a same-origin `POST` to its
-    `/plugins/<id>/models/refresh` route. A connector that is not installed
-    answers `404`/`405` and is reported as *skipped*, not as a failure.
+  - Built-in targets: WorkBuddy (`cn`, `global`) and Trae (`cn`, `ai`). Each is a
+    same-origin `POST` to its `/plugins/<id>/models/refresh` route. A connector
+    that is not installed answers `404`/`405` and is reported as *skipped*, not
+    as a failure.
   - After the fan-out the button calls `ctx.get("modelDirectories").catalog.refresh()`
     — the browser-side path that invalidates the cached catalog (plainly closing
     and reopening the menu does **not** re-fetch, because `load()` short-circuits
@@ -413,8 +315,8 @@ render real data with the 5.31.2 source version; no render errors.
     `latestDiscovery` pool, so its new models appear immediately. WorkBuddy's
     host-side catalog only changes after that connector commits a settings save —
     a browser plugin cannot force that republish. The button does the
-    browser-reachable maximum: warm every connector's upstream data and force the
-    composer to re-read its catalog.
+    browser-reachable maximum: warm every connector's upstream data and force
+    the composer to re-read its catalog.
 
 ## 0.5.2
 
@@ -439,7 +341,7 @@ render real data with the 5.31.2 source version; no render errors.
 ## 0.5.1
 
 - A favorite no longer disappears from the menu when its connector's rate chip
-  changes. Connector plugins (WorkBuddy, Trae, Qoder) render the model label as
+  changes. Connector plugins (WorkBuddy, Trae) render the model label as
   `<name><rate chip>`, and re-render that chip whenever a promotion starts or
   ends or the usage snapshot refreshes — so the same row's text is
   `DeepSeek-V4.1-Flash` at one moment and `DeepSeek-V4.1-Flash · x0.00` at the

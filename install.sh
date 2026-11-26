@@ -6,15 +6,15 @@
 # The desktop profile is owned by the Electron app, so `dsh plugin add` refuses;
 # this script links the package into the profile and wires the patch entries.
 #
-# Since 0.8.0 the four connector hosts (WorkBuddy / Trae / Qoder / OpenCode) are
+# Since 0.8.0 the three connector hosts (WorkBuddy / Trae / OpenCode) are
 # vendored inside this package. The script therefore also:
 #   * creates a small node_modules shim so the vendored hosts' bare imports
 #     (schemastery, pi-ai, dsh-llm, undici, ...) resolve from the workspace real
 #     path — these all come from DSH's own install / profile node_modules, so they
 #     survive `pnpm remove` of the original connector npm packages;
-#   * inserts four loader rows pointing at the vendored host entry files, plus
+#   * inserts three loader rows pointing at the vendored host entry files, plus
 #     the accordion's own row, into cordis.patch.yml;
-#   * removes the two standalone connector bundles from dsh.profile.bundles so
+#   * removes the standalone connector bundles from dsh.profile.bundles so
 #     the client graph does not see the same package name from two sources
 #     (their dependencies stay, so the GUI still lists them as uninstallable).
 #
@@ -44,7 +44,7 @@ echo "linked $link -> $here"
 # ---------------------------------------------------------------------------
 # 2. Build the workspace node_modules shim for the vendored hosts' bare imports.
 #    Targets are DSH-owned dependency trees, never the connector packages, so
-#    uninstalling the four original plugins cannot remove them.
+#    uninstalling the original plugins cannot remove them.
 # ---------------------------------------------------------------------------
 stable_root="$(dirname "$dir")/node_modules"          # ~/.dsh/profiles/node_modules (global-backed)
 [ -d "$stable_root/@deepseek-ai/dsh-llm" ] || stable_root="$dir/node_modules"
@@ -108,8 +108,6 @@ if (existsSync(manifestPath)) {
     const drop = new Set([
       "dsh-connect-workbuddy",
       "dsh-connect-trae",
-      "dsh-connect-qoder",
-      "@dmh2002/dsh-connect-qoder",
       "@opencode2dsh/dsh-plugin",
       "dsh-opencode-go",
     ]);
@@ -135,14 +133,14 @@ if (!text.includes(MARKER)) {
   // applyEntryPatches skip that row (name no longer matches the file: URL), and
   // `disabled: true` rows would switch our new entries off. Drop both.
   text = text.replace(/^[ \t]*name:[ \t]*(dsh-connect-workbuddy|dsh-connect-trae)[ \t]*\r?\n/gm, "");
-  text = text.replace(/^- id: (dsh-connect-trae|dsh-connect-qoder)\r?\n[ \t]+disabled: true\r?\n?/gm, "");
+  text = text.replace(/^- id: dsh-connect-trae\r?\n[ \t]+disabled: true\r?\n?/gm, "");
 
   const f = (k) => "file://" + join(here, "vendored", k, "lib", "index.js");
   // A 0.7.0 install already has its own accordion `- insert:` row further down;
   // only add one here for a fresh install, so the two never duplicate the id.
   const hasAccordion = /^[ \t]*- id: dsh-model-accordion\b/m.test(text);
   const block = [
-    MARKER + ". The four connector hosts are vendored inside",
+    MARKER + ". The three connector hosts are vendored inside",
     "# dsh-model-accordion, so models, login state and settings keep working",
     "# after the original npm packages are uninstalled. Entry ids are unchanged:",
     "# they are the settings namespace, the /plugins/<id>/... route prefix and",
@@ -156,8 +154,6 @@ if (!text.includes(MARKER)) {
     "      name: " + f("workbuddy"),
     "    - id: dsh-connect-trae",
     "      name: " + f("trae"),
-    "    - id: dsh-connect-qoder",
-    "      name: " + f("qoder"),
     "    - id: opencode2dsh",
     "      name: " + f("opencode"),
     "",
@@ -173,6 +169,37 @@ if (!text.includes(MARKER)) {
   console.log("wired the self-contained connector rows into " + patchPath);
 } else {
   console.log("patch already carries the self-contained connector rows; nothing to do");
+}
+
+// 3b-2. Migration (0.11.0): remove any Qoder host row left in an existing patch.
+//       Qoder is no longer vendored here; a stale `file:` row would point at a
+//       deleted path and fail to load. Runs unconditionally so an old install
+//       (where MARKER already exists) is repaired too. Idempotent.
+{
+  const p = existsSync(patchPath) ? readFileSync(patchPath, "utf8") : "[]\n";
+  const lines = p.split("\n");
+  const out = [];
+  let removed = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    // Top-level config-override row: `- id: dsh-connect-qoder` plus its indented body.
+    if (/^-\s*id:\s*dsh-connect-qoder\s*$/.test(l)) {
+      removed++;
+      while (i + 1 < lines.length && /^[ \t]/.test(lines[i + 1]) && lines[i + 1].trim() !== "") i++;
+      continue;
+    }
+    // Nested insert row inside our `- insert:` block: 4-space `- id:` + its `name:`.
+    if (/^[ \t]{4}-\s*id:\s*dsh-connect-qoder\s*$/.test(l)) {
+      removed++;
+      if (i + 1 < lines.length && /^[ \t]{6}name:/.test(lines[i + 1])) i++;
+      continue;
+    }
+    out.push(l);
+  }
+  if (removed > 0) {
+    writeFileSync(patchPath, out.join("\n"));
+    console.log("removed " + removed + " stale Qoder host row(s) from " + patchPath);
+  }
 }
 
 // 3c. Vendor `dsh-opencode-go` (since 0.9.2).
@@ -252,6 +279,6 @@ rm -f "$tmp"
 echo
 echo "Done. You MUST fully quit and reopen DeepSeek Harness now (a web GUI reload"
 echo "is NOT enough): profile package.json / linked roots changed at startup."
-echo "After restart:\n  * 插件 → 内置插件配置 → 模型连接器中心 (6 tabs) works;"
-echo "  * WorkBuddy / Trae / Qoder / OpenCode models, login and settings work even"
-echo "    after you uninstall the four original connector plugins in the GUI."
+echo "After restart:\n  * the model-menu accordion (favorites / sorting / search / refresh) works;"
+echo "  * WorkBuddy / Trae / OpenCode models, login and settings work even"
+echo "    after you uninstall the original connector plugins in the GUI."
